@@ -367,7 +367,7 @@ a {
 .results {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.4rem;
   margin-top: 0.5rem;
 }
 .count {
@@ -435,6 +435,101 @@ a {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.55rem;
+}
+
+/* ---- compact destination rows ---- */
+.group-card {
+  padding: 0.3rem 0.4rem 0.3rem 0.45rem;
+}
+.dest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.star {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.star:hover {
+  color: #b45309;
+  background: var(--surface-2);
+}
+.star.is-fav {
+  color: #b45309;
+}
+.dest-main {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.32rem 0.25rem;
+  border-radius: 7px;
+  color: var(--text);
+  min-width: 0;
+}
+.dest-main:hover {
+  background: var(--surface-2);
+}
+.dest-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dest-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.iconlink {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--faint);
+  text-decoration: none;
+}
+.iconlink:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.dest-details {
+  margin: 0 0 0.15rem 2rem;
+}
+.dest-summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 0.1rem 0 0.25rem;
+}
+.dest-summary::before {
+  content: "▸ ";
+  color: var(--faint);
+}
+.dest-details[open] .dest-summary::before {
+  content: "▾ ";
+}
+.dest-trains .train-row {
+  padding: 0.28rem 0;
 }
 
 /* ---- chips ---- */
@@ -621,7 +716,7 @@ a {
   margin-bottom: 0.5rem;
 }
 .map {
-  height: 360px;
+  height: 300px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   overflow: hidden;
