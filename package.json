@@ -11,14 +11,17 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fetch-data": "tsx scripts/fetch-data.ts"
+    "fetch-data": "tsx scripts/fetch-data.ts",
+    "screenshot": "node scripts/screenshot.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4"
   },
   "devDependencies": {
+    "@sparticuz/chromium": "^149.0.0",
     "@types/leaflet": "^1.9.12",
     "jsdom": "^25.0.1",
+    "puppeteer-core": "^25.2.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vite": "^6.0.3",
