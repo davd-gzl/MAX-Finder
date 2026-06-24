@@ -4,9 +4,14 @@ A free, open-source, **serverless** finder for trains where a **MAX JEUNE** / **
 (ex-TGVmax) seat is currently reservable — so you don't have to probe station-by-station in
 SNCF Connect.
 
-> Inspired by [trainquille.fr](https://trainquille.fr/). This is an independent FOSS
-> reimplementation. Not affiliated with SNCF. Not a ticket seller. Availability is
-> indicative and refreshed daily from public open data.
+> An independent, open-source tool — not affiliated with SNCF, not a ticket seller.
+> Availability is indicative and refreshed daily from public open data.
+
+## Screenshots
+
+| Where can I go? (origin → destinations + map) | Exact trip (direct + connections + calendar) |
+| --- | --- |
+| ![Origin search](docs/screenshots/from.png) | ![Trip search](docs/screenshots/trip.png) |
 
 ## Why
 

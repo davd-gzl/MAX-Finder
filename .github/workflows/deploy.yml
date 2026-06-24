@@ -6,10 +6,11 @@ on:
       - main
       - claude/great-lamport-f2n77n
   workflow_dispatch:
-  # Rebuild daily ~30 min after the data refresh so the deployed snapshot stays
+  # Rebuild ~30 min after each data refresh so the deployed snapshot stays
   # current even though bot pushes don't re-trigger workflows.
   schedule:
-    - cron: "30 6 * * *"
+    - cron: "30 13 * * *"
+    - cron: "30 17 * * *"
 
 permissions:
   contents: read
