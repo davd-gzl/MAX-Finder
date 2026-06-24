@@ -17,7 +17,7 @@ SNCF Connect.
 
 The hard part — *which trains actually have a free MAX seat* — is published by SNCF as
 open data (the [`tgvmax` dataset](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/)).
-This app is a nice, fast frontend over that dataset. No backend, no accounts, no cost.
+This app is a frontend over that dataset. No backend, no accounts, no cost.
 
 ## Features
 
