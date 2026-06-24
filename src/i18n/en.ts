@@ -51,6 +51,9 @@ export const en: Dict = {
 
   cal_title: "30-day availability",
   cal_legend: "green = MAX seat available",
+  cal_available: "available",
+  cal_unavailable: "unavailable",
+  link_newtab: "(opens in new tab)",
 
   rt_title: "Round trips",
   rt_stay: "{dur} on site",

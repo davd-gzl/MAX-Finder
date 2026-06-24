@@ -49,6 +49,9 @@ export const fr = {
 
   cal_title: "Disponibilité sur 30 jours",
   cal_legend: "vert = place MAX dispo",
+  cal_available: "disponible",
+  cal_unavailable: "indisponible",
+  link_newtab: "(nouvel onglet)",
 
   rt_title: "Allers-retours",
   rt_stay: "{dur} sur place",

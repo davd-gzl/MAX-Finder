@@ -12,12 +12,18 @@ function stamp(date: string, minutesFromMidnight: number): string {
 }
 
 function escapeIcs(s: string): string {
-  return s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  // Escape ICS special chars and neutralize CR/LF so dataset strings can't
+  // inject extra property lines (RFC 5545 line folding / injection).
+  return s.replace(/([,;\\])/g, "\\$1").replace(/\r\n|\r|\n/g, "\\n");
+}
+
+function safeId(s: string): string {
+  return s.replace(/[^a-zA-Z0-9-]/g, "");
 }
 
 /** Build a minimal VEVENT (floating local time) for a journey. */
 export function journeyToIcs(j: Journey, summary: string, description = ""): string {
-  const uid = `${j.date}-${j.legs.map((l) => l.trainNo).join("-")}@maxjeune-foss`;
+  const uid = `${j.date}-${j.legs.map((l) => safeId(l.trainNo)).join("-")}@maxjeune-foss`;
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

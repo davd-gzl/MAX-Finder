@@ -46,6 +46,17 @@
 * {
   box-sizing: border-box;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 html,
 body {
   margin: 0;
@@ -140,6 +151,7 @@ a {
 }
 .mode-tabs {
   display: inline-flex;
+  flex-wrap: wrap;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -173,8 +185,9 @@ a {
 }
 .field-label {
   font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
+  font-weight: 700;
+  color: var(--text);
+  opacity: 0.82;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }

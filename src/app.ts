@@ -112,7 +112,8 @@ function ctx(): RenderCtx {
     },
     onIcs: (j) => {
       const summary = `MAX ${deps.registry.label(j.origin)} → ${deps.registry.label(j.destination)}`;
-      downloadText(`max-${j.date}-${j.legs.map((l) => l.trainNo).join("-")}.ics`, journeyToIcs(j, summary));
+      const slug = j.legs.map((l) => l.trainNo.replace(/[^a-zA-Z0-9-]/g, "")).join("-");
+      downloadText(`max-${j.date}-${slug}.ics`, journeyToIcs(j, summary));
     },
     isFavorite: (route) => store.isFavorite(route),
     onToggleFavorite: (route) => {
@@ -139,7 +140,7 @@ function syncFormFromQuery(): void {
 }
 
 function readQueryFromForm(): SearchQuery {
-  const maxDur = refs.maxDuration.value.trim();
+  const maxDur = Number(refs.maxDuration.value.trim());
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -148,7 +149,7 @@ function readQueryFromForm(): SearchQuery {
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
     departBefore: refs.departBefore.value || undefined,
-    maxDurationMin: maxDur ? Number(maxDur) : undefined,
+    maxDurationMin: Number.isFinite(maxDur) && maxDur > 0 ? maxDur : undefined,
     trainType: refs.trainType.value || undefined,
     allowConnections: refs.allowConnections.checked,
   };
@@ -159,6 +160,8 @@ function applyAndRun(): void {
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
   runSearch();
+  // Move focus to the results heading so screen-reader users hear the new context.
+  refs.title.focus();
 }
 
 // --- search execution -------------------------------------------------------
@@ -310,7 +313,7 @@ function setActiveTab(mode: SearchQuery["mode"]): void {
   for (const btn of Array.from(refs.modeTabs.children)) {
     const active = (btn as HTMLElement).dataset.mode === mode;
     btn.classList.toggle("active", active);
-    btn.setAttribute("aria-selected", String(active));
+    btn.setAttribute("aria-pressed", String(active));
   }
 }
 
@@ -360,7 +363,12 @@ function buildLayout(root: HTMLElement): void {
   // form
   const built = buildForm();
   // results + map
-  const title = el("h2", { class: "results-title", id: "results-title", text: t("tagline") });
+  const title = el("h2", {
+    class: "results-title",
+    id: "results-title",
+    text: t("tagline"),
+    attrs: { tabindex: "-1" },
+  });
   const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
   const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
 
@@ -415,14 +423,13 @@ function buildForm(): FormBuild {
   const stationList = el("datalist", { id: "station-list" });
   for (const s of deps.registry.all()) stationList.append(el("option", { value: s.label }));
 
-  const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "tablist" } });
+  const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
   for (const m of ["from", "to", "od"] as const) {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
       text: t(`mode_${m}` as const),
       dataset: { mode: m },
-      attrs: { role: "tab" },
       on: {
         click: () => {
           query = { ...readQueryFromForm(), mode: m };
@@ -434,17 +441,17 @@ function buildForm(): FormBuild {
     modeTabs.append(btn);
   }
 
-  const origin = inputEl("text", t("field_origin"), "station-list");
-  const destination = inputEl("text", t("field_destination"), "station-list");
-  const date = inputEl("date", t("field_date"));
-  const returnDate = inputEl("date", t("field_return"));
+  const origin = inputEl("text", "station-list");
+  const destination = inputEl("text", "station-list");
+  const date = inputEl("date");
+  const returnDate = inputEl("date");
   const card = el("select", { class: "input" }, [
     optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
     optionEl("senior", t("card_senior"), settings.card === "senior"),
   ]) as HTMLSelectElement;
-  const departAfter = inputEl("time", t("field_departAfter"));
-  const departBefore = inputEl("time", t("field_departBefore"));
-  const maxDuration = inputEl("number", t("field_maxDuration"));
+  const departAfter = inputEl("time");
+  const departBefore = inputEl("time");
+  const maxDuration = inputEl("number");
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
@@ -548,8 +555,9 @@ function renderFavorites(): void {
 
 // --- small DOM helpers ------------------------------------------------------
 
-function inputEl(type: string, label: string, list?: string): HTMLInputElement {
-  const i = el("input", { class: "input", type, attrs: { "aria-label": label } }) as HTMLInputElement;
+function inputEl(type: string, list?: string): HTMLInputElement {
+  // Accessible name comes from the wrapping <label> built by field().
+  const i = el("input", { class: "input", type }) as HTMLInputElement;
   if (list) i.setAttribute("list", list);
   return i;
 }
