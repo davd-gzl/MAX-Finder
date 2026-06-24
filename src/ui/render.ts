@@ -34,11 +34,7 @@ const I = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 };
 
-function maxChip(): HTMLElement {
-  return el("span", { class: "chip chip-max", text: "MAX", title: "Place MAX réservable" });
-}
-
-/** One train as a compact row. */
+/** One train as a compact row. (Every shown train is MAX-reservable by definition.) */
 export function trainRowEl(train: MaxTrain): HTMLElement {
   const time = el("span", { class: "train-time" }, [
     el("strong", { text: train.depart }),
@@ -51,7 +47,7 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
     el("span", { class: "train-no", text: t("lbl_train", { no: train.trainNo }) }),
     ...(train.axe ? [el("span", { class: "train-axe", text: train.axe })] : []),
   ]);
-  return el("div", { class: "train-row" }, [time, meta, maxChip()]);
+  return el("div", { class: "train-row" }, [time, meta]);
 }
 
 function bookLink(ctx: RenderCtx, origin: string, destination: string, date: string): HTMLElement {
@@ -131,16 +127,14 @@ export function groupCardEl(
   const destination = mode === "from" ? group.station : anchor;
   const route: RoutePair = { origin, destination };
 
+  const favLabel = (): string => (ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"));
   const star = el(
     "button",
     {
-      class: `star ${ctx.isFavorite(route) ? "is-fav" : ""}`,
+      class: ctx.isFavorite(route) ? "star is-fav" : "star",
       type: "button",
-      title: ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
-      attrs: {
-        "aria-pressed": String(ctx.isFavorite(route)),
-        "aria-label": ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
-      },
+      title: favLabel(),
+      attrs: { "aria-pressed": String(ctx.isFavorite(route)), "aria-label": favLabel() },
       on: {
         click: (e) => {
           ctx.onToggleFavorite(route);
@@ -148,50 +142,65 @@ export function groupCardEl(
           const now = ctx.isFavorite(route);
           b.classList.toggle("is-fav", now);
           b.setAttribute("aria-pressed", String(now));
-          b.title = now ? t("act_fav_remove") : t("act_fav_add");
+          const lbl = now ? t("act_fav_remove") : t("act_fav_add");
+          b.setAttribute("aria-label", lbl);
+          b.title = lbl;
         },
       },
     },
     [icon(I.star)],
   );
 
+  // Expandable panel: trains + a calendar drill-down and the booking handoff.
+  const panel = el("div", { class: "dest-panel", attrs: { hidden: "" } }, [
+    el("div", { class: "dest-trains" }, group.trains.map((tr) => trainRowEl(tr))),
+    el("div", { class: "dest-links" }, [
+      el(
+        "button",
+        { class: "linklike", type: "button", on: { click: () => ctx.onOpenRoute(origin, destination) } },
+        [el("span", { text: t("act_calendar") }), icon(I.cal)],
+      ),
+      el(
+        "a",
+        {
+          class: "linklike",
+          href: ctx.bookUrl(origin, destination, ""),
+          attrs: { target: "_blank", rel: "noopener noreferrer" },
+        },
+        [el("span", { text: t("act_book") }), icon(I.external), el("span", { class: "sr-only", text: t("link_newtab") })],
+      ),
+    ]),
+  ]);
+
   const main = el(
     "button",
     {
       class: "dest-main",
       type: "button",
-      title: t("act_open"),
-      on: { click: () => ctx.onOpenRoute(origin, destination) },
+      attrs: {
+        "aria-expanded": "false",
+        "aria-label": `${ctx.label(group.station)} — ${t("badge_trains", { n: group.count })}`,
+      },
+      on: {
+        click: (e) => {
+          const open = panel.hasAttribute("hidden");
+          panel.toggleAttribute("hidden", !open);
+          (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(open));
+        },
+      },
     },
     [
       el("span", { class: "dest-name", text: ctx.label(group.station) }),
       el("span", {
         class: "dest-meta",
+        attrs: { "aria-hidden": "true" },
         text: `${t("badge_trains", { n: group.count })} · ${formatDuration(group.minDurationMin)}`,
       }),
+      el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
 
-  const book = el(
-    "a",
-    {
-      class: "iconlink",
-      href: ctx.bookUrl(origin, destination, ""),
-      title: t("act_book"),
-      attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": t("act_book") },
-    },
-    [icon(I.external)],
-  );
-
-  const details = el("details", { class: "dest-details" }, [
-    el("summary", { class: "dest-summary", text: t("act_details") }),
-    el("div", { class: "dest-trains" }, group.trains.map((tr) => trainRowEl(tr))),
-  ]);
-
-  return el("article", { class: "group-card" }, [
-    el("div", { class: "dest-row" }, [star, main, book]),
-    details,
-  ]);
+  return el("article", { class: "group-card" }, [el("div", { class: "dest-row" }, [star, main]), panel]);
 }
 
 /** The 30-day availability strip for a route. */

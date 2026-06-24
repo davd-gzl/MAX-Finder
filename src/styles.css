@@ -345,11 +345,6 @@ a {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.iconbtn.is-fav {
-  color: #b45309;
-  border-color: color-mix(in srgb, #b45309 35%, var(--border));
-  background: color-mix(in srgb, #b45309 8%, var(--surface));
-}
 .icon {
   display: inline-flex;
   align-items: center;
@@ -396,39 +391,6 @@ a {
 .group-card:hover,
 .journey:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow);
-}
-.group-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-.group-title {
-  font-size: 1.04rem;
-  font-weight: 620;
-}
-.group-badges {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  margin-top: 0.35rem;
-}
-.group-details {
-  margin: 0.6rem 0;
-}
-.group-details summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 0.85rem;
-  list-style: none;
-}
-.group-details summary::before {
-  content: "▸ ";
-  color: var(--faint);
-}
-.group-details[open] summary::before {
-  content: "▾ ";
 }
 .actions {
   display: flex;
@@ -439,44 +401,44 @@ a {
 
 /* ---- compact destination rows ---- */
 .group-card {
-  padding: 0.3rem 0.4rem 0.3rem 0.45rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.45rem;
 }
 .dest-row {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
 }
 .star {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border: 0;
   background: transparent;
   color: var(--faint);
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .star:hover {
-  color: #b45309;
+  color: var(--accent);
   background: var(--surface-2);
 }
 .star.is-fav {
-  color: #b45309;
+  color: var(--accent);
 }
 .dest-main {
   flex: 1;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.55rem;
   border: 0;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  padding: 0.32rem 0.25rem;
-  border-radius: 7px;
+  padding: 0.42rem 0.3rem;
+  border-radius: 8px;
   color: var(--text);
   min-width: 0;
 }
@@ -496,40 +458,51 @@ a {
   font-variant-numeric: tabular-nums;
   flex: none;
 }
-.iconlink {
-  flex: none;
-  width: 30px;
-  height: 30px;
+.chev {
+  margin-left: auto;
+  color: var(--faint);
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 7px;
-  color: var(--faint);
-  text-decoration: none;
+  transition: transform 0.15s ease;
 }
-.iconlink:hover {
-  color: var(--text);
-  background: var(--surface-2);
+.dest-main[aria-expanded="true"] .chev {
+  transform: rotate(90deg);
 }
-.dest-details {
-  margin: 0 0 0.15rem 2rem;
+.dest-panel[hidden] {
+  display: none;
 }
-.dest-summary {
-  cursor: pointer;
-  list-style: none;
-  color: var(--muted);
-  font-size: 0.8rem;
-  padding: 0.1rem 0 0.25rem;
-}
-.dest-summary::before {
-  content: "▸ ";
-  color: var(--faint);
-}
-.dest-details[open] .dest-summary::before {
-  content: "▾ ";
+.dest-panel {
+  padding: 0.05rem 0 0.4rem 2.15rem;
 }
 .dest-trains .train-row {
   padding: 0.28rem 0;
+}
+.dest-links {
+  display: flex;
+  gap: 1.1rem;
+  margin-top: 0.4rem;
+}
+.linklike {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 560;
+  text-decoration: none;
+}
+.linklike:hover {
+  text-decoration: underline;
+}
+.star:focus-visible,
+.dest-main:focus-visible,
+.linklike:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 8px;
 }
 
 /* ---- chips ---- */
@@ -544,12 +517,6 @@ a {
   font-size: 0.76rem;
   font-weight: 560;
   color: var(--muted);
-}
-.chip-max {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: transparent;
-  font-weight: 620;
 }
 .chip-direct {
   background: var(--accent-soft);
@@ -574,7 +541,7 @@ a {
   padding: 0.38rem 0;
   border-top: 1px solid var(--border);
 }
-.group-details .train-row:first-of-type {
+.dest-trains .train-row:first-of-type {
   border-top: 0;
 }
 .train-time {
@@ -665,7 +632,7 @@ a {
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface-2);
-  color: var(--faint);
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 560;
   font-variant-numeric: tabular-nums;

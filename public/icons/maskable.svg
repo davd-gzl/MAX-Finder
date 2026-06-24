@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Full bleed background (maskable — safe zone is inner ~400px circle) -->
-  <rect width="512" height="512" fill="#1d4ed8"/>
+  <rect width="512" height="512" fill="#0f7a52"/>
 
   <!-- Slightly lighter inner badge to give depth -->
   <rect x="32" y="32" width="448" height="448" rx="80" ry="80" fill="#1e40af"/>
@@ -22,7 +22,7 @@
   <path d="M408 232 L448 286 L408 340" fill="#e2e8f0"/>
 
   <!-- Cockpit window -->
-  <path d="M410 252 L438 286 L410 320" fill="#1d4ed8" opacity="0.9"/>
+  <path d="M410 252 L438 286 L410 320" fill="#0f7a52" opacity="0.9"/>
 
   <!-- Passenger windows -->
   <rect x="126" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
@@ -32,13 +32,13 @@
   <rect x="350" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
 
   <!-- Blue stripe -->
-  <rect x="108" y="300" width="300" height="12" fill="#1d4ed8" opacity="0.6"/>
+  <rect x="108" y="300" width="300" height="12" fill="#0f7a52" opacity="0.6"/>
 
   <!-- Wheels -->
   <circle cx="168" cy="342" r="14" fill="#1e3a8a"/>
-  <circle cx="168" cy="342" r="7"  fill="#60a5fa"/>
+  <circle cx="168" cy="342" r="7"  fill="#34d399"/>
   <circle cx="316" cy="342" r="14" fill="#1e3a8a"/>
-  <circle cx="316" cy="342" r="7"  fill="#60a5fa"/>
+  <circle cx="316" cy="342" r="7"  fill="#34d399"/>
 
   <!-- Speed lines -->
   <rect x="80" y="262" width="20" height="5" rx="2.5" fill="#93c5fd" opacity="0.7"/>
