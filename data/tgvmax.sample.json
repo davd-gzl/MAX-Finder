@@ -1,0 +1,22 @@
+[
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "LYON (intramuros)", "heure_depart": "08:00", "heure_arrivee": "10:00", "train_no": "6601", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "LYON (intramuros)", "heure_depart": "14:00", "heure_arrivee": "16:00", "train_no": "6605", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "LYON (intramuros)", "heure_depart": "19:00", "heure_arrivee": "21:00", "train_no": "6609", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-26", "origine": "PARIS (intramuros)", "destination": "LYON (intramuros)", "heure_depart": "09:00", "heure_arrivee": "11:00", "train_no": "6611", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-27", "origine": "PARIS (intramuros)", "destination": "LYON (intramuros)", "heure_depart": "09:00", "heure_arrivee": "11:00", "train_no": "6621", "od_happy_card": "NON", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "MARSEILLE ST CHARLES", "heure_depart": "07:00", "heure_arrivee": "10:10", "train_no": "6101", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "MARSEILLE ST CHARLES", "heure_depart": "11:00", "heure_arrivee": "14:10", "train_no": "6105", "od_happy_card": "NON", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "LYON (intramuros)", "destination": "MARSEILLE ST CHARLES", "heure_depart": "10:40", "heure_arrivee": "12:20", "train_no": "6720", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "BORDEAUX ST JEAN", "heure_depart": "10:00", "heure_arrivee": "12:00", "train_no": "8401", "od_happy_card": "OUI", "axe": "ATLANTIQUE" },
+  { "date": "2026-06-25", "origine": "BORDEAUX ST JEAN", "destination": "TOULOUSE MATABIAU", "heure_depart": "12:40", "heure_arrivee": "14:50", "train_no": "8551", "od_happy_card": "OUI", "axe": "ATLANTIQUE" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "TOULOUSE MATABIAU", "heure_depart": "09:00", "heure_arrivee": "13:30", "train_no": "8801", "od_happy_card": "NON", "axe": "ATLANTIQUE" },
+  { "date": "2026-06-25", "origine": "LYON (intramuros)", "destination": "PARIS (intramuros)", "heure_depart": "18:00", "heure_arrivee": "20:00", "train_no": "6651", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-27", "origine": "LYON (intramuros)", "destination": "PARIS (intramuros)", "heure_depart": "18:00", "heure_arrivee": "20:00", "train_no": "6650", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-27", "origine": "MARSEILLE ST CHARLES", "destination": "PARIS (intramuros)", "heure_depart": "15:00", "heure_arrivee": "18:10", "train_no": "6150", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-26", "origine": "PARIS (intramuros)", "destination": "RENNES", "heure_depart": "08:30", "heure_arrivee": "10:00", "train_no": "8701", "od_happy_card": "OUI", "axe": "ATLANTIQUE" },
+  { "date": "2026-06-26", "origine": "PARIS (intramuros)", "destination": "NANTES", "heure_depart": "08:45", "heure_arrivee": "10:50", "train_no": "8711", "od_happy_card": "OUI", "axe": "ATLANTIQUE" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "LILLE", "heure_depart": "17:00", "heure_arrivee": "18:02", "train_no": "7201", "od_happy_card": "OUI", "axe": "NORD" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "STRASBOURG", "heure_depart": "16:00", "heure_arrivee": "17:50", "train_no": "9501", "od_happy_card": "OUI", "axe": "EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "NICE VILLE", "heure_depart": "06:00", "heure_arrivee": "12:00", "train_no": "6171", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "TOULON", "heure_depart": "23:00", "heure_arrivee": "00:50", "train_no": "6190", "od_happy_card": "OUI", "axe": "SUD EST" }
+]
