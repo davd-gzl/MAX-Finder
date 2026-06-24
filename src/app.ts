@@ -387,9 +387,13 @@ function buildLayout(root: HTMLElement): void {
     ]),
   ]);
 
+  const mapSection = el("section", { class: "map-section" }, [
+    el("h3", { text: t("map_title") }),
+    mapEl,
+  ]);
   const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [built.form, title, results, el("section", { class: "map-section" }, [el("h3", { text: t("map_title") }), mapEl])]),
-    aside,
+    el("div", { class: "main-col" }, [built.form, title, results]),
+    el("div", { class: "side-col" }, [aside, mapSection]),
   ]);
 
   root.append(header, layout, footer);
