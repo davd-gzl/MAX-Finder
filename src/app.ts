@@ -351,7 +351,11 @@ function buildLayout(root: HTMLElement): void {
 
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
-      el("span", { class: "logo", attrs: { "aria-hidden": "true" }, text: "🚆" }),
+      el("span", {
+        class: "logo",
+        attrs: { "aria-hidden": "true" },
+        html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
+      }),
       el("div", {}, [
         el("h1", { text: t("appName") }),
         el("p", { class: "tagline", text: t("tagline") }),
