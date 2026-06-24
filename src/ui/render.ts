@@ -131,19 +131,10 @@ export function groupCardEl(
   const destination = mode === "from" ? group.station : anchor;
   const route: RoutePair = { origin, destination };
 
-  const title = el("h3", { class: "group-title", text: ctx.label(group.station) });
-  const badges = el("div", { class: "group-badges" }, [
-    el("span", { class: "chip", text: t("badge_trains", { n: group.count }) }),
-    el("span", { class: "chip chip-soft" }, [
-      icon(I.clock),
-      el("span", { text: formatDuration(group.minDurationMin) }),
-    ]),
-  ]);
-
-  const favBtn = el(
+  const star = el(
     "button",
     {
-      class: `iconbtn ${ctx.isFavorite(route) ? "is-fav" : ""}`,
+      class: `star ${ctx.isFavorite(route) ? "is-fav" : ""}`,
       type: "button",
       title: ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
       attrs: {
@@ -164,26 +155,42 @@ export function groupCardEl(
     [icon(I.star)],
   );
 
-  const details = el("details", { class: "group-details" }, [
-    el("summary", { text: t("act_details") }),
-    ...group.trains.map((tr) => trainRowEl(tr)),
-  ]);
-
-  const openBtn = el(
+  const main = el(
     "button",
-    { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onOpenRoute(origin, destination) } },
-    [icon(I.cal), el("span", { text: t("act_open") })],
+    {
+      class: "dest-main",
+      type: "button",
+      title: t("act_open"),
+      on: { click: () => ctx.onOpenRoute(origin, destination) },
+    },
+    [
+      el("span", { class: "dest-name", text: ctx.label(group.station) }),
+      el("span", {
+        class: "dest-meta",
+        text: `${t("badge_trains", { n: group.count })} · ${formatDuration(group.minDurationMin)}`,
+      }),
+    ],
   );
 
-  const head = el("div", { class: "group-head" }, [
-    el("div", {}, [title, badges]),
-    favBtn,
+  const book = el(
+    "a",
+    {
+      class: "iconlink",
+      href: ctx.bookUrl(origin, destination, ""),
+      title: t("act_book"),
+      attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": t("act_book") },
+    },
+    [icon(I.external)],
+  );
+
+  const details = el("details", { class: "dest-details" }, [
+    el("summary", { class: "dest-summary", text: t("act_details") }),
+    el("div", { class: "dest-trains" }, group.trains.map((tr) => trainRowEl(tr))),
   ]);
 
   return el("article", { class: "group-card" }, [
-    head,
+    el("div", { class: "dest-row" }, [star, main, book]),
     details,
-    el("div", { class: "actions" }, [openBtn, bookLink(ctx, origin, destination, "")]),
   ]);
 }
 
