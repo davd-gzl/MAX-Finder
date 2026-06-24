@@ -1,6 +1,7 @@
 import type { RawRecord, MaxTrain, DataMeta } from "../types";
-import { DATA_URL, META_URL, SAMPLE_DATA_URL } from "../config";
+import { DATA_URL, META_URL } from "../config";
 import { parseTimeToMinutes, minutesToHHMM } from "../util/time";
+import sampleData from "../../data/tgvmax.sample.json";
 
 /** Normalize one raw SNCF record into a `MaxTrain`. Returns null if invalid. */
 export function normalizeRecord(r: RawRecord): MaxTrain | null {
@@ -51,12 +52,21 @@ async function fetchJson<T>(url: string): Promise<T> {
 export async function loadDataset(): Promise<Dataset> {
   const meta = await fetchJson<DataMeta>(META_URL).catch(() => null);
   let rows = await fetchJson<RawRecord[]>(DATA_URL).catch(() => null);
+  let usedSample = false;
   if (!rows || rows.length === 0) {
-    rows = (await fetchJson<RawRecord[]>(SAMPLE_DATA_URL).catch(() => [])) ?? [];
+    rows = sampleData as RawRecord[]; // bundled fixture: app still works offline
+    usedSample = true;
   }
-  const trains = normalizeRecords(rows ?? []);
+  const trains = normalizeRecords(rows);
   return {
     trains,
-    meta: meta ?? { updatedAt: "", source: "unknown", recordCount: trains.length },
+    meta:
+      meta ??
+      ({
+        updatedAt: "",
+        source: usedSample ? "sample" : "unknown",
+        recordCount: trains.length,
+        isSample: usedSample,
+      } as DataMeta),
   };
 }

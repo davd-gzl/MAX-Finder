@@ -1,0 +1,25 @@
+{
+  "name": "MAX JEUNE FOSS",
+  "short_name": "MAX JEUNE",
+  "description": "Trouvez des billets de train gratuits MAX JEUNE et MAX SENIOR — Find free MAX JEUNE/SENIOR train seats on SNCF routes.",
+  "start_url": "/foss-maxjeune/",
+  "scope": "/foss-maxjeune/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1d4ed8",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/foss-maxjeune/icons/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/foss-maxjeune/icons/maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
