@@ -1,0 +1,223 @@
+import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
+import type { StationGroup } from "../core/destinations";
+import type { RoundTrip } from "../types";
+import type { RoutePair } from "../state/store";
+import { el } from "./dom";
+import { formatDuration } from "../util/time";
+import { t } from "../i18n";
+
+export interface RenderCtx {
+  label: (id: string) => string;
+  formatDate: (iso: string) => string;
+  bookUrl: (origin: string, destination: string, date: string) => string;
+  onOpenRoute: (origin: string, destination: string) => void;
+  onSelectDay: (date: string) => void;
+  onIcs: (journey: Journey) => void;
+  isFavorite: (route: RoutePair) => boolean;
+  onToggleFavorite: (route: RoutePair) => void;
+}
+
+function icon(path: string): HTMLElement {
+  return el("span", {
+    class: "icon",
+    attrs: { "aria-hidden": "true" },
+    html: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`,
+  });
+}
+
+const I = {
+  train: '<rect x="4" y="3" width="16" height="13" rx="2"/><path d="M4 11h16M8 16l-2 4M16 16l2 4M8.5 8h.01M15.5 8h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  cal: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+  star: '<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.9L12 17.3 5.7 20.6l1.6-6.9L2 9.1l7-.6z"/>',
+  external: '<path d="M14 4h6v6M20 4l-9 9M19 13v6H5V5h6"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+};
+
+function maxChip(): HTMLElement {
+  return el("span", { class: "chip chip-max", text: "MAX", title: "Place MAX réservable" });
+}
+
+/** One train as a compact row. */
+export function trainRowEl(train: MaxTrain): HTMLElement {
+  const time = el("span", { class: "train-time" }, [
+    el("strong", { text: train.depart }),
+    icon(I.arrow),
+    el("strong", { text: train.arrive }),
+  ]);
+  const meta = el("span", { class: "train-meta" }, [
+    icon(I.clock),
+    el("span", { text: formatDuration(train.durationMin) }),
+    el("span", { class: "train-no", text: t("lbl_train", { no: train.trainNo }) }),
+    ...(train.axe ? [el("span", { class: "train-axe", text: train.axe })] : []),
+  ]);
+  return el("div", { class: "train-row" }, [time, meta, maxChip()]);
+}
+
+function bookLink(ctx: RenderCtx, origin: string, destination: string, date: string): HTMLElement {
+  return el(
+    "a",
+    {
+      class: "btn btn-book",
+      href: ctx.bookUrl(origin, destination, date),
+      attrs: { target: "_blank", rel: "noopener noreferrer" },
+    },
+    [el("span", { text: t("act_book") }), icon(I.external)],
+  );
+}
+
+/** A direct or connecting journey card. */
+export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
+  const legs = el("div", { class: "legs" });
+  j.legs.forEach((leg, i) => {
+    if (i > 0) {
+      legs.append(
+        el("div", { class: "layover" }, [
+          icon(I.clock),
+          el("span", {
+            text: t("lbl_connection", {
+              dur: formatDuration(j.connectionMin ?? 0),
+              hub: ctx.label(j.hub ?? leg.origin),
+            }),
+          }),
+        ]),
+      );
+    }
+    const route = el("div", { class: "leg-route" }, [
+      el("span", { text: ctx.label(leg.origin) }),
+      icon(I.arrow),
+      el("span", { text: ctx.label(leg.destination) }),
+    ]);
+    legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
+  });
+
+  const tag =
+    j.legs.length === 1
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", { class: "chip chip-via", text: t("lbl_via", { hub: ctx.label(j.hub ?? "") }) });
+
+  const head = el("div", { class: "journey-head" }, [
+    tag,
+    el("span", { class: "journey-total" }, [
+      icon(I.clock),
+      el("span", { text: formatDuration(j.totalDurationMin) }),
+    ]),
+  ]);
+
+  const actions = el("div", { class: "actions" }, [
+    bookLink(ctx, j.origin, j.destination, j.date),
+    el(
+      "button",
+      { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
+      [icon(I.cal), el("span", { text: t("act_ics") })],
+    ),
+  ]);
+
+  return el("article", { class: "journey" }, [head, legs, actions]);
+}
+
+/** A destination/origin group card (for "from"/"to" modes). */
+export function groupCardEl(
+  group: StationGroup,
+  mode: SearchMode,
+  anchor: string,
+  ctx: RenderCtx,
+): HTMLElement {
+  const origin = mode === "from" ? anchor : group.station;
+  const destination = mode === "from" ? group.station : anchor;
+  const route: RoutePair = { origin, destination };
+
+  const title = el("h3", { class: "group-title", text: ctx.label(group.station) });
+  const badges = el("div", { class: "group-badges" }, [
+    el("span", { class: "chip", text: t("badge_trains", { n: group.count }) }),
+    el("span", { class: "chip chip-soft" }, [
+      icon(I.clock),
+      el("span", { text: formatDuration(group.minDurationMin) }),
+    ]),
+  ]);
+
+  const favBtn = el(
+    "button",
+    {
+      class: `iconbtn ${ctx.isFavorite(route) ? "is-fav" : ""}`,
+      type: "button",
+      title: ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
+      attrs: { "aria-pressed": String(ctx.isFavorite(route)) },
+      on: {
+        click: (e) => {
+          ctx.onToggleFavorite(route);
+          const b = e.currentTarget as HTMLElement;
+          const now = ctx.isFavorite(route);
+          b.classList.toggle("is-fav", now);
+          b.setAttribute("aria-pressed", String(now));
+          b.title = now ? t("act_fav_remove") : t("act_fav_add");
+        },
+      },
+    },
+    [icon(I.star)],
+  );
+
+  const details = el("details", { class: "group-details" }, [
+    el("summary", { text: t("act_details") }),
+    ...group.trains.map((tr) => trainRowEl(tr)),
+  ]);
+
+  const openBtn = el(
+    "button",
+    { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onOpenRoute(origin, destination) } },
+    [icon(I.cal), el("span", { text: t("act_open") })],
+  );
+
+  const head = el("div", { class: "group-head" }, [
+    el("div", {}, [title, badges]),
+    favBtn,
+  ]);
+
+  return el("article", { class: "group-card" }, [
+    head,
+    details,
+    el("div", { class: "actions" }, [openBtn, bookLink(ctx, origin, destination, "")]),
+  ]);
+}
+
+/** The 30-day availability strip for a route. */
+export function calendarEl(days: CalendarDay[], ctx: RenderCtx): HTMLElement {
+  const grid = el("div", { class: "cal-grid" });
+  for (const d of days) {
+    const cell = el("button", {
+      class: `cal-cell ${d.available ? "ok" : "no"}`,
+      type: "button",
+      title: `${ctx.formatDate(d.date)} — ${d.available ? t("badge_trains", { n: d.count }) : "—"}`,
+      attrs: { "aria-label": `${ctx.formatDate(d.date)} ${d.available ? "available" : "unavailable"}` },
+      text: d.date.slice(8, 10),
+      on: { click: () => ctx.onSelectDay(d.date) },
+    });
+    grid.append(cell);
+  }
+  return el("section", { class: "calendar" }, [
+    el("h3", { text: t("cal_title") }),
+    grid,
+    el("p", { class: "cal-legend muted", text: t("cal_legend") }),
+  ]);
+}
+
+/** A round-trip card. */
+export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
+  const out = el("div", { class: "rt-leg" }, [
+    el("span", { class: "chip chip-soft", text: t("rt_outbound") }),
+    journeyEl(rt.outbound, ctx),
+  ]);
+  const back = el("div", { class: "rt-leg" }, [
+    el("span", { class: "chip chip-soft", text: t("rt_inbound") }),
+    journeyEl(rt.inbound, ctx),
+  ]);
+  const stay = el("p", {
+    class: "rt-stay muted",
+    text: t("rt_stay", { dur: formatDuration(rt.stayMinutes) }),
+  });
+  return el("article", { class: "roundtrip" }, [out, stay, back]);
+}
+
+export function emptyEl(message: string): HTMLElement {
+  return el("p", { class: "empty", text: message });
+}

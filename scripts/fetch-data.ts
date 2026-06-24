@@ -1,0 +1,176 @@
+/**
+ * scripts/fetch-data.ts
+ *
+ * Downloads the full SNCF tgvmax dataset via the Opendatasoft Explore API v2.1
+ * export endpoint and writes:
+ *   data/tgvmax.json  – full mapped record array (compact JSON)
+ *   data/meta.json    – freshness metadata
+ *
+ * Run via: npm run fetch-data  (tsx scripts/fetch-data.ts)
+ */
+
+// node-shims.d.ts in the same directory provides ambient declarations for
+// fs, path, and process so we can import them without @types/node.
+import * as fs from "fs";
+import * as path from "path";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface MappedRecord {
+  date: string;
+  origine: string;
+  destination: string;
+  heure_depart: string;
+  heure_arrivee: string;
+  train_no: string;
+  od_happy_card: string;
+  axe?: string;
+}
+
+interface Meta {
+  updatedAt: string;
+  source: string;
+  recordCount: number;
+  isSample: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const API_URL =
+  "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/tgvmax/exports/json";
+const TIMEOUT_MS = 60_000;
+const MAX_RETRIES = 3;
+const REPO_ROOT = process.cwd();
+const OUT_DATA = path.resolve(REPO_ROOT, "public", "data", "tgvmax.json");
+const OUT_META = path.resolve(REPO_ROOT, "public", "data", "meta.json");
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithRetry(url: string): Promise<unknown[]> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`[fetch-data] Attempt ${attempt}/${MAX_RETRIES}: GET ${url}`);
+      const response = await fetchWithTimeout(url, TIMEOUT_MS);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+
+      const data: unknown = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error(`Expected JSON array, got ${typeof data}`);
+      }
+
+      return data as unknown[];
+    } catch (err) {
+      lastError = err;
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const label = isAbort ? "timeout" : String(err);
+      console.error(`[fetch-data] Attempt ${attempt} failed: ${label}`);
+
+      if (attempt < MAX_RETRIES) {
+        const backoffMs = 2_000 * attempt; // 2s, 4s
+        console.log(`[fetch-data] Retrying in ${backoffMs / 1000}s…`);
+        await sleep(backoffMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+// ---------------------------------------------------------------------------
+// Mapping
+// ---------------------------------------------------------------------------
+
+function mapRecord(raw: Record<string, unknown>): MappedRecord {
+  const rec: MappedRecord = {
+    date: String(raw["date"] ?? ""),
+    origine: String(raw["origine"] ?? ""),
+    destination: String(raw["destination"] ?? ""),
+    heure_depart: String(raw["heure_depart"] ?? ""),
+    heure_arrivee: String(raw["heure_arrivee"] ?? ""),
+    train_no: String(raw["train_no"] ?? ""),
+    od_happy_card: String(raw["od_happy_card"] ?? ""),
+  };
+  if (raw["axe"] != null) {
+    rec.axe = String(raw["axe"]);
+  }
+  return rec;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  console.log("[fetch-data] Starting SNCF tgvmax dataset download…");
+
+  let rawArray: unknown[];
+  try {
+    rawArray = await fetchWithRetry(API_URL);
+  } catch (err) {
+    console.error("[fetch-data] All attempts failed. Not overwriting existing data.");
+    console.error(err);
+    process.exit(1);
+  }
+
+  if (rawArray.length === 0) {
+    console.error("[fetch-data] Received empty array from API. Not overwriting existing data.");
+    process.exit(1);
+  }
+
+  console.log(`[fetch-data] Downloaded ${rawArray.length} raw records. Mapping…`);
+
+  const records: MappedRecord[] = rawArray.map((item) =>
+    mapRecord(item as Record<string, unknown>)
+  );
+
+  const meta: Meta = {
+    updatedAt: new Date().toISOString(),
+    source: "SNCF Open Data — tgvmax (Licence Ouverte)",
+    recordCount: records.length,
+    isSample: false,
+  };
+
+  // Ensure data/ directory exists
+  const dataDir = path.dirname(OUT_DATA);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  fs.writeFileSync(OUT_DATA, JSON.stringify(records), "utf-8");
+  console.log(`[fetch-data] Wrote ${records.length} records → ${OUT_DATA}`);
+
+  fs.writeFileSync(OUT_META, JSON.stringify(meta, null, 2), "utf-8");
+  console.log(`[fetch-data] Wrote metadata → ${OUT_META}`);
+  console.log(`[fetch-data] Done. updatedAt=${meta.updatedAt}`);
+}
+
+main().catch((err: unknown) => {
+  console.error("[fetch-data] Unexpected error:", err);
+  process.exit(1);
+});

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full bleed background (maskable — safe zone is inner ~400px circle) -->
+  <rect width="512" height="512" fill="#1d4ed8"/>
+
+  <!-- Slightly lighter inner badge to give depth -->
+  <rect x="32" y="32" width="448" height="448" rx="80" ry="80" fill="#1e40af"/>
+
+  <!-- Track / rail lines (within safe zone, shifted inward) -->
+  <rect x="80" y="352" width="352" height="10" rx="5" fill="#93c5fd" opacity="0.5"/>
+  <rect x="80" y="374" width="352" height="10" rx="5" fill="#93c5fd" opacity="0.5"/>
+
+  <!-- Rail sleepers -->
+  <rect x="100" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+  <rect x="152" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+  <rect x="204" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+  <rect x="256" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+  <rect x="308" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+  <rect x="360" y="346" width="14" height="44" rx="3" fill="#bfdbfe" opacity="0.4"/>
+
+  <!-- TGV train body — within the maskable safe zone -->
+  <path d="M108 232 L108 340 L408 340 L448 286 L408 232 Z" fill="white"/>
+  <path d="M408 232 L448 286 L408 340" fill="#e2e8f0"/>
+
+  <!-- Cockpit window -->
+  <path d="M410 252 L438 286 L410 320" fill="#1d4ed8" opacity="0.9"/>
+
+  <!-- Passenger windows -->
+  <rect x="126" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
+  <rect x="182" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
+  <rect x="238" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
+  <rect x="294" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
+  <rect x="350" y="250" width="40" height="28" rx="5" fill="#bfdbfe"/>
+
+  <!-- Blue stripe -->
+  <rect x="108" y="300" width="300" height="12" fill="#1d4ed8" opacity="0.6"/>
+
+  <!-- Wheels -->
+  <circle cx="168" cy="342" r="14" fill="#1e3a8a"/>
+  <circle cx="168" cy="342" r="7"  fill="#60a5fa"/>
+  <circle cx="316" cy="342" r="14" fill="#1e3a8a"/>
+  <circle cx="316" cy="342" r="7"  fill="#60a5fa"/>
+
+  <!-- Speed lines -->
+  <rect x="80" y="262" width="20" height="5" rx="2.5" fill="#93c5fd" opacity="0.7"/>
+  <rect x="80" y="276" width="14" height="5" rx="2.5" fill="#93c5fd" opacity="0.5"/>
+  <rect x="80" y="290" width="24" height="5" rx="2.5" fill="#93c5fd" opacity="0.6"/>
+
+  <!-- "TGV" label on nose -->
+  <text x="390" y="292" font-family="Arial, sans-serif" font-size="20" font-weight="900"
+        fill="white" text-anchor="middle" opacity="0.85">TGV</text>
+
+  <!-- "MAX JEUNE" label at bottom for branding within safe zone -->
+  <text x="256" y="450" font-family="Arial, sans-serif" font-size="28" font-weight="700"
+        fill="white" text-anchor="middle" opacity="0.9">MAX JEUNE</text>
+</svg>

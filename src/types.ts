@@ -94,4 +94,5 @@ export interface DataMeta {
   updatedAt: string; // ISO timestamp of the last snapshot
   source: string;
   recordCount: number;
+  isSample?: boolean;
 }

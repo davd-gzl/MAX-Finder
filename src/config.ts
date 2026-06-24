@@ -28,8 +28,6 @@ const BASE = (import.meta.env?.BASE_URL ?? "/") as string;
 
 /** Base-relative data URLs (work under the GitHub Pages sub-path). */
 export const DATA_URL = `${BASE}data/tgvmax.json`;
-export const SAMPLE_DATA_URL = `${BASE}data/tgvmax.sample.json`;
 export const META_URL = `${BASE}data/meta.json`;
-export const STATIONS_URL = `${BASE}data/stations.json`;
 
 export const SNCF_CONNECT_URL = "https://www.sncf-connect.com/";
