@@ -162,9 +162,14 @@ a {
 /* ---- layout ---- */
 .layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 300px;
   gap: 1.6rem;
   align-items: start;
+}
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
 }
 @media (max-width: 860px) {
   .layout {
@@ -675,7 +680,7 @@ a {
 
 /* ---- map ---- */
 .map-section {
-  margin-top: 1.6rem;
+  margin-top: 0;
 }
 .map-section h3 {
   font-size: 0.98rem;
@@ -700,8 +705,6 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.05rem;
-  position: sticky;
-  top: 1rem;
 }
 .favorites h2 {
   font-size: 0.95rem;
