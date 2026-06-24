@@ -6,8 +6,8 @@ left for you, and the honest list of limitations + follow-ons.
 ## What it is
 
 A free, **serverless, account-free** web app that shows every train with a reservable
-**MAX JEUNE / MAX SENIOR** (ex-TGVmax) seat, from SNCF open data — a FOSS reimagining of
-trainquille.fr, with extra features. Everything runs as static files on GitHub Pages; a
+**MAX JEUNE / MAX SENIOR** (ex-TGVmax) seat, from SNCF open data — a FOSS tool with
+extra features. Everything runs as static files on GitHub Pages; a
 daily GitHub Action refreshes the data. No backend, no cost, runs indefinitely.
 
 ## Status: ✅ working, tested, pushed
