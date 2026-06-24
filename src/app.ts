@@ -270,7 +270,7 @@ function showMap(hub: string, others: string[]): void {
   requestAnimationFrame(() => map?.invalidate());
 }
 
-// --- surprise & watched -----------------------------------------------------
+// --- watched routes ---------------------------------------------------------
 
 function checkWatchedRoutes(): void {
   const watched = store.loadWatched();
@@ -510,7 +510,7 @@ function renderFavorites(): void {
   clear(refs.favList);
   const favs = store.loadFavorites();
   if (favs.length === 0) {
-    refs.favList.append(render.emptyEl(t("fav_none")));
+    refs.favList.append(el("p", { class: "muted small", text: t("fav_none") }));
     return;
   }
   for (const f of favs) {

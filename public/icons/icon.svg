@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Blue rounded-square background -->
-  <rect width="512" height="512" rx="96" ry="96" fill="#1d4ed8"/>
+  <rect width="512" height="512" rx="96" ry="96" fill="#0f7a52"/>
 
   <!-- Track / rail lines -->
   <rect x="64" y="340" width="384" height="12" rx="6" fill="#93c5fd" opacity="0.5"/>
@@ -21,7 +21,7 @@
   <path d="M420 220 L460 270 L420 320" fill="#e2e8f0"/>
 
   <!-- Cockpit window -->
-  <path d="M422 240 L450 270 L422 300" fill="#1d4ed8" opacity="0.9"/>
+  <path d="M422 240 L450 270 L422 300" fill="#0f7a52" opacity="0.9"/>
 
   <!-- Passenger windows row -->
   <rect x="116" y="238" width="44" height="32" rx="6" fill="#bfdbfe"/>
@@ -31,13 +31,13 @@
   <rect x="356" y="238" width="44" height="32" rx="6" fill="#bfdbfe"/>
 
   <!-- Blue stripe along body -->
-  <rect x="96" y="286" width="324" height="14" fill="#1d4ed8" opacity="0.6"/>
+  <rect x="96" y="286" width="324" height="14" fill="#0f7a52" opacity="0.6"/>
 
   <!-- Wheels -->
   <circle cx="160" cy="322" r="16" fill="#1e3a8a"/>
-  <circle cx="160" cy="322" r="8"  fill="#60a5fa"/>
+  <circle cx="160" cy="322" r="8"  fill="#34d399"/>
   <circle cx="320" cy="322" r="16" fill="#1e3a8a"/>
-  <circle cx="320" cy="322" r="8"  fill="#60a5fa"/>
+  <circle cx="320" cy="322" r="8"  fill="#34d399"/>
 
   <!-- Speed lines left -->
   <rect x="64" y="248" width="24" height="6" rx="3" fill="#93c5fd" opacity="0.7"/>

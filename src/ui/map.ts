@@ -39,8 +39,8 @@ export class RouteMap {
       pts.push(hubC);
       L.circleMarker(hubC, {
         radius: 8,
-        color: "#1d4ed8",
-        fillColor: "#1d4ed8",
+        color: "#0f7a52",
+        fillColor: "#0f7a52",
         fillOpacity: 1,
         weight: 2,
       })
@@ -53,12 +53,12 @@ export class RouteMap {
       if (!c) continue;
       pts.push(c);
       if (hubC) {
-        L.polyline([hubC, c], { color: "#60a5fa", weight: 1.5, opacity: 0.6 }).addTo(layer);
+        L.polyline([hubC, c], { color: "#34d399", weight: 1.5, opacity: 0.6 }).addTo(layer);
       }
       L.circleMarker(c, {
         radius: 6,
-        color: "#047857",
-        fillColor: "#10b981",
+        color: "#0f7a52",
+        fillColor: "#34d399",
         fillOpacity: 0.9,
         weight: 2,
       })
