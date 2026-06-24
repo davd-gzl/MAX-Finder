@@ -260,7 +260,7 @@ function runOdSearch(c: RenderCtx): void {
 }
 
 function showHint(input: HTMLInputElement): void {
-  refs.title.textContent = t("tagline");
+  refs.title.textContent = t("prompt_pick");
   input.focus();
 }
 
@@ -271,19 +271,6 @@ function showMap(hub: string, others: string[]): void {
 }
 
 // --- surprise & watched -----------------------------------------------------
-
-function surprise(): void {
-  const origin = resolveStation(refs.origin.value) ?? "PARIS (intramuros)";
-  const groups = reachableDestinations(deps.trains, origin, refs.date.value || query.date);
-  if (groups.length === 0) {
-    refs.title.textContent = t("surprise_none");
-    return;
-  }
-  const pick = groups[Math.floor(Math.random() * groups.length)]!;
-  query = { ...query, mode: "od", origin, destination: pick.station };
-  syncFormFromQuery();
-  applyAndRun();
-}
 
 function checkWatchedRoutes(): void {
   const watched = store.loadWatched();
@@ -479,12 +466,6 @@ function buildForm(): FormBuild {
   ]);
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
-  const surpriseBtn = el("button", {
-    class: "btn btn-ghost",
-    type: "button",
-    text: t("btn_surprise"),
-    on: { click: surprise },
-  });
 
   const form = el("form", { class: "search-form" }, [
     modeTabs,
@@ -496,7 +477,7 @@ function buildForm(): FormBuild {
       field(t("field_card"), card),
     ]),
     advanced,
-    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
+    el("div", { class: "form-actions" }, [searchBtn]),
     stationList,
   ]);
   form.addEventListener("submit", (e) => {

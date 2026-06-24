@@ -2,7 +2,8 @@ import type { Dict } from "./fr";
 
 export const en: Dict = {
   appName: "MAX JEUNE",
-  tagline: "Every reservable MAX JEUNE / SENIOR seat, at a glance.",
+  tagline: "MAX JEUNE / SENIOR seats open for reservation.",
+  prompt_pick: "Choose a departure station.",
 
   mode_from: "Where to?",
   mode_to: "Who comes here?",
@@ -30,7 +31,7 @@ export const en: Dict = {
   res_from_title: "Departing {station} — {date}",
   res_to_title: "Arriving at {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
-  res_none: "No MAX seat found. Try another date or enable connections.",
+  res_none: "No MAX seat for these criteria.",
   res_destinations: "{n} destination(s)",
   res_origins: "{n} origin(s)",
   badge_trains: "{n} train(s)",
@@ -62,7 +63,7 @@ export const en: Dict = {
   rt_none: "No MAX round trip for these dates.",
 
   fav_title: "Favorites",
-  fav_none: "No favorites yet. Add a trip to find it here.",
+  fav_none: "No favorites.",
 
   map_title: "Map",
 

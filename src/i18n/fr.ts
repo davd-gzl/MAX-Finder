@@ -1,6 +1,7 @@
 export const fr = {
   appName: "MAX JEUNE",
-  tagline: "Toutes les places MAX JEUNE / SENIOR réservables, en un coup d'œil.",
+  tagline: "Places MAX JEUNE / SENIOR ouvertes à la réservation.",
+  prompt_pick: "Choisissez une gare de départ.",
 
   mode_from: "Où partir ?",
   mode_to: "Qui vient ici ?",
@@ -28,7 +29,7 @@ export const fr = {
   res_from_title: "Au départ de {station} — {date}",
   res_to_title: "Pour arriver à {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
-  res_none: "Aucune place MAX trouvée. Essayez une autre date ou activez les correspondances.",
+  res_none: "Aucune place MAX pour ces critères.",
   res_destinations: "{n} destination(s)",
   res_origins: "{n} origine(s)",
   badge_trains: "{n} train(s)",
@@ -60,7 +61,7 @@ export const fr = {
   rt_none: "Aucun aller-retour MAX pour ces dates.",
 
   fav_title: "Favoris",
-  fav_none: "Aucun favori pour l'instant. Ajoutez un trajet pour le retrouver ici.",
+  fav_none: "Aucun favori.",
 
   map_title: "Carte",
 
