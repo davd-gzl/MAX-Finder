@@ -112,7 +112,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
 export function queryFromParams(p: URLSearchParams, fallbackDate: string): SearchQuery {
   const rawMode = p.get("mode") ?? "from";
   const mode = (["from", "to", "od"].includes(rawMode) ? rawMode : "from") as SearchMode;
-  const maxdur = p.get("maxdur");
+  const maxdur = Number(p.get("maxdur"));
   return {
     mode,
     origin: p.get("from") ?? undefined,
@@ -121,7 +121,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,
     departBefore: p.get("before") ?? undefined,
-    maxDurationMin: maxdur != null && maxdur !== "" ? Number(maxdur) : undefined,
+    maxDurationMin: Number.isFinite(maxdur) && maxdur > 0 ? maxdur : undefined,
     trainType: p.get("type") ?? undefined,
     allowConnections: p.get("nc") !== "1",
   };

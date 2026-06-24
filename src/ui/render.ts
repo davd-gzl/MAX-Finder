@@ -62,7 +62,11 @@ function bookLink(ctx: RenderCtx, origin: string, destination: string, date: str
       href: ctx.bookUrl(origin, destination, date),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
-    [el("span", { text: t("act_book") }), icon(I.external)],
+    [
+      el("span", { text: t("act_book") }),
+      icon(I.external),
+      el("span", { class: "sr-only", text: t("link_newtab") }),
+    ],
   );
 }
 
@@ -142,7 +146,10 @@ export function groupCardEl(
       class: `iconbtn ${ctx.isFavorite(route) ? "is-fav" : ""}`,
       type: "button",
       title: ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
-      attrs: { "aria-pressed": String(ctx.isFavorite(route)) },
+      attrs: {
+        "aria-pressed": String(ctx.isFavorite(route)),
+        "aria-label": ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"),
+      },
       on: {
         click: (e) => {
           ctx.onToggleFavorite(route);
@@ -188,7 +195,9 @@ export function calendarEl(days: CalendarDay[], ctx: RenderCtx): HTMLElement {
       class: `cal-cell ${d.available ? "ok" : "no"}`,
       type: "button",
       title: `${ctx.formatDate(d.date)} — ${d.available ? t("badge_trains", { n: d.count }) : "—"}`,
-      attrs: { "aria-label": `${ctx.formatDate(d.date)} ${d.available ? "available" : "unavailable"}` },
+      attrs: {
+        "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? t("cal_available") : t("cal_unavailable")}`,
+      },
       text: d.date.slice(8, 10),
       on: { click: () => ctx.onSelectDay(d.date) },
     });
