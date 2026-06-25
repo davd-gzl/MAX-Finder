@@ -98,4 +98,7 @@ export const ar: Dict = {
   act_map: "إظهار على الخريطة",
   field_overnight: "توقف ليلي",
   field_via: "عبر (اختياري)",
+  stat_window: "{trains} قطار · {days} ي",
+  act_surprise: "فاجئني",
+  stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",
 };

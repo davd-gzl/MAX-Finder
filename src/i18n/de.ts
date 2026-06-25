@@ -99,4 +99,7 @@ export const de: Dict = {
   act_map: "Auf der Karte zeigen",
   field_overnight: "Umstieg über Nacht",
   field_via: "Über (optional)",
+  stat_window: "{trains} Züge · {days} T",
+  act_surprise: "Überrasch mich",
+  stat_window_hint: "{trains} MAX-Züge zu diesem Ziel an {days} kommenden Tagen. Öffnen Sie die genaue Reise, um die Daten zu sehen.",
 };

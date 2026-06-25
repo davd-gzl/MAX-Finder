@@ -1,7 +1,7 @@
 import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
-import { reachableDestinations, reachableOrigins } from "./core/destinations";
+import { reachableDestinations, reachableOrigins, windowStats } from "./core/destinations";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
@@ -181,6 +181,8 @@ function ctx(): RenderCtx {
       query = { ...query, mode: "od", origin, destination };
       syncFormFromQuery();
       applyAndRun();
+      // One clean scroll to the new page's heading (focus uses preventScroll so
+      // this is the only scroll, not a jump-then-smooth).
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
     },
     onFocusStation: (id) => map?.focus(id),
@@ -188,10 +190,13 @@ function ctx(): RenderCtx {
       showRoute([j.origin, ...j.hubs, j.destination]);
       refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     },
+    // Picking a calendar day only changes the date: refresh in place (no spinner,
+    // no teardown flash) and keep the scroll position so the calendar appears to
+    // just move its highlight instead of vanishing and rebuilding.
     onSelectDay: (date) => {
+      if (date === query.date) return;
       query = { ...query, date };
-      syncFormFromQuery();
-      applyAndRun();
+      refreshInPlace();
     },
     onIcs: (j) => {
       const summary = `MAX ${deps.registry.label(j.origin)} → ${deps.registry.label(j.destination)}`;
@@ -258,8 +263,23 @@ function applyAndRun(): void {
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
   runSearch();
-  // Move focus to the results heading so screen-reader users hear the new context.
-  refs.title.focus();
+  // Move focus to the results heading so screen-reader users hear the new context,
+  // but don't let focus yank the scroll — callers control scrolling explicitly.
+  refs.title.focus({ preventScroll: true });
+}
+
+/**
+ * Re-render the current query in place: synchronous (no spinner flash), keeping
+ * the scroll position. Used for cheap updates like changing the calendar day,
+ * where a full teardown + spinner + scroll-to-top is jarring.
+ */
+function refreshInPlace(): void {
+  store.updateUrl(query);
+  const scrollY = window.scrollY;
+  syncFormFromQuery();
+  clear(refs.results);
+  renderSearch();
+  window.scrollTo({ top: scrollY });
 }
 
 // --- search execution -------------------------------------------------------
@@ -346,6 +366,16 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       : reachableOrigins(trains, anchor, query.date, filterOpts());
   const directStations = new Set(groups.map((g) => g.station));
 
+  // Total MAX availability over the whole booking window, per destination, so each
+  // card shows how many tickets exist before drilling into the exact-trip calendar.
+  // Rank the list by that total (most-served first) — the "statistic" view.
+  const stats = windowStats(trains, anchor, dir, filterOpts());
+  groups.sort(
+    (a, b) =>
+      (stats.get(b.station)?.trains ?? 0) - (stats.get(a.station)?.trains ?? 0) ||
+      a.station.localeCompare(b.station),
+  );
+
   // Destinations reachable only with a change (not already direct), capped so the
   // "via" list stays compact like the direct list (reachableBest is duration-sorted).
   const connecting =
@@ -365,7 +395,7 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
     return;
   }
   refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
-  for (const g of groups) refs.results.append(render.groupCardEl(g, dir, anchor, c));
+  for (const g of groups) refs.results.append(render.groupCardEl(g, dir, anchor, c, stats.get(g.station)));
   for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
   showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
 }
@@ -508,6 +538,45 @@ function goBack(): void {
   refs.title.focus(); // announce the restored context to screen readers
 }
 
+/** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
+function goHome(): void {
+  navStack = [];
+  query = { mode: "from", date: today, card: settings.card, maxConnections: 1 };
+  syncFormFromQuery();
+  applyAndRun();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/**
+ * "Surprise me": jump to a random city. If an origin is already chosen, open a
+ * random reachable destination as an exact trip; otherwise drop into "Où partir"
+ * from a random departure city.
+ */
+function surpriseMe(): void {
+  const avail = deps.trains.filter((tr) => tr.available);
+  const pick = (xs: string[]): string | undefined =>
+    xs.length ? xs[Math.floor(Math.random() * xs.length)] : undefined;
+
+  if (query.origin) {
+    const dests = [...new Set(avail.filter((tr) => tr.origin === query.origin).map((tr) => tr.destination))];
+    const dest = pick(dests);
+    if (dest) {
+      navStack.push({ ...query });
+      query = { ...query, mode: "od", destination: dest };
+      syncFormFromQuery();
+      applyAndRun();
+      refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+  }
+  const origin = pick([...new Set(avail.map((tr) => tr.origin))]);
+  if (!origin) return;
+  navStack = [];
+  query = { mode: "from", date: today, card: settings.card, maxConnections: query.maxConnections, origin };
+  syncFormFromQuery();
+  applyAndRun();
+}
+
 function ensureMap(): RouteMap {
   if (!map) {
     map = new RouteMap(refs.mapEl, deps.registry);
@@ -593,7 +662,11 @@ function buildLayout(root: HTMLElement): void {
 
   const meta = deps.meta;
   const when = meta.updatedAt
-    ? new Date(meta.updatedAt).toLocaleString(getLang(), { dateStyle: "medium", timeStyle: "short" })
+    ? new Date(meta.updatedAt).toLocaleString(getLang(), {
+        dateStyle: "medium",
+        timeStyle: "short",
+        hourCycle: "h23", // 24-hour clock — no AM/PM, the convention in France/Europe
+      })
     : "";
   const updated = when
     ? t("foot_updated", { date: when }) + (meta.isSample ? ` (${t("foot_sample")})` : "")
@@ -662,9 +735,11 @@ function buildLayout(root: HTMLElement): void {
 
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
-      el("span", {
+      el("button", {
         class: "logo",
-        attrs: { "aria-hidden": "true" },
+        type: "button",
+        attrs: { "aria-label": t("appName"), title: t("appName") },
+        on: { click: goHome },
         html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
       }),
       el("div", {}, [
@@ -830,6 +905,13 @@ function buildForm(): FormBuild {
   ]);
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
+  // A discreet, playful shortcut to a random city.
+  const surpriseBtn = el("button", {
+    class: "btn btn-ghost surprise-btn",
+    type: "button",
+    text: t("act_surprise"),
+    on: { click: surpriseMe },
+  });
 
   const howto = el("details", { class: "howto" }, [
     el("summary", { text: t("how_title") }),
@@ -867,7 +949,7 @@ function buildForm(): FormBuild {
       citiesField,
     ]),
     advanced,
-    el("div", { class: "form-actions" }, [searchBtn]),
+    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
     howto,
     stationList,
   ]);
