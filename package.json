@@ -1,5 +1,5 @@
 {
-  "name": "foss-maxjeune",
+  "name": "max-finder",
   "version": "0.1.0",
   "private": true,
   "description": "FOSS, serverless finder for free MAX JEUNE / MAX SENIOR (ex-TGVmax) seats, built on SNCF Open Data.",

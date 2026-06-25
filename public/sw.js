@@ -1,7 +1,7 @@
 /**
  * Service Worker for MAX Finder PWA
  *
- * Scope: /foss-maxjeune/ (registered from that sub-path)
+ * Scope: /MAX-Finder/ (registered from that sub-path)
  *
  * Strategies:
  *  - Navigation requests  → network-first, fallback to cached shell
@@ -12,10 +12,10 @@
 
 const CACHE_NAME = "maxjeune-v1";
 
-// Minimal app shell — paths relative to the SW's scope (/foss-maxjeune/)
+// Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.
-// We store the scope root ("/foss-maxjeune/") as the shell fallback URL.
-const SHELL_URL = self.registration.scope; // e.g. "https://host/foss-maxjeune/"
+// We store the scope root ("/MAX-Finder/") as the shell fallback URL.
+const SHELL_URL = self.registration.scope; // e.g. "https://host/MAX-Finder/"
 
 // ---------------------------------------------------------------------------
 // Install — precache the app shell

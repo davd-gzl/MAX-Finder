@@ -9,10 +9,10 @@ static JSON served over HTTPS; there is no rate limit beyond normal hosting.
 
 ## Machine-readable data
 
-- Availability snapshot (JSON array): https://davd-gzl.github.io/foss-maxjeune/data/tgvmax.json
-- Snapshot metadata: https://davd-gzl.github.io/foss-maxjeune/data/meta.json
-- Station registry (coordinates, region, aliases): https://davd-gzl.github.io/foss-maxjeune/data/stations.json
-- API manifest (schema + query params, machine-readable): https://davd-gzl.github.io/foss-maxjeune/api.json
+- Availability snapshot (JSON array): https://davd-gzl.github.io/MAX-Finder/data/tgvmax.json
+- Snapshot metadata: https://davd-gzl.github.io/MAX-Finder/data/meta.json
+- Station registry (coordinates, region, aliases): https://davd-gzl.github.io/MAX-Finder/data/stations.json
+- API manifest (schema + query params, machine-readable): https://davd-gzl.github.io/MAX-Finder/api.json
 - Upstream source (refreshed ~once a day): SNCF Open Data "tgvmax" (Licence Ouverte)
 
 ### Record shape (tgvmax.json)
@@ -37,7 +37,7 @@ Stations use SNCF labels, e.g. `"PARIS (intramuros)"`, `"LYON (intramuros)"`,
 
 ## Search / deep-link API (build a shareable URL)
 
-Base: `https://davd-gzl.github.io/foss-maxjeune/`
+Base: `https://davd-gzl.github.io/MAX-Finder/`
 Query params:
 - `mode`: `from` | `to` | `od` | `best` | `tour`
 - `from`: origin station id ; `to`: destination station id
@@ -49,9 +49,9 @@ Query params:
 
 Examples:
 - Where can I go from Paris on 2026-06-25:
-  `https://davd-gzl.github.io/foss-maxjeune/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25`
+  `https://davd-gzl.github.io/MAX-Finder/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25`
 - Paris → Toulouse incl. up to one change:
-  `https://davd-gzl.github.io/foss-maxjeune/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
+  `https://davd-gzl.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
 
 ## Disclaimer
 

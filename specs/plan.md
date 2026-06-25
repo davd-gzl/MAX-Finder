@@ -7,7 +7,7 @@ Spec-Driven Development artifact. The **how**.
 - **Leaflet** — map.
 - **Vitest + jsdom** — unit tests for pure logic and DOM-light UI helpers.
 - **GitHub Actions** — daily data snapshot + Pages deploy.
-- No runtime backend. Deployed to GitHub Pages at base path `/foss-maxjeune/`.
+- No runtime backend. Deployed to GitHub Pages at base path `/MAX-Finder/`.
 
 ## Module layout
 | Area | Files | Responsibility |

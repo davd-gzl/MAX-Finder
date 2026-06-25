@@ -1,7 +1,7 @@
 {
   "name": "MAX Finder",
   "description": "Free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat availability from SNCF open data. Static, serverless, no accounts.",
-  "homepage": "https://davd-gzl.github.io/foss-maxjeune/",
+  "homepage": "https://davd-gzl.github.io/MAX-Finder/",
   "license": "MIT",
   "dataLicense": "Licence Ouverte / Open Licence",
   "notAffiliatedWith": "SNCF",
@@ -28,7 +28,7 @@
     "axe": "string (optional line/axis)"
   },
   "search": {
-    "base": "https://davd-gzl.github.io/foss-maxjeune/",
+    "base": "https://davd-gzl.github.io/MAX-Finder/",
     "method": "GET (query string deep-link)",
     "params": {
       "mode": ["from", "to", "od", "best", "tour"],

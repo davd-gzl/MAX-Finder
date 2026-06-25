@@ -449,7 +449,7 @@ function buildLayout(root: HTMLElement): void {
     el("p", { class: "muted small" }, [
       el("a", {
         text: "GitHub",
-        href: "https://github.com/davd-gzl/foss-maxjeune",
+        href: "https://github.com/davd-gzl/MAX-Finder",
         attrs: { target: "_blank", rel: "noopener noreferrer" },
       }),
     ]),
