@@ -12,7 +12,7 @@ import { RouteMap } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
-import { t, setLang, getLang } from "./i18n";
+import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
 import { SNCF_CONNECT_URL, MAX_JEUNE_URL, MAX_SENIOR_URL } from "./config";
 import { notify } from "./pwa/register";
@@ -419,12 +419,13 @@ function buildLayout(root: HTMLElement): void {
     : t("foot_sample");
 
   // header
-  const langSel = el("select", { class: "ctl", attrs: { "aria-label": t("ctl_lang") } }, [
-    optionEl("fr", "FR", settings.lang === "fr"),
-    optionEl("en", "EN", settings.lang === "en"),
-  ]) as HTMLSelectElement;
+  const langSel = el(
+    "select",
+    { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
+    LANGS.map((l) => optionEl(l.code, l.label, settings.lang === l.code)),
+  ) as HTMLSelectElement;
   langSel.addEventListener("change", () => {
-    settings = { ...settings, lang: langSel.value === "en" ? "en" : "fr" };
+    settings = { ...settings, lang: isLang(langSel.value) ? langSel.value : "fr" };
     setLang(settings.lang);
     store.saveSettings(settings);
     rebuild();

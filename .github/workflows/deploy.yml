@@ -9,8 +9,9 @@ on:
   # Rebuild ~30 min after each data refresh so the deployed snapshot stays
   # current even though bot pushes don't re-trigger workflows.
   schedule:
+    - cron: "30 6 * * *"
     - cron: "30 13 * * *"
-    - cron: "30 17 * * *"
+    - cron: "30 19 * * *"
 
 permissions:
   contents: read

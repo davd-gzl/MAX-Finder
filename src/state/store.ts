@@ -1,5 +1,5 @@
 import type { SearchQuery, SearchMode, CardType } from "../types";
-import type { Lang } from "../i18n";
+import { isLang, detectLang, type Lang } from "../i18n";
 
 export type Theme = "light" | "dark" | "auto";
 
@@ -42,7 +42,7 @@ function writeLS(key: string, value: unknown): void {
 export function loadSettings(): Settings {
   const s = readLS<Partial<Settings>>(KEY.settings, {});
   return {
-    lang: s.lang === "en" ? "en" : "fr",
+    lang: isLang(s.lang) ? s.lang : detectLang(),
     theme: s.theme === "light" || s.theme === "dark" ? s.theme : "auto",
     card: s.card === "senior" ? "senior" : "jeune",
   };
