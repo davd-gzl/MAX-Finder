@@ -4,6 +4,10 @@ export const en: Dict = {
   appName: "MAX JEUNE",
   tagline: "MAX JEUNE / SENIOR seats open for reservation.",
   prompt_pick: "Choose a departure station.",
+  mode_best: "Ideas",
+  best_title: "Best trips from {station} — {date}",
+  field_region: "Region",
+  region_any: "All regions",
 
   mode_from: "Where to?",
   mode_to: "Who comes here?",

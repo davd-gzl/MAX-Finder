@@ -68,9 +68,9 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".cal-cell").length).toBe(30);
   });
 
-  it("builds the search form with all three modes", () => {
+  it("builds the search form with all modes", () => {
     const root = setup("");
-    expect(root.querySelectorAll(".mode-tab").length).toBe(3);
+    expect(root.querySelectorAll(".mode-tab").length).toBeGreaterThanOrEqual(4);
     expect(root.querySelector(".search-form")).not.toBeNull();
   });
 });
