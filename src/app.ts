@@ -282,6 +282,20 @@ function applyAndRun(): void {
 }
 
 /**
+ * Live form update: re-read the form and re-run, without stealing focus from the
+ * field being edited or jumping the scroll (unlike applyAndRun, which focuses the
+ * results heading). Triggered when any field is committed/cleared.
+ */
+function liveUpdate(): void {
+  navStack = [];
+  query = readQueryFromForm();
+  store.updateUrl(query);
+  settings = { ...settings, card: query.card };
+  store.saveSettings(settings);
+  runSearch();
+}
+
+/**
  * Re-render the current query in place: synchronous (no spinner flash), keeping
  * the scroll position. Used for cheap updates like changing the calendar day,
  * where a full teardown + spinner + scroll-to-top is jarring.
@@ -561,31 +575,39 @@ function goHome(): void {
 }
 
 /**
- * "Surprise me": jump to a random city. If an origin is already chosen, open a
- * random reachable destination as an exact trip; otherwise drop into "Où partir"
- * from a random departure city.
+ * "Surprise me": stay on the current page and randomize that mode's own city —
+ * a random arrival in "D'où venir", a random departure (for fresh ideas/results)
+ * in the others, and a random origin+destination in "Trajet précis". Purely
+ * random, and never the city that's already selected.
  */
 function surpriseMe(): void {
   const avail = deps.trains.filter((tr) => tr.available);
-  const pick = (xs: string[]): string | undefined =>
-    xs.length ? xs[Math.floor(Math.random() * xs.length)] : undefined;
+  const pickFrom = (xs: string[], not?: string): string | undefined => {
+    const pool = not ? xs.filter((x) => x !== not) : xs;
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
+  };
+  const origins = (): string[] => [...new Set(avail.map((t) => t.origin))];
+  const destinations = (): string[] => [...new Set(avail.map((t) => t.destination))];
 
-  if (query.origin) {
-    const dests = [...new Set(avail.filter((tr) => tr.origin === query.origin).map((tr) => tr.destination))];
-    const dest = pick(dests);
-    if (dest) {
-      navStack.push({ ...query });
-      query = { ...query, mode: "od", destination: dest };
-      syncFormFromQuery();
-      applyAndRun();
-      refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
+  if (query.mode === "to") {
+    const dest = pickFrom(destinations(), query.destination);
+    if (!dest) return;
+    query = { ...query, destination: dest };
+  } else if (query.mode === "od") {
+    const origin = pickFrom(origins(), query.origin);
+    if (!origin) return;
+    const dest = pickFrom(
+      [...new Set(avail.filter((t) => t.origin === origin).map((t) => t.destination))],
+      query.destination,
+    );
+    query = { ...query, origin, ...(dest ? { destination: dest } : {}) };
+  } else {
+    // from / best / tour: a random departure city, staying in the same mode.
+    const origin = pickFrom(origins(), query.origin);
+    if (!origin) return;
+    query = { ...query, origin };
   }
-  const origin = pick([...new Set(avail.map((tr) => tr.origin))]);
-  if (!origin) return;
   navStack = [];
-  query = { mode: "from", date: today, card: settings.card, maxConnections: query.maxConnections, origin };
   syncFormFromQuery();
   applyAndRun();
 }
@@ -1005,6 +1027,10 @@ function buildForm(): FormBuild {
     query = readQueryFromForm();
     applyAndRun();
   });
+  // Live form: react to any committed field change (incl. clearing a box) without
+  // waiting for the Search button. `change` fires on commit (blur / datalist pick /
+  // select), so it doesn't re-run on every keystroke. Keeps focus and scroll.
+  form.addEventListener("change", () => liveUpdate());
 
   return {
     form,
