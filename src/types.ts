@@ -4,7 +4,7 @@
 export type CardType = "jeune" | "senior";
 
 /** Search intent. */
-export type SearchMode = "from" | "to" | "od" | "best" | "tour" | "stats";
+export type SearchMode = "from" | "to" | "od" | "best" | "tour";
 
 /**
  * A raw record as published by the SNCF `tgvmax` Open Data dataset.

@@ -37,3 +37,33 @@ export function bestTrips(
   }
   return out.sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
 }
+
+export interface ReachTrip {
+  station: string;
+  journey: Journey;
+}
+
+/**
+ * Connection-aware reachability for the browse modes. For `dir === "from"` it
+ * finds the best journey from `anchor` to each candidate; for `"to"` it finds
+ * the best journey from each candidate into `anchor`. Unreachable candidates are
+ * dropped; results are ranked by total travel time.
+ */
+export function reachableBest(
+  trains: MaxTrain[],
+  anchor: string,
+  date: string,
+  candidates: string[],
+  opts: ConnectionOptions,
+  dir: "from" | "to",
+): ReachTrip[] {
+  const out: ReachTrip[] = [];
+  for (const station of candidates) {
+    if (station === anchor) continue;
+    const origin = dir === "from" ? anchor : station;
+    const destination = dir === "from" ? station : anchor;
+    const journey = bestJourney(trains, origin, destination, date, opts);
+    if (journey) out.push({ station, journey });
+  }
+  return out.sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
+}
