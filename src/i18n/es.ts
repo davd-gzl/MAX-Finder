@@ -82,4 +82,11 @@ export const es: Dict = {
   ctl_theme: "Tema",
   ctl_lang: "Idioma",
   loading: "Cargando…",
+
+  desc_from: "Todos los destinos con una plaza MAX gratuita desde tu estación.",
+  desc_to: "Todas las estaciones de salida con una plaza MAX gratuita hacia un destino.",
+  desc_od: "Un trayecto exacto: conexiones, disponibilidad a 30 días, idas y vueltas.",
+  desc_best: "Los destinos más rápidos accesibles desde tu estación ese día.",
+  desc_tour: "Un viaje por varias ciudades enlazando plazas MAX gratuitas entre paradas.",
+  act_guide: "Guía de viaje",
 };

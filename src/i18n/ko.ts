@@ -82,4 +82,11 @@ export const ko: Dict = {
   ctl_theme: "테마",
   ctl_lang: "언어",
   loading: "불러오는 중…",
+
+  desc_from: "출발역에서 무료 MAX 좌석으로 갈 수 있는 모든 목적지.",
+  desc_to: "목적지로 가는 무료 MAX 좌석이 있는 모든 출발역.",
+  desc_od: "정확한 노선: 환승, 30일 가용성, 왕복.",
+  desc_best: "그날 출발역에서 가장 빠르게 갈 수 있는 목적지.",
+  desc_tour: "여러 도시를 무료 MAX 좌석으로 이어 가는 여행.",
+  act_guide: "여행 가이드",
 };

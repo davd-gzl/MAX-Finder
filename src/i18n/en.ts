@@ -94,4 +94,11 @@ export const en: Dict = {
   ctl_theme: "Theme",
   ctl_lang: "Language",
   loading: "Loading…",
+
+  desc_from: "Every destination with a free MAX seat from your station.",
+  desc_to: "Every departure station with a free MAX seat to a destination.",
+  desc_od: "One exact route: connections, 30-day availability, round trips.",
+  desc_best: "The fastest destinations reachable from your station that day.",
+  desc_tour: "A multi-city trip chaining free MAX seats between stops.",
+  act_guide: "Travel guide",
 };

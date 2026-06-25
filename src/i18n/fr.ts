@@ -92,6 +92,13 @@ export const fr = {
   ctl_theme: "Thème",
   ctl_lang: "Langue",
   loading: "Chargement…",
+
+  desc_from: "Toutes les destinations avec une place MAX gratuite depuis votre gare.",
+  desc_to: "Toutes les gares de départ avec une place MAX gratuite vers une destination.",
+  desc_od: "Un trajet précis : correspondances, disponibilité sur 30 jours, allers-retours.",
+  desc_best: "Les destinations les plus rapides accessibles depuis votre gare ce jour-là.",
+  desc_tour: "Un voyage multi-villes enchaînant les places MAX gratuites entre les étapes.",
+  act_guide: "Guide de voyage",
 };
 
 export type Dict = typeof fr;

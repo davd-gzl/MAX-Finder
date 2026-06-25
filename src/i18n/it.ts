@@ -82,4 +82,11 @@ export const it: Dict = {
   ctl_theme: "Tema",
   ctl_lang: "Lingua",
   loading: "Caricamento…",
+
+  desc_from: "Tutte le destinazioni con un posto MAX gratuito dalla tua stazione.",
+  desc_to: "Tutte le stazioni di partenza con un posto MAX gratuito verso una destinazione.",
+  desc_od: "Un tragitto preciso: coincidenze, disponibilità a 30 giorni, andata e ritorno.",
+  desc_best: "Le destinazioni più rapide raggiungibili dalla tua stazione quel giorno.",
+  desc_tour: "Un viaggio in più città concatenando posti MAX gratuiti tra le tappe.",
+  act_guide: "Guida di viaggio",
 };

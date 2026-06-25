@@ -82,4 +82,11 @@ export const zh: Dict = {
   ctl_theme: "主题",
   ctl_lang: "语言",
   loading: "加载中…",
+
+  desc_from: "从你的车站出发、有免费 MAX 座位的所有目的地。",
+  desc_to: "前往某目的地、有免费 MAX 座位的所有出发车站。",
+  desc_od: "一条精确路线：换乘、30 天可用情况、往返。",
+  desc_best: "当天从你的车站出发可最快到达的目的地。",
+  desc_tour: "用免费 MAX 座位串联多座城市的行程。",
+  act_guide: "旅行指南",
 };
