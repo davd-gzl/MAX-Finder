@@ -1,4 +1,4 @@
-// Minimal ambient declarations for Node built-ins used by fetch-data.ts.
+// Minimal ambient declarations for Node built-ins used by the build scripts.
 // These substitute for @types/node which is not installed in this project.
 
 type BufferEncoding = "utf-8" | "utf8" | "ascii" | "binary" | "base64" | "hex";
@@ -7,6 +7,7 @@ declare module "fs" {
   export function existsSync(path: string): boolean;
   export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
   export function writeFileSync(file: string, data: string, encoding: BufferEncoding): void;
+  export function readFileSync(file: string, encoding: BufferEncoding): string;
 }
 
 declare module "path" {
