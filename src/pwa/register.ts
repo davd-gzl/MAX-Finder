@@ -20,11 +20,33 @@ export function registerServiceWorker(): void {
   if (!import.meta.env.PROD) return;
   if (!("serviceWorker" in navigator)) return;
 
+  // When a NEW service worker replaces an existing one, reload once so the page
+  // swaps to the freshly deployed assets. This is the recovery path for a client
+  // pinned to a stale shell/bundle (the "white page" failure mode): the new SW
+  // skipWaiting()s, claims the client, controllerchange fires, we reload.
+  // Guard on a pre-existing controller so a brand-new visit (initial claim, no
+  // stale state) doesn't reload gratuitously.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+
   window.addEventListener("load", () => {
     const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-    navigator.serviceWorker.register(swUrl).catch(() => {
-      // Fail silently — the app works without a SW.
-    });
+    // updateViaCache:"none" forces the browser to bypass its HTTP cache when
+    // checking sw.js for updates, so a new SW version is always picked up.
+    navigator.serviceWorker
+      .register(swUrl, { updateViaCache: "none" })
+      .then((reg) => {
+        // Proactively check for an updated SW on every load.
+        reg.update().catch(() => {});
+      })
+      .catch(() => {
+        // Fail silently — the app works without a SW.
+      });
   });
 }
 
