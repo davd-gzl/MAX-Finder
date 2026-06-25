@@ -113,7 +113,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
 
 export function queryFromParams(p: URLSearchParams, fallbackDate: string): SearchQuery {
   const rawMode = p.get("mode") ?? "from";
-  const mode = (["from", "to", "od", "best", "tour"].includes(rawMode) ? rawMode : "from") as SearchMode;
+  const mode = (["from", "to", "od", "best", "tour", "stats"].includes(rawMode) ? rawMode : "from") as SearchMode;
   const maxdur = Number(p.get("maxdur"));
   const connRaw = p.get("conn");
   const conn = connRaw == null ? 1 : Number(connRaw);
@@ -128,7 +128,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     departBefore: p.get("before") ?? undefined,
     maxDurationMin: Number.isFinite(maxdur) && maxdur > 0 ? maxdur : undefined,
     trainType: p.get("type") ?? undefined,
-    maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 2 ? conn : 1,
+    maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 4 ? conn : 1,
     region: p.get("rg") ?? undefined,
     cities: cities ? cities.split("~").filter(Boolean) : undefined,
   };

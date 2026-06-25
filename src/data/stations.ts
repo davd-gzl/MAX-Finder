@@ -10,6 +10,20 @@ export function normalizeText(s: string): string {
     .trim();
 }
 
+/**
+ * Tolerant match key for city resolution: accent/case-folded, hyphens → spaces,
+ * "St"/"Ste" → "Saint"/"Sainte". Lets "ST MALO", "Saint-Malo" and "SAINT MALO"
+ * all resolve to the same city.
+ */
+export function matchNorm(s: string): string {
+  return normalizeText(s)
+    .replace(/-/g, " ")
+    .replace(/\bst\b/g, "saint")
+    .replace(/\bste\b/g, "sainte")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Fallback display name for a station id not present in the registry. */
 export function prettyLabel(id: string): string {
   return id
@@ -47,7 +61,7 @@ export class StationRegistry {
     const refMap = new Map<string, CityInfo>();
     const addRef = (name: string | undefined, info: CityInfo): void => {
       if (!name) return;
-      const k = normalizeText(name);
+      const k = matchNorm(name);
       if (k && !refMap.has(k)) refMap.set(k, info);
     };
     // Seed from curated stations (authoritative coords), then the supplementary
@@ -79,7 +93,7 @@ export class StationRegistry {
 
   /** Best city reference matching a station id (whole-word, longest match). */
   private matchCity(id: string): CityInfo | undefined {
-    const n = normalizeText(id);
+    const n = matchNorm(id);
     if (!n) return undefined;
     for (const { key, info } of this.cityKeys) {
       if (n === key || n.startsWith(`${key} `) || n.endsWith(` ${key}`) || n.includes(` ${key} `)) {

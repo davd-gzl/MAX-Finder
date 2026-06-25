@@ -3,6 +3,9 @@ import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
 import { reachableDestinations, reachableOrigins } from "./core/destinations";
 import { bestTrips, stationsOnDate } from "./core/best";
+import { topDestinations, topOrigins, topRoutes } from "./core/stats";
+import { cityPhoto } from "./data/cityImage";
+import { cityPopulation } from "./data/population";
 import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
@@ -36,6 +39,7 @@ interface Refs {
   maxDuration: HTMLInputElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  originField: HTMLElement;
   destinationField: HTMLElement;
   returnField: HTMLElement;
   region: HTMLSelectElement;
@@ -156,6 +160,11 @@ function ctx(): RenderCtx {
     formatDate,
     bookUrl: () => SNCF_CONNECT_URL,
     cityInfoUrl,
+    cityImage: (id) => cityPhoto(deps.registry.city(id)),
+    cityPopulation: (id) => {
+      const n = cityPopulation(deps.registry.city(id));
+      return n == null ? null : new Intl.NumberFormat(getLang()).format(n);
+    },
     onOpenRoute: (origin, destination) => {
       query = { ...query, mode: "od", origin, destination };
       syncFormFromQuery();
@@ -305,9 +314,49 @@ function renderSearch(): void {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
+  } else if (query.mode === "stats") {
+    runStatsSearch(c);
   } else {
     runOdSearch(c);
   }
+}
+
+function runStatsSearch(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  refs.title.textContent = `${t("mode_stats")} — ${formatDate(query.date)}`;
+  const dests = topDestinations(trains, query.date);
+  if (dests.length === 0) {
+    refs.results.append(render.emptyEl(t("res_none")));
+    showMap("", []);
+    return;
+  }
+  const withPop = (s: string): string | null => c.cityPopulation(s);
+  refs.results.append(
+    render.statListEl(
+      t("stats_top_dest"),
+      dests.map((d) => ({ label: registry.label(d.station), count: d.count, sub: withPop(d.station) })),
+    ),
+  );
+  refs.results.append(
+    render.statListEl(
+      t("stats_top_origin"),
+      topOrigins(trains, query.date).map((o) => ({
+        label: registry.label(o.station),
+        count: o.count,
+        sub: withPop(o.station),
+      })),
+    ),
+  );
+  refs.results.append(
+    render.statListEl(
+      t("stats_top_route"),
+      topRoutes(trains, query.date).map((r) => ({
+        label: `${registry.label(r.origin)} → ${registry.label(r.destination)}`,
+        count: r.count,
+      })),
+    ),
+  );
+  showMap("", dests.map((d) => d.station));
 }
 
 function runTourSearch(c: RenderCtx): void {
@@ -368,6 +417,7 @@ function runOdSearch(c: RenderCtx): void {
     destination: registry.label(query.destination),
     date: formatDate(query.date),
   });
+  refs.results.append(render.cityPhotoEl(c, query.destination));
   refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
   const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
     ...filterOpts(),
@@ -480,6 +530,8 @@ function setActiveTab(mode: SearchQuery["mode"]): void {
 }
 
 function updateFieldVisibility(): void {
+  const stats = query.mode === "stats";
+  refs.originField.style.display = stats ? "none" : "";
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
@@ -551,6 +603,14 @@ function buildLayout(root: HTMLElement): void {
   });
   installBtnEl = installBtn;
 
+  // GitHub link with a star, to invite stars on the repo.
+  const ghLink = el("a", {
+    class: "ctl gh-link",
+    html: `<span aria-hidden="true">★</span> GitHub`,
+    href: "https://github.com/davd-gzl/MAX-Finder",
+    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub" },
+  });
+
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
       el("span", {
@@ -567,7 +627,7 @@ function buildLayout(root: HTMLElement): void {
         ]),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [cardSel, langSel, themeBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, themeBtn, installBtn]),
   ]);
 
   // form
@@ -634,7 +694,7 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  for (const m of ["from", "to", "od", "best", "tour"] as const) {
+  for (const m of ["from", "to", "od", "best", "tour", "stats"] as const) {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
@@ -667,6 +727,8 @@ function buildForm(): FormBuild {
     optionEl("0", t("conn_0"), false),
     optionEl("1", t("conn_1"), true),
     optionEl("2", t("conn_2"), false),
+    optionEl("3", t("conn_3"), false),
+    optionEl("4", t("conn_max"), false),
   ]) as HTMLSelectElement;
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
@@ -756,6 +818,7 @@ function buildForm(): FormBuild {
       maxDuration,
       trainType,
       maxConnections,
+      originField,
       destinationField,
       returnField,
       region,

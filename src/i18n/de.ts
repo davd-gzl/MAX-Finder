@@ -92,4 +92,14 @@ export const de: Dict = {
   act_install: "App installieren",
   data_why:
     "Die offenen SNCF-Daten (tgvmax) werden nur einmal täglich veröffentlicht, gegen Mittag. Häufigeres Aktualisieren würde identische Daten erneut laden. Buchungen erfolgen in Echtzeit auf SNCF Connect.",
+  tag_popular: "Beliebt",
+  mode_stats: "Statistik",
+  desc_stats: "Die Bahnhöfe und Strecken mit den meisten kostenlosen MAX-Plätzen an diesem Tag.",
+  stats_top_dest: "Bestbediente Ziele",
+  stats_top_origin: "Bestbediente Abfahrten",
+  stats_top_route: "Bestbediente Strecken",
+  stats_count: "{n} MAX-Plätze",
+  conn_3: "Max. 3 Umstiege",
+  conn_max: "Koste es, was es wolle",
+  pop_title: "Einwohner (INSEE)",
 };

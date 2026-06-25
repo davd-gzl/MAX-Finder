@@ -21,6 +21,11 @@ function safeId(s: string): string {
   return s.replace(/[^a-zA-Z0-9-]/g, "");
 }
 
+/** Current UTC instant as an iCalendar DATE-TIME (e.g. 20260625T101500Z). */
+function utcStamp(): string {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
 /** Build a minimal VEVENT (floating local time) for a journey. */
 export function journeyToIcs(j: Journey, summary: string, description = ""): string {
   const uid = `${j.date}-${j.legs.map((l) => safeId(l.trainNo)).join("-")}@maxjeune-foss`;
@@ -31,6 +36,7 @@ export function journeyToIcs(j: Journey, summary: string, description = ""): str
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${uid}`,
+    `DTSTAMP:${utcStamp()}`,
     `DTSTART:${stamp(j.date, j.departMin)}`,
     `DTEND:${stamp(j.date, j.arriveMin)}`,
     `SUMMARY:${escapeIcs(summary)}`,

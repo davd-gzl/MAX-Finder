@@ -102,6 +102,16 @@ export const fr = {
   act_install: "Installer l'application",
   data_why:
     "Les données ouvertes SNCF (tgvmax) ne sont publiées qu'une fois par jour, vers midi. Actualiser plus souvent téléchargerait des données identiques. Les réservations, elles, se font en temps réel sur SNCF Connect.",
+  tag_popular: "Populaire",
+  mode_stats: "Stats",
+  desc_stats: "Les gares et lignes avec le plus de places MAX gratuites ce jour-là.",
+  stats_top_dest: "Destinations les mieux desservies",
+  stats_top_origin: "Départs les mieux desservis",
+  stats_top_route: "Lignes les mieux desservies",
+  stats_count: "{n} places MAX",
+  conn_3: "3 correspondances max",
+  conn_max: "Coûte que coûte",
+  pop_title: "Population (INSEE)",
 };
 
 export type Dict = typeof fr;
