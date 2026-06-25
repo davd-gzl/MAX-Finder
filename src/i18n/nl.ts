@@ -95,4 +95,5 @@ export const nl: Dict = {
   conn_max: "Koste wat het kost",
   act_report: "Een probleem melden",
   act_back: "Terug",
+  act_map: "Op de kaart tonen",
 };

@@ -108,4 +108,5 @@ export const en: Dict = {
   conn_max: "Whatever it takes",
   act_report: "Report an issue",
   act_back: "Back",
+  act_map: "Show on map",
 };

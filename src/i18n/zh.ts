@@ -96,4 +96,5 @@ export const zh: Dict = {
   conn_max: "不惜一切代价",
   act_report: "反馈问题",
   act_back: "返回",
+  act_map: "在地图上显示",
 };

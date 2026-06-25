@@ -106,6 +106,7 @@ export const fr = {
   conn_max: "Quoi qu'il en coûte",
   act_report: "Signaler un problème",
   act_back: "Retour",
+  act_map: "Voir sur la carte",
 };
 
 export type Dict = typeof fr;

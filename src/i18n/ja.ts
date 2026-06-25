@@ -95,4 +95,5 @@ export const ja: Dict = {
   conn_max: "何が何でも",
   act_report: "問題を報告",
   act_back: "戻る",
+  act_map: "地図で表示",
 };

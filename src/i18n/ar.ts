@@ -95,4 +95,5 @@ export const ar: Dict = {
   conn_max: "مهما كلف الأمر",
   act_report: "الإبلاغ عن مشكلة",
   act_back: "رجوع",
+  act_map: "إظهار على الخريطة",
 };

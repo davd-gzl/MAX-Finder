@@ -95,4 +95,5 @@ export const pt: Dict = {
   conn_max: "Custe o que custar",
   act_report: "Relatar um problema",
   act_back: "Voltar",
+  act_map: "Ver no mapa",
 };
