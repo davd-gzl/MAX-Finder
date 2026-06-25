@@ -16,6 +16,8 @@ export interface RenderCtx {
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
   onFocusStation: (id: string) => void;
+  /** Draw a specific journey (origin → interchanges → destination) on the map. */
+  onShowJourney: (journey: Journey) => void;
   onSelectDay: (date: string) => void;
   onIcs: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
@@ -37,6 +39,7 @@ const I = {
   star: '<path d="M12 2l3 6.5 7 .6-5.3 4.6 1.6 6.9L12 17.3 5.7 20.6l1.6-6.9L2 9.1l7-.6z"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M19 13v6H5V5h6"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  pin: '<path d="M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
 };
 
 /** One train as a compact row. (Every shown train is MAX-reservable by definition.) */
@@ -48,7 +51,7 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
   ]);
   const meta = el("span", { class: "train-meta" }, [
     icon(I.clock),
-    el("span", { text: formatDuration(train.durationMin) }),
+    el("bdi", { text: formatDuration(train.durationMin) }),
     el("span", { class: "train-no", text: t("lbl_train", { no: train.trainNo }) }),
     ...(train.axe ? [el("span", { class: "train-axe", text: train.axe })] : []),
   ]);
@@ -144,9 +147,30 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
       [icon(I.cal), el("span", { text: t("act_ics") })],
     ),
+    el(
+      "button",
+      { class: "btn btn-ghost", type: "button", on: { click: () => showOnMap() } },
+      [icon(I.pin), el("span", { text: t("act_map") })],
+    ),
   ]);
 
-  return el("article", { class: "journey" }, [head, legs, actions]);
+  const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
+
+  // Clicking the card (anywhere but the action buttons) draws this journey on
+  // the map and marks it active among its siblings.
+  function showOnMap(): void {
+    ctx.onShowJourney(j);
+    article.parentElement
+      ?.querySelectorAll(".journey.is-active")
+      .forEach((x) => x.classList.remove("is-active"));
+    article.classList.add("is-active");
+  }
+  article.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest(".actions")) return;
+    showOnMap();
+  });
+
+  return article;
 }
 
 /** A favourite-toggle star button for a route, with live aria/label updates. */
@@ -231,11 +255,11 @@ export function groupCardEl(
     },
     [
       el("span", { class: "dest-name", text: ctx.label(group.station) }),
-      el("span", {
-        class: "dest-meta",
-        attrs: { "aria-hidden": "true" },
-        text: `${t("badge_trains", { n: group.count })} · ${formatDuration(group.minDurationMin)}`,
-      }),
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        el("span", { text: t("badge_trains", { n: group.count }) }),
+        el("span", { text: " · " }),
+        el("bdi", { text: formatDuration(group.minDurationMin) }),
+      ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
@@ -277,11 +301,9 @@ export function reachTripRowEl(station: string, j: Journey, ctx: RenderCtx): HTM
     [
       el("span", { class: "dest-name", text: ctx.label(station) }),
       ...viaChip,
-      el("span", {
-        class: "dest-meta",
-        attrs: { "aria-hidden": "true" },
-        text: formatDuration(j.totalDurationMin),
-      }),
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        el("bdi", { text: formatDuration(j.totalDurationMin) }),
+      ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );

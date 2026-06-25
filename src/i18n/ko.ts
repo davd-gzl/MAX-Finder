@@ -96,4 +96,5 @@ export const ko: Dict = {
   conn_max: "어떻게든",
   act_report: "문제 신고",
   act_back: "뒤로",
+  act_map: "지도에서 보기",
 };

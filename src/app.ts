@@ -173,6 +173,10 @@ function ctx(): RenderCtx {
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
     },
     onFocusStation: (id) => map?.focus(id),
+    onShowJourney: (j) => {
+      showRoute([j.origin, ...j.hubs, j.destination]);
+      refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    },
     onSelectDay: (date) => {
       query = { ...query, date };
       syncFormFromQuery();
@@ -728,8 +732,8 @@ function buildForm(): FormBuild {
   const destination = inputEl("text", "station-list");
   const date = inputEl("date");
   const returnDate = inputEl("date");
-  // Constrain dates to the bookable window (today .. today + 30 days).
-  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS + 1);
+  // Constrain dates to exactly the window the 30-day calendar renders.
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
   const lastBookable = windowDates[windowDates.length - 1] ?? today;
   date.min = today;
   date.max = lastBookable;
