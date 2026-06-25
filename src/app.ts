@@ -2,6 +2,7 @@ import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
 import { reachableDestinations, reachableOrigins, windowStats } from "./core/destinations";
+import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
@@ -603,14 +604,26 @@ function surpriseMe(): void {
     if (!dest) return;
     query = { ...query, destination: dest };
   } else if (query.mode === "od") {
-    // Trajet précis: keep the chosen origin, randomize only the destination
-    // (a random place actually reachable from that origin).
-    const dests = query.origin
-      ? [...new Set(avail.filter((t) => t.origin === query.origin).map((t) => t.destination))]
-      : destinations();
-    const dest = pickFrom(dests, query.destination);
-    if (!dest) return;
-    query = { ...query, destination: dest };
+    // Trajet précis: the random pick must have a direct MAX train on the SELECTED
+    // date (passing the active filters), so the result is never empty for that day.
+    const sameDay = filterTrains(deps.trains, {
+      ...filterOpts(),
+      date: query.date,
+      ...(query.origin ? { origin: query.origin } : {}),
+    });
+    if (query.origin) {
+      // Keep the origin; randomize only the destination.
+      const dest = pickFrom([...new Set(sameDay.map((t) => t.destination))], query.destination);
+      if (!dest) return;
+      query = { ...query, destination: dest };
+    } else {
+      // No departure station: random for both — a real origin → destination pair
+      // that runs that day.
+      const pairs = [...new Map(sameDay.map((t) => [`${t.origin}->${t.destination}`, t])).values()];
+      const p = pairs.length ? pairs[Math.floor(Math.random() * pairs.length)] : undefined;
+      if (!p) return;
+      query = { ...query, origin: p.origin, destination: p.destination };
+    }
   } else {
     // from / best / tour: a random departure city, staying in the same mode.
     const origin = pickFrom(origins(), query.origin);
