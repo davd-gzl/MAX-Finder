@@ -128,6 +128,15 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     installPrompt = null;
     refreshInstallBtn();
   });
+
+  // Escape goes back to the previous page (same as the "Retour" button), when
+  // there's somewhere to go back to.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && navStack.length) {
+      e.preventDefault();
+      goBack();
+    }
+  });
 }
 
 function rebuild(): void {
@@ -576,9 +585,9 @@ function goHome(): void {
 
 /**
  * "Surprise me": stay on the current page and randomize that mode's own city —
- * a random arrival in "D'où venir", a random departure (for fresh ideas/results)
- * in the others, and a random origin+destination in "Trajet précis". Purely
- * random, and never the city that's already selected.
+ * a random arrival in "D'où venir", a random reachable destination (keeping the
+ * origin) in "Trajet précis", and a random departure (for fresh ideas/results)
+ * in the others. Purely random, and never the city that's already selected.
  */
 function surpriseMe(): void {
   const avail = deps.trains.filter((tr) => tr.available);
@@ -594,13 +603,14 @@ function surpriseMe(): void {
     if (!dest) return;
     query = { ...query, destination: dest };
   } else if (query.mode === "od") {
-    const origin = pickFrom(origins(), query.origin);
-    if (!origin) return;
-    const dest = pickFrom(
-      [...new Set(avail.filter((t) => t.origin === origin).map((t) => t.destination))],
-      query.destination,
-    );
-    query = { ...query, origin, ...(dest ? { destination: dest } : {}) };
+    // Trajet précis: keep the chosen origin, randomize only the destination
+    // (a random place actually reachable from that origin).
+    const dests = query.origin
+      ? [...new Set(avail.filter((t) => t.origin === query.origin).map((t) => t.destination))]
+      : destinations();
+    const dest = pickFrom(dests, query.destination);
+    if (!dest) return;
+    query = { ...query, destination: dest };
   } else {
     // from / best / tour: a random departure city, staying in the same mode.
     const origin = pickFrom(origins(), query.origin);
