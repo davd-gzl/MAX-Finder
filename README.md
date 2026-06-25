@@ -9,10 +9,10 @@ SNCF Connect.
 
 ## Screenshots
 
-| Where to? (origin → destinations) | Exact trip (direct + connections + calendar) |
+| Où partir (destinations ranked by availability) | Trajet précis (connections + 30-day calendar) |
 | --- | --- |
 | ![Origin search](docs/screenshots/from.png) | ![Trip search](docs/screenshots/trip.png) |
-| Ideas (destinations ranked by travel time) | Tour (multi-city, day-by-day itinerary) |
+| Idées (fastest destinations) | Tour (multi-city itinerary, chip input) |
 | ![Best trips](docs/screenshots/best.png) | ![Tour planner](docs/screenshots/tour.png) |
 
 ## Why
@@ -23,15 +23,26 @@ This app is a frontend over that dataset. No backend, no accounts, no cost.
 
 ## Features
 
-- **Origin → reachable destinations** with a free MAX seat, and the times.
-- **Full O-D search** (origin + destination + date) and **reverse search** (destination → origins).
-- **Multi-leg connections**: finds journeys via a hub when no direct MAX train exists.
-- **30-day availability calendar** for a route; **round-trip / weekend-getaway** finder.
-- **Filters**: time window, max duration, MAX JEUNE vs MAX SENIOR, train type.
-- **Map** of reachable destinations (Leaflet).
-- **No accounts** — favorites, settings and saved searches live in your browser
-  (localStorage + shareable URLs). Optional **local notifications** for watched routes.
-- **i18n** (FR / EN), dark mode, installable **PWA**, accessible.
+- **Où partir** — every destination reachable with a free MAX seat from your station,
+  each annotated with **how many MAX trains run there over the booking window** and ranked
+  by that availability. Click one to open the exact trip and see precisely which dates work.
+- **D'où venir** — the reverse: every origin that can reach a destination.
+- **Trajet précis** — full origin → destination search with a **30-day availability calendar**
+  and a **round-trip / weekend-getaway** finder.
+- **Idées** — the fastest destinations reachable from your station that day.
+- **Tour** — a multi-city, day-by-day itinerary chaining free MAX seats, with a **chip input**
+  for the cities to visit.
+- **Multi-leg connections** up to 6 changes via hubs, with an optional **"Via" stopover** and
+  an **overnight-stopover** mode for long, multi-day journeys.
+- **Filters**: time window, max duration, MAX JEUNE vs MAX SENIOR, train type, region.
+- **Map** (Leaflet) of every reachable station — all dataset stations are plotted — with
+  correspondences shown as intermediate points; click a point to select it in the list.
+- **Live form** (results update as you change a field), **back navigation** (and `Esc`),
+  **"Au hasard"** random-city shortcut, **calendar export (ICS)**, and shareable URLs.
+- **No accounts** — favorites, settings and searches live in your browser (localStorage).
+  Optional **local notifications** for watched routes.
+- **11 languages** (FR, EN, ES, DE, IT, KO, ZH, JA, NL, PT, AR — incl. right-to-left),
+  light/dark theme, installable **PWA** with offline support, mobile-friendly, accessible.
 
 ## Architecture
 
