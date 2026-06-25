@@ -14,7 +14,9 @@ describe("URL deep-link round-trip", () => {
       departBefore: "20:00",
       maxDurationMin: 180,
       trainType: "SUD EST",
-      allowConnections: false,
+      maxConnections: 2,
+      region: undefined,
+      cities: undefined,
     };
     const back = queryFromParams(queryToParams(q), "2000-01-01");
     expect(back).toEqual(q);
@@ -31,6 +33,6 @@ describe("URL deep-link round-trip", () => {
     expect(q.mode).toBe("from");
     expect(q.date).toBe("2026-06-25");
     expect(q.card).toBe("jeune");
-    expect(q.allowConnections).toBe(true);
+    expect(q.maxConnections).toBe(1);
   });
 });

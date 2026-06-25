@@ -23,6 +23,10 @@ export const en: Dict = {
   field_trainType: "Type / line",
   field_anyType: "Any",
   field_allowConnections: "Include connections",
+  field_connections: "Connections",
+  conn_0: "Direct only",
+  conn_1: "1 change max",
+  conn_2: "2 changes max",
 
   btn_search: "Search",
   btn_surprise: "Surprise me",

@@ -162,6 +162,28 @@ describe("findRoundTrips", () => {
   });
 });
 
+describe("findJourneys multi-hop (2 changes)", () => {
+  const twoHop = normalizeRecords([
+    { date: "2026-07-01", origine: "NANTES", destination: "PARIS (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "1", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "10:30", heure_arrivee: "12:30", train_no: "2", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "13:00", heure_arrivee: "14:40", train_no: "3", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("needs two changes: nothing at maxConnections<=1, a 3-leg journey at 2", () => {
+    expect(
+      findJourneys(twoHop, "NANTES", "MARSEILLE ST CHARLES", "2026-07-01", { maxConnections: 1 }),
+    ).toHaveLength(0);
+    const two = findJourneys(twoHop, "NANTES", "MARSEILLE ST CHARLES", "2026-07-01", {
+      maxConnections: 2,
+    });
+    expect(two).toHaveLength(1);
+    const j = two[0]!;
+    expect(j.legs.map((l) => l.trainNo)).toEqual(["1", "2", "3"]);
+    expect(j.hubs).toEqual(["PARIS (intramuros)", "LYON (intramuros)"]);
+    expect(j.layovers).toEqual([30, 30]);
+  });
+});
+
 function base(): RawRecord {
   return {
     date: "2026-06-25",

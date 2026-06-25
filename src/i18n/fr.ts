@@ -21,6 +21,10 @@ export const fr = {
   field_trainType: "Type / axe",
   field_anyType: "Tous",
   field_allowConnections: "Inclure les correspondances",
+  field_connections: "Correspondances",
+  conn_0: "Directes uniquement",
+  conn_1: "1 correspondance max",
+  conn_2: "2 correspondances max",
 
   btn_search: "Rechercher",
   btn_surprise: "Surprends-moi",
