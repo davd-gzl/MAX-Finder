@@ -28,6 +28,12 @@ export class RouteMap {
     this.map?.invalidateSize();
   }
 
+  /** Pan/zoom to a station (if its coordinates are known). */
+  focus(id: string): void {
+    const c = this.registry.coords(id);
+    if (c && this.map) this.map.setView(c, 8, { animate: true });
+  }
+
   /** Render a hub station linked to each of `others`. Unknown coords are skipped. */
   show(hub: string, others: string[]): void {
     const { map, layer } = this.ensure();

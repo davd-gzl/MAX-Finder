@@ -14,7 +14,7 @@ import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
 import { t, setLang, getLang } from "./i18n";
 import * as store from "./state/store";
-import { SNCF_CONNECT_URL } from "./config";
+import { SNCF_CONNECT_URL, MAX_JEUNE_URL, MAX_SENIOR_URL } from "./config";
 import { notify } from "./pwa/register";
 
 interface Deps {
@@ -103,6 +103,11 @@ function formatDate(iso: string): string {
   }).format(d);
 }
 
+function isWeekend(iso: string): boolean {
+  const day = new Date(`${iso}T00:00:00`).getDay();
+  return day === 0 || day === 6;
+}
+
 function ctx(): RenderCtx {
   return {
     label: (id) => deps.registry.label(id),
@@ -114,6 +119,7 @@ function ctx(): RenderCtx {
       applyAndRun();
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
     },
+    onFocusStation: (id) => map?.focus(id),
     onSelectDay: (date) => {
       query = { ...query, date };
       syncFormFromQuery();
@@ -213,6 +219,11 @@ function runSearch(): void {
 function renderSearch(): void {
   const c = ctx();
   const { trains, registry } = deps;
+
+  // MAX SENIOR free tickets are weekday-only — flag a weekend date.
+  if (query.card === "senior" && isWeekend(query.date)) {
+    refs.results.append(el("p", { class: "notice", text: t("senior_weekend_warn") }));
+  }
 
   if (query.mode === "from") {
     if (!query.origin) return showHint(refs.origin);
@@ -574,6 +585,29 @@ function buildForm(): FormBuild {
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
 
+  const howto = el("details", { class: "howto" }, [
+    el("summary", { text: t("how_title") }),
+    el("ul", { class: "howto-list" }, [
+      el("li", { text: t("how_jeune") }),
+      el("li", { text: t("how_senior") }),
+    ]),
+    el("p", { class: "howto-links" }, [
+      el("span", { class: "muted", text: `${t("how_more")} ` }),
+      el("a", {
+        text: "MAX JEUNE",
+        href: MAX_JEUNE_URL,
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+      el("span", { class: "muted", text: " · " }),
+      el("a", {
+        text: "MAX SENIOR",
+        href: MAX_SENIOR_URL,
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+    ]),
+    el("p", { class: "muted small", text: t("how_note") }),
+  ]);
+
   const form = el("form", { class: "search-form" }, [
     modeTabs,
     el("div", { class: "fields" }, [
@@ -587,6 +621,7 @@ function buildForm(): FormBuild {
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn]),
+    howto,
     stationList,
   ]);
   form.addEventListener("submit", (e) => {

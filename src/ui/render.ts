@@ -13,6 +13,7 @@ export interface RenderCtx {
   formatDate: (iso: string) => string;
   bookUrl: (origin: string, destination: string, date: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
+  onFocusStation: (id: string) => void;
   onSelectDay: (date: string) => void;
   onIcs: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
@@ -199,6 +200,7 @@ export function groupCardEl(
           const open = panel.hasAttribute("hidden");
           panel.toggleAttribute("hidden", !open);
           (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(open));
+          ctx.onFocusStation(group.station);
         },
       },
     },
