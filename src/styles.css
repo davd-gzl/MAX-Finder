@@ -468,6 +468,25 @@ a {
   color: var(--muted);
   font-size: 0.88rem;
 }
+.back-btn {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0.1rem 0;
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 560;
+  cursor: pointer;
+}
+.back-btn:hover {
+  color: var(--text);
+}
+.back-btn:focus-visible {
+  outline: none;
+  color: var(--text);
+  text-decoration: underline;
+}
 .od-guide {
   margin: 0 0 0.3rem;
 }

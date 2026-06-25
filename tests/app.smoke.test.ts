@@ -43,6 +43,8 @@ beforeEach(() => {
     cb(0);
     return 0;
   }) as typeof requestAnimationFrame;
+  // jsdom doesn't implement scrollIntoView; stub it for click-driven navigation.
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {};
 });
 
 describe("app (jsdom smoke)", () => {
@@ -75,6 +77,27 @@ describe("app (jsdom smoke)", () => {
     // 30-day calendar is rendered.
     expect(root.querySelector(".cal-grid")).not.toBeNull();
     expect(root.querySelectorAll(".cal-cell").length).toBe(30);
+  });
+
+  it("drills into a connecting destination and back again", () => {
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`);
+    const cards = Array.from(root.querySelectorAll(".group-card"));
+    const toulouse = cards.find((c) => (c.textContent ?? "").includes("Toulouse"));
+    expect(toulouse).toBeTruthy();
+    // The connecting row carries a "via" chip and a favourite star.
+    expect(toulouse!.querySelector(".chip-via")).not.toBeNull();
+    expect(toulouse!.querySelector(".star")).not.toBeNull();
+
+    (toulouse!.querySelector(".dest-main") as HTMLElement).click();
+    // Now on the exact-trip page, with a Back button.
+    const back = root.querySelector(".back-btn") as HTMLElement | null;
+    expect(back).not.toBeNull();
+    expect(root.querySelector(".chip-via")).not.toBeNull(); // via Bordeaux journey
+
+    back!.click();
+    // Back to the browse list; no Back button left.
+    expect(root.querySelector(".back-btn")).toBeNull();
+    expect(root.textContent ?? "").toContain("Toulouse");
   });
 
   it("builds the search form with all modes", () => {

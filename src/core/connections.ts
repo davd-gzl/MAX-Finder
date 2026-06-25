@@ -19,6 +19,20 @@ export interface ConnectionOptions {
 // matters when callers run findJourneys many times (30-day calendar, best mode).
 const byDateCache = new WeakMap<MaxTrain[], Map<string, MaxTrain[]>>();
 
+// Memoize journey lookups per (stable) trains array. The 30-day calendar and
+// repeated / back navigation hit the same routes many times; WeakMap keying by
+// the trains array keeps results correct across different datasets (e.g. tests).
+const journeyCache = new WeakMap<MaxTrain[], Map<string, Journey[]>>();
+
+function journeyMemo(trains: MaxTrain[]): Map<string, Journey[]> {
+  let m = journeyCache.get(trains);
+  if (!m) {
+    m = new Map();
+    journeyCache.set(trains, m);
+  }
+  return m;
+}
+
 function availableByDate(trains: MaxTrain[]): Map<string, MaxTrain[]> {
   const cached = byDateCache.get(trains);
   if (cached) return cached;
@@ -97,6 +111,11 @@ export function findJourneys(
   const maxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
   const next = addDays(date, 1);
 
+  const memo = journeyMemo(trains);
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${[...hubSet].join(",")}`;
+  const cached = memo.get(key);
+  if (cached) return cached;
+
   // Available legs departing on `date` or the following day (so connections can
   // cross midnight). Pulled from a cached per-date index, then sorted.
   const idx = availableByDate(trains);
@@ -160,12 +179,14 @@ export function findJourneys(
   if (opts.maxDurationMin != null) {
     out = out.filter((j) => j.totalDurationMin <= opts.maxDurationMin!);
   }
-  return out.sort(
+  out.sort(
     (a, b) =>
       a.departMin - b.departMin ||
       a.totalDurationMin - b.totalDurationMin ||
       a.legs.length - b.legs.length,
   );
+  memo.set(key, out);
+  return out;
 }
 
 /** The single best (shortest total) journey for a route, or null. */
