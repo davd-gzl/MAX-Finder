@@ -797,6 +797,10 @@ a {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   font-weight: 680;
 }
+.cal-cell.sel {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
 .cal-legend {
   margin: 0.3rem 0 0;
   font-size: 0.78rem;

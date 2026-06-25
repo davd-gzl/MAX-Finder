@@ -55,6 +55,10 @@ let rootRef: HTMLElement;
 let refs: Refs;
 let map: RouteMap | null = null;
 let labelToId: Map<string, string>;
+// Today (YYYY-MM-DD). MAX seats are only bookable ~30 days out, so the calendar
+// and the date picker stay anchored to a today..today+30 window.
+let today = "";
+const BOOKING_WINDOW_DAYS = 30;
 
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
@@ -87,7 +91,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   registry.addMissing(dataset.trains.flatMap((t) => [t.origin, t.destination]));
   labelToId = new Map(registry.list().map((s) => [s.label.toLowerCase(), s.id]));
 
-  const today = new Date().toISOString().slice(0, 10);
+  today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? store.queryFromParams(new URLSearchParams(location.search), today)
     : { mode: "from", date: today, card: settings.card, maxConnections: 1 };
@@ -384,12 +388,17 @@ function runOdSearch(c: RenderCtx): void {
   });
   refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
 
-  // 30-day availability calendar first (connection-aware, matching the journeys)
-  const cal = availabilityCalendar(trains, query.origin, query.destination, dateRange(query.date, 30), {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
-  refs.results.append(render.calendarEl(cal, c));
+  // 30-day availability calendar, anchored to today's bookable window (not the
+  // selected date) so clicking a day doesn't shift the strip. The chosen date is
+  // highlighted in place.
+  const cal = availabilityCalendar(
+    trains,
+    query.origin,
+    query.destination,
+    dateRange(today, BOOKING_WINDOW_DAYS),
+    { ...filterOpts(), maxConnections: query.maxConnections },
+  );
+  refs.results.append(render.calendarEl(cal, c, query.date));
 
   const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
     ...filterOpts(),
@@ -679,6 +688,13 @@ function buildForm(): FormBuild {
   const destination = inputEl("text", "station-list");
   const date = inputEl("date");
   const returnDate = inputEl("date");
+  // Constrain dates to the bookable window (today .. today + 30 days).
+  const window = dateRange(today, BOOKING_WINDOW_DAYS + 1);
+  const lastBookable = window[window.length - 1] ?? today;
+  date.min = today;
+  date.max = lastBookable;
+  returnDate.min = today;
+  returnDate.max = lastBookable;
   const departAfter = inputEl("time");
   const departBefore = inputEl("time");
   const maxDuration = inputEl("number");
