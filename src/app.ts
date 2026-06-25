@@ -54,6 +54,7 @@ interface Refs {
   regionField: HTMLElement;
   cities: HTMLInputElement;
   citiesField: HTMLElement;
+  cityChips: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -75,6 +76,9 @@ const BOOKING_WINDOW_DAYS = 30;
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
 let navStack: SearchQuery[] = [];
+
+// Ordered list of station ids for the tour "cities to visit" chip input.
+let tourCities: string[] = [];
 
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
@@ -228,7 +232,9 @@ function syncFormFromQuery(): void {
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
   refs.region.value = query.region ?? "";
-  refs.cities.value = (query.cities ?? []).map((id) => deps.registry.label(id)).join(", ");
+  tourCities = [...(query.cities ?? [])];
+  refs.cities.value = "";
+  renderCityChips();
   updateFieldVisibility();
 }
 
@@ -248,12 +254,19 @@ function readQueryFromForm(): SearchQuery {
     maxConnections: Number(refs.maxConnections.value),
     overnight: refs.overnight.checked || undefined,
     region: refs.region.value || undefined,
+    // Chips hold the committed cities; also fold in any text still in the input
+    // (typed but not yet turned into a chip) so a pending entry isn't lost.
     cities:
       query.mode === "tour"
-        ? refs.cities.value
-            .split(",")
-            .map((s) => resolveStation(s))
-            .filter((s): s is string => Boolean(s))
+        ? [
+            ...new Set([
+              ...tourCities,
+              ...refs.cities.value
+                .split(",")
+                .map((s) => resolveStation(s))
+                .filter((s): s is string => Boolean(s)),
+            ]),
+          ]
         : query.cities,
   };
 }
@@ -882,15 +895,48 @@ function buildForm(): FormBuild {
     optionEl("", t("region_any"), true),
     ...regionList.map((r) => optionEl(r, r, false)),
   ]) as HTMLSelectElement;
-  const cities = inputEl("text");
-  cities.placeholder = t("field_cities_ph");
+  // Tour "cities to visit": a chip/tag input. Typing a city and pressing Enter
+  // (or comma) turns it into a removable chip; Backspace on an empty field drops
+  // the last one. Much clearer than a comma-separated string when adding several.
+  const cities = inputEl("text", "station-list");
+  cities.placeholder = t("cities_add");
+  const cityChips = el("div", { class: "city-chips" });
+  const citiesBox = el("div", { class: "cities-input" }, [cityChips, cities]);
+  const commitCities = (raw: string): void => {
+    let added = false;
+    for (const part of raw.split(",")) {
+      const id = resolveStation(part);
+      if (id && !tourCities.includes(id)) {
+        tourCities.push(id);
+        added = true;
+      }
+    }
+    if (added) renderCityChips();
+  };
+  cities.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      commitCities(cities.value);
+      cities.value = "";
+    } else if (e.key === "Backspace" && cities.value === "" && tourCities.length) {
+      tourCities.pop();
+      renderCityChips();
+    }
+  });
+  cities.addEventListener("change", () => {
+    // Fired when a datalist suggestion is picked.
+    if (cities.value.trim()) {
+      commitCities(cities.value);
+      cities.value = "";
+    }
+  });
 
   const originField = field(t("field_origin"), origin);
   const destinationField = field(t("field_destination"), destination);
   const viaField = field(t("field_via"), via);
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
-  const citiesField = field(t("field_cities"), cities);
+  const citiesField = field(t("field_cities"), citiesBox);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
@@ -984,6 +1030,7 @@ function buildForm(): FormBuild {
       regionField,
       cities,
       citiesField,
+      cityChips,
     },
   };
 }
@@ -998,6 +1045,29 @@ function fillRoute(origin: string, destination: string): void {
   syncFormFromQuery();
   refs.origin.focus({ preventScroll: true });
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Render the tour "cities to visit" chips from `tourCities`. */
+function renderCityChips(): void {
+  clear(refs.cityChips);
+  tourCities.forEach((id, i) => {
+    const chip = el("span", { class: "city-chip" }, [
+      el("span", { text: deps.registry.label(id) }),
+      el("button", {
+        class: "chip-x",
+        type: "button",
+        text: "×",
+        attrs: { "aria-label": `${t("act_fav_remove")} — ${deps.registry.label(id)}` },
+        on: {
+          click: () => {
+            tourCities.splice(i, 1);
+            renderCityChips();
+          },
+        },
+      }),
+    ]);
+    refs.cityChips.append(chip);
+  });
 }
 
 function renderFavorites(): void {

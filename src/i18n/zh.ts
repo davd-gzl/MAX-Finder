@@ -101,5 +101,6 @@ export const zh: Dict = {
   field_via: "经由（可选）",
   stat_window: "{trains} 趟列车 · {days} 天",
   act_surprise: "随机一城",
+  cities_add: "添加城市…",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
 };

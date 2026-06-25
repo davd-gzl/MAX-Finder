@@ -101,5 +101,6 @@ export const ko: Dict = {
   field_via: "경유 (선택)",
   stat_window: "열차 {trains}편 · {days}일",
   act_surprise: "랜덤 여행",
+  cities_add: "도시 추가…",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
 };

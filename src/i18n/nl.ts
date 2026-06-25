@@ -100,5 +100,6 @@ export const nl: Dict = {
   field_via: "Via (optioneel)",
   stat_window: "{trains} treinen · {days} d",
   act_surprise: "Verras me",
+  cities_add: "Stad toevoegen…",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
 };
