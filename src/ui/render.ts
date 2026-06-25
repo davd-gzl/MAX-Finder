@@ -278,16 +278,18 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
   return reachTripRowEl(trip.destination, trip.journey, ctx);
 }
 
-/** The 30-day availability strip for a route. */
-export function calendarEl(days: CalendarDay[], ctx: RenderCtx): HTMLElement {
+/** The 30-day availability strip for a route, with the selected day highlighted. */
+export function calendarEl(days: CalendarDay[], ctx: RenderCtx, selected?: string): HTMLElement {
   const grid = el("div", { class: "cal-grid" });
   for (const d of days) {
+    const sel = d.date === selected ? " sel" : "";
     const cell = el("button", {
-      class: `cal-cell ${d.available ? "ok" : "no"}`,
+      class: `cal-cell ${d.available ? "ok" : "no"}${sel}`,
       type: "button",
       title: `${ctx.formatDate(d.date)} — ${d.available ? t("badge_trains", { n: d.count }) : "—"}`,
       attrs: {
         "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? t("cal_available") : t("cal_unavailable")}`,
+        ...(sel ? { "aria-current": "date" } : {}),
       },
       text: d.date.slice(8, 10),
       on: { click: () => ctx.onSelectDay(d.date) },
