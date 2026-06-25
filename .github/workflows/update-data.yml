@@ -1,13 +1,11 @@
 name: Update SNCF tgvmax data
 
 on:
-  # The SNCF tgvmax open dataset itself only refreshes ~once a day (around
-  # midday Paris time). Polling more often returns identical data, so we run
-  # twice — shortly after the refresh, plus a later safety catch if it's late.
+  # The SNCF tgvmax open dataset only refreshes ~once a day (around midday Paris
+  # time), so polling more often just re-downloads identical data. Run once,
+  # shortly after that refresh; use workflow_dispatch to refresh on demand.
   schedule:
-    - cron: "0 6 * * *"
     - cron: "0 13 * * *"
-    - cron: "0 19 * * *"
   workflow_dispatch:
 
 permissions:

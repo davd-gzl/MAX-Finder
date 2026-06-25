@@ -20,9 +20,22 @@ export function prettyLabel(id: string): string {
 export class StationRegistry {
   private byId = new Map<string, Station>();
   private index: { station: Station; hay: string; words: string[] }[] = [];
+  private cityCoords = new Map<string, [number, number]>();
 
   constructor(stations: Station[]) {
     for (const s of stations) this.add(s);
+    // Index coordinates by city / first word so station-name variants (e.g.
+    // "LILLE FLANDRES", "LILLE EUROPE") can inherit the city's coordinates.
+    for (const s of this.byId.values()) {
+      if (!Number.isFinite(s.lat) || !Number.isFinite(s.lng)) continue;
+      const keys: string[] = [];
+      const first = normalizeText(s.label).split(/\s+/)[0];
+      if (first) keys.push(first);
+      if (s.city) keys.push(normalizeText(s.city));
+      for (const key of keys) {
+        if (!this.cityCoords.has(key)) this.cityCoords.set(key, [s.lat, s.lng]);
+      }
+    }
   }
 
   private add(s: Station): void {
@@ -40,7 +53,10 @@ export class StationRegistry {
    */
   addMissing(ids: Iterable<string>): void {
     for (const id of ids) {
-      if (id && !this.byId.has(id)) this.add({ id, label: prettyLabel(id), lat: NaN, lng: NaN });
+      if (!id || this.byId.has(id)) continue;
+      const first = normalizeText(id).split(/\s+/)[0] ?? "";
+      const c = this.cityCoords.get(first);
+      this.add({ id, label: prettyLabel(id), lat: c ? c[0] : NaN, lng: c ? c[1] : NaN });
     }
   }
 

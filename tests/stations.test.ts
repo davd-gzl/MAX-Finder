@@ -44,11 +44,13 @@ describe("StationRegistry.addMissing", () => {
   it("makes dataset-only stations searchable, with a pretty label and no coords", () => {
     const r = new StationRegistry(stationData as Station[]);
     expect(r.search("arras")).toHaveLength(0); // not in the curated set
-    r.addMissing(["ARRAS", "PARIS (intramuros)"]);
+    r.addMissing(["ARRAS", "PARIS (intramuros)", "LILLE FLANDRES"]);
     expect(r.get("ARRAS")).toBeDefined();
     expect(r.label("ARRAS")).toBe("Arras");
-    expect(r.coords("ARRAS")).toBeUndefined(); // no coordinates -> not plotted on the map
+    expect(r.coords("ARRAS")).toBeUndefined(); // no matching city -> not plotted
     expect(r.search("arras").map((s) => s.id)).toContain("ARRAS");
+    // City-name variants inherit the city's coordinates so the map stays in sync.
+    expect(r.coords("LILLE FLANDRES")).toEqual([50.6376, 3.0753]);
   });
 });
 

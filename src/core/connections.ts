@@ -14,6 +14,25 @@ export interface ConnectionOptions {
   trainType?: string;
 }
 
+// Cache of available trains grouped by date, keyed by the (stable, loaded-once)
+// trains array. Avoids re-scanning the whole dataset on every journey lookup —
+// matters when callers run findJourneys many times (30-day calendar, best mode).
+const byDateCache = new WeakMap<MaxTrain[], Map<string, MaxTrain[]>>();
+
+function availableByDate(trains: MaxTrain[]): Map<string, MaxTrain[]> {
+  const cached = byDateCache.get(trains);
+  if (cached) return cached;
+  const idx = new Map<string, MaxTrain[]>();
+  for (const t of trains) {
+    if (!t.available) continue;
+    const arr = idx.get(t.date);
+    if (arr) arr.push(t);
+    else idx.set(t.date, [t]);
+  }
+  byDateCache.set(trains, idx);
+  return idx;
+}
+
 /** Build a Journey from an ordered list of legs (1..n), on an absolute timeline. */
 export function toJourney(legs: MaxTrain[]): Journey {
   const first = legs[0];
@@ -79,15 +98,11 @@ export function findJourneys(
   const next = addDays(date, 1);
 
   // Available legs departing on `date` or the following day (so connections can
-  // cross midnight). Sorted on the absolute timeline.
-  const pool = trains
-    .filter(
-      (t) =>
-        t.available &&
-        (t.date === date || t.date === next) &&
-        (!opts.trainType || (t.axe ?? "") === opts.trainType),
-    )
-    .sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
+  // cross midnight). Pulled from a cached per-date index, then sorted.
+  const idx = availableByDate(trains);
+  let pool = [...(idx.get(date) ?? []), ...(idx.get(next) ?? [])];
+  if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
+  pool.sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
 
   // The first leg must depart on `date`, within the user's time window.
   const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
