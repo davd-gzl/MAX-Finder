@@ -50,3 +50,41 @@ export function reachableOrigins(
   const matches = filterTrains(trains, { ...opts, destination, date });
   return group(matches, (t) => t.origin);
 }
+
+/** Total direct free-MAX trains and the distinct days they run on, per station. */
+export interface WindowStat {
+  trains: number;
+  days: number;
+}
+
+/**
+ * For an `anchor` station, total direct free-MAX availability over the whole
+ * loaded window (all dates), keyed by the other station — destinations when
+ * `dir` is "from", origins when "to". Lets the browse list show how many MAX
+ * trains run to each place over the bookable horizon, not just on one date.
+ */
+export function windowStats(
+  trains: MaxTrain[],
+  anchor: string,
+  dir: "from" | "to",
+  opts: FilterOptions = {},
+): Map<string, WindowStat> {
+  const matches =
+    dir === "from"
+      ? filterTrains(trains, { ...opts, origin: anchor })
+      : filterTrains(trains, { ...opts, destination: anchor });
+  const acc = new Map<string, { trains: number; days: Set<string> }>();
+  for (const t of matches) {
+    const key = dir === "from" ? t.destination : t.origin;
+    let e = acc.get(key);
+    if (!e) {
+      e = { trains: 0, days: new Set() };
+      acc.set(key, e);
+    }
+    e.trains++;
+    e.days.add(t.date);
+  }
+  const out = new Map<string, WindowStat>();
+  for (const [k, v] of acc) out.set(k, { trains: v.trains, days: v.days.size });
+  return out;
+}

@@ -109,6 +109,9 @@ export const fr = {
   act_map: "Voir sur la carte",
   field_overnight: "Escale de nuit",
   field_via: "Via (optionnel)",
+  stat_window: "{trains} trains · {days} j",
+  act_surprise: "Au hasard",
+  stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 };
 
 export type Dict = typeof fr;

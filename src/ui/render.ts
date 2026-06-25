@@ -1,5 +1,5 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
-import type { StationGroup } from "../core/destinations";
+import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
@@ -200,12 +200,18 @@ function favStarEl(route: RoutePair, ctx: RenderCtx): HTMLElement {
   );
 }
 
-/** A destination/origin group card (for "from"/"to" modes). */
+/**
+ * A destination/origin group card (for "from"/"to" modes). Clicking opens the
+ * exact-trip ("trajet précis") view for the route, where the 30-day calendar
+ * shows exactly which dates are bookable. `stat` shows total MAX availability
+ * over the whole booking window so the list doubles as an availability ranking.
+ */
 export function groupCardEl(
   group: StationGroup,
   mode: SearchMode,
   anchor: string,
   ctx: RenderCtx,
+  stat?: WindowStat,
 ): HTMLElement {
   const origin = mode === "from" ? anchor : group.station;
   const destination = mode === "from" ? group.station : anchor;
@@ -213,60 +219,39 @@ export function groupCardEl(
 
   const star = favStarEl(route, ctx);
 
-  // Expandable panel: trains + a calendar drill-down and the booking handoff.
-  const panel = el("div", { class: "dest-panel", attrs: { hidden: "" } }, [
-    el("div", { class: "dest-trains" }, group.trains.map((tr) => trainRowEl(tr))),
-    el("div", { class: "dest-links" }, [
-      el(
-        "button",
-        { class: "linklike", type: "button", on: { click: () => ctx.onOpenRoute(origin, destination) } },
-        [el("span", { text: t("act_calendar") }), icon(I.cal)],
-      ),
-      el(
-        "a",
-        {
-          class: "linklike",
-          href: ctx.bookUrl(origin, destination, ""),
-          attrs: { target: "_blank", rel: "noopener noreferrer" },
-        },
-        [el("span", { text: t("act_book") }), icon(I.external), el("span", { class: "sr-only", text: t("link_newtab") })],
-      ),
-      guideLinkEl(ctx, group.station),
-    ]),
-  ]);
+  const meta: HTMLElement[] = [];
+  if (stat) {
+    meta.push(
+      el("span", {
+        class: "stat-chip",
+        text: t("stat_window", { trains: stat.trains, days: stat.days }),
+        attrs: { title: t("stat_window_hint", { trains: stat.trains, days: stat.days }) },
+      }),
+    );
+  }
+  meta.push(el("bdi", { text: formatDuration(group.minDurationMin) }));
+
+  const summary = stat
+    ? t("stat_window", { trains: stat.trains, days: stat.days })
+    : t("badge_trains", { n: group.count });
 
   const main = el(
     "button",
     {
       class: "dest-main",
       type: "button",
-      attrs: {
-        "aria-expanded": "false",
-        "aria-label": `${ctx.label(group.station)} — ${t("badge_trains", { n: group.count })}`,
-      },
-      on: {
-        click: (e) => {
-          const open = panel.hasAttribute("hidden");
-          panel.toggleAttribute("hidden", !open);
-          (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(open));
-          ctx.onFocusStation(group.station);
-        },
-      },
+      attrs: { "aria-label": `${ctx.label(group.station)} — ${summary}` },
+      on: { click: () => ctx.onOpenRoute(origin, destination) },
     },
     [
       el("span", { class: "dest-name", text: ctx.label(group.station) }),
-      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
-        el("span", { text: t("badge_trains", { n: group.count }) }),
-        el("span", { text: " · " }),
-        el("bdi", { text: formatDuration(group.minDurationMin) }),
-      ]),
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, meta),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
 
   return el("article", { class: "group-card", dataset: { station: group.station } }, [
     el("div", { class: "dest-row" }, [star, main]),
-    panel,
   ]);
 }
 

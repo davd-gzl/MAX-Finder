@@ -99,4 +99,7 @@ export const zh: Dict = {
   act_map: "在地图上显示",
   field_overnight: "过夜中转",
   field_via: "经由（可选）",
+  stat_window: "{trains} 趟列车 · {days} 天",
+  act_surprise: "随机一城",
+  stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
 };

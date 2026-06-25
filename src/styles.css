@@ -129,6 +129,20 @@ a {
   color: var(--btn-ink);
   background: var(--btn);
   border-radius: 10px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+.logo:hover {
+  filter: brightness(1.08);
+}
+.logo:active {
+  transform: scale(0.94);
+}
+.logo:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 22%, transparent);
 }
 .site-header h1 {
   font-size: 1.15rem;
@@ -365,9 +379,19 @@ a {
 }
 .form-actions {
   display: flex;
+  align-items: center;
   gap: 0.55rem;
   margin-top: 1.15rem;
   flex-wrap: wrap;
+}
+/* Discreet: a quiet ghost link beside the primary search button. */
+.surprise-btn {
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 0.4rem 0.6rem;
+}
+.surprise-btn:hover {
+  color: var(--accent);
 }
 .howto {
   margin-top: 0.95rem;
@@ -659,6 +683,21 @@ a {
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
 }
 .chev {
   margin-left: auto;
@@ -1067,17 +1106,15 @@ a {
   .map {
     height: 320px;
   }
+  /* Keep every mode visible on phones: wrap onto a second row instead of a
+     horizontal scroll with a hidden scrollbar, which left the last tab (Tour)
+     off-screen and effectively undiscoverable. */
   .mode-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .mode-tabs::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.9rem;
   }
   .mode-tab {
     white-space: nowrap;
-    margin-right: 0.9rem;
   }
   .results-title {
     font-size: 1.05rem;

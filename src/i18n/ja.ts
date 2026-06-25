@@ -98,4 +98,7 @@ export const ja: Dict = {
   act_map: "地図で表示",
   field_overnight: "夜行乗り継ぎ",
   field_via: "経由（任意）",
+  stat_window: "{trains} 本 · {days} 日",
+  act_surprise: "おまかせ",
+  stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
 };

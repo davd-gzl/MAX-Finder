@@ -111,4 +111,7 @@ export const en: Dict = {
   act_map: "Show on map",
   field_overnight: "Overnight stopover",
   field_via: "Via (optional)",
+  stat_window: "{trains} trains · {days} d",
+  act_surprise: "Surprise me",
+  stat_window_hint: "{trains} MAX trains to this destination across {days} upcoming days. Open the exact trip to see which dates.",
 };

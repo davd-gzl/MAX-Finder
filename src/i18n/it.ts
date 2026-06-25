@@ -99,4 +99,7 @@ export const it: Dict = {
   act_map: "Mostra sulla mappa",
   field_overnight: "Sosta notturna",
   field_via: "Via (opzionale)",
+  stat_window: "{trains} treni · {days} g",
+  act_surprise: "A caso",
+  stat_window_hint: "{trains} treni MAX verso questa destinazione in {days} giorni a venire. Apri il viaggio esatto per vedere le date.",
 };
