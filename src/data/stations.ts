@@ -17,6 +17,7 @@ export function normalizeText(s: string): string {
  */
 export function matchNorm(s: string): string {
   return normalizeText(s)
+    .replace(/[(),]/g, " ") // e.g. "ESSLINGEN(NECKAR)" -> "esslingen neckar"
     .replace(/-/g, " ")
     .replace(/\bst\b/g, "saint")
     .replace(/\bste\b/g, "sainte")

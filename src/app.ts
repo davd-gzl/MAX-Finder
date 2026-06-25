@@ -461,6 +461,7 @@ function goBack(): void {
   syncFormFromQuery();
   store.updateUrl(query);
   runSearch();
+  refs.title.focus(); // announce the restored context to screen readers
 }
 
 function ensureMap(): RouteMap {
