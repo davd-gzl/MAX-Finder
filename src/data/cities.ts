@@ -233,4 +233,67 @@ export const CITY_REFERENCE: CityRef[] = [
   { name: "Baden-Baden", lat: 48.791, lng: 8.191, region: "Allemagne", aliases: ["baden baden"] },
   { name: "Esslingen", lat: 48.739, lng: 9.31, region: "Allemagne", aliases: ["esslingen neckar"] },
   { name: "Vallorbe", lat: 46.706, lng: 6.378, region: "Suisse" },
+
+  // --- Coordinate audit: smaller stations previously unplotted ----------------
+  // Hauts-de-France
+  { name: "Boulogne-sur-Mer", lat: 50.726, lng: 1.604, region: "Hauts-de-France", aliases: ["boulogne ville", "boulogne"] },
+  { name: "Croix-Wasquehal", lat: 50.678, lng: 3.15, region: "Hauts-de-France" },
+  { name: "Hazebrouck", lat: 50.725, lng: 2.539, region: "Hauts-de-France" },
+  { name: "Rang-du-Fliers", lat: 50.413, lng: 1.616, region: "Hauts-de-France", aliases: ["rang du fliers verton berck"] },
+  { name: "Roubaix", lat: 50.692, lng: 3.178, region: "Hauts-de-France" },
+  { name: "Tourcoing", lat: 50.724, lng: 3.161, region: "Hauts-de-France" },
+  // Grand Est
+  { name: "Lunéville", lat: 48.593, lng: 6.498, region: "Grand Est" },
+  { name: "Rethel", lat: 49.513, lng: 4.366, region: "Grand Est" },
+  { name: "Vitry-le-François", lat: 48.724, lng: 4.585, region: "Grand Est" },
+  // Île-de-France
+  { name: "Mantes-la-Jolie", lat: 48.99, lng: 1.703, region: "Île-de-France" },
+  // Bretagne
+  { name: "Dol-de-Bretagne", lat: 48.549, lng: -1.75, region: "Bretagne" },
+  { name: "Landerneau", lat: 48.444, lng: -4.249, region: "Bretagne" },
+  { name: "Lannion", lat: 48.732, lng: -3.459, region: "Bretagne" },
+  { name: "Plouaret", lat: 48.617, lng: -3.467, region: "Bretagne", aliases: ["plouaret tregor"] },
+  // Pays de la Loire
+  { name: "Ancenis", lat: 47.366, lng: -1.176, region: "Pays de la Loire" },
+  { name: "Le Pouliguen", lat: 47.279, lng: -2.43, region: "Pays de la Loire" },
+  { name: "Pornichet", lat: 47.265, lng: -2.34, region: "Pays de la Loire" },
+  { name: "Sablé-sur-Sarthe", lat: 47.838, lng: -0.335, region: "Pays de la Loire" },
+  // Nouvelle-Aquitaine
+  { name: "Biganos", lat: 44.642, lng: -0.964, region: "Nouvelle-Aquitaine", aliases: ["biganos facture", "facture biganos"] },
+  { name: "Futuroscope", lat: 46.661, lng: 0.366, region: "Nouvelle-Aquitaine" },
+  { name: "La Teste-de-Buch", lat: 44.628, lng: -1.143, region: "Nouvelle-Aquitaine", aliases: ["la teste"] },
+  { name: "Saint-Maixent-l'École", lat: 46.411, lng: -0.207, region: "Nouvelle-Aquitaine", aliases: ["saint maixent", "st maixent"] },
+  { name: "Saint-Vincent-de-Tyrosse", lat: 43.661, lng: -1.306, region: "Nouvelle-Aquitaine" },
+  // Occitanie
+  { name: "Argelès-sur-Mer", lat: 42.545, lng: 3.024, region: "Occitanie" },
+  { name: "Banyuls-sur-Mer", lat: 42.481, lng: 3.128, region: "Occitanie" },
+  { name: "Bretenoux-Biars", lat: 44.917, lng: 1.838, region: "Occitanie" },
+  { name: "Collioure", lat: 42.527, lng: 3.083, region: "Occitanie" },
+  { name: "Elne", lat: 42.6, lng: 2.972, region: "Occitanie" },
+  { name: "Laroquebrou", lat: 44.967, lng: 2.193, region: "Occitanie" },
+  { name: "Leucate", lat: 42.913, lng: 3.034, region: "Occitanie", aliases: ["leucate la franqui"] },
+  { name: "Port-la-Nouvelle", lat: 43.019, lng: 3.044, region: "Occitanie" },
+  { name: "Port-Vendres", lat: 42.519, lng: 3.107, region: "Occitanie", aliases: ["port vendres ville"] },
+  { name: "Rivesaltes", lat: 42.77, lng: 2.872, region: "Occitanie" },
+  { name: "Saint-Denis-près-Martel", lat: 44.945, lng: 1.674, region: "Occitanie" },
+  // Auvergne-Rhône-Alpes
+  { name: "Crest", lat: 44.728, lng: 5.022, region: "Auvergne-Rhône-Alpes" },
+  { name: "Die", lat: 44.754, lng: 5.37, region: "Auvergne-Rhône-Alpes" },
+  { name: "Landry", lat: 45.573, lng: 6.736, region: "Auvergne-Rhône-Alpes" },
+  { name: "Luc-en-Diois", lat: 44.614, lng: 5.446, region: "Auvergne-Rhône-Alpes" },
+  { name: "Nurieux", lat: 46.18, lng: 5.47, region: "Auvergne-Rhône-Alpes" },
+  { name: "Saint-Avre-La Chambre", lat: 45.38, lng: 6.3, region: "Auvergne-Rhône-Alpes" },
+  { name: "Saint-Jean-de-Maurienne", lat: 45.276, lng: 6.346, region: "Auvergne-Rhône-Alpes", aliases: ["saint jean de maurienne arvan"] },
+  { name: "Saint-Michel-Valloire", lat: 45.218, lng: 6.47, region: "Auvergne-Rhône-Alpes" },
+  // Provence-Alpes-Côte d'Azur
+  { name: "Chorges", lat: 44.548, lng: 6.276, region: "Provence-Alpes-Côte d'Azur" },
+  { name: "Embrun", lat: 44.564, lng: 6.495, region: "Provence-Alpes-Côte d'Azur" },
+  { name: "L'Argentière-les-Écrins", lat: 44.787, lng: 6.56, region: "Provence-Alpes-Côte d'Azur" },
+  { name: "Montdauphin-Guillestre", lat: 44.677, lng: 6.621, region: "Provence-Alpes-Côte d'Azur" },
+  { name: "Veynes-Dévoluy", lat: 44.532, lng: 5.818, region: "Provence-Alpes-Côte d'Azur" },
+  // Bourgogne-Franche-Comté
+  { name: "Frasne", lat: 46.857, lng: 6.158, region: "Bourgogne-Franche-Comté" },
+  // Allemagne
+  { name: "Lahr", lat: 48.34, lng: 7.871, region: "Allemagne", aliases: ["lahr schwarzwald", "lahr schwarzw"] },
+  { name: "Ringsheim", lat: 48.224, lng: 7.77, region: "Allemagne", aliases: ["ringsheim europa park"] },
 ];
