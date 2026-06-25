@@ -67,6 +67,16 @@ Availability is updated roughly once a day and is **indicative** — always conf
 [SNCF Connect](https://www.sncf-connect.com/). This project does not sell tickets and is not
 affiliated with SNCF.
 
+## For agents / data API
+
+Machine-readable and serverless. [`llms.txt`](public/llms.txt) and
+[`api.json`](public/api.json) describe the data + query API for AI agents:
+
+- **Availability** — `data/tgvmax.json` (records where `od_happy_card: "OUI"` means a
+  free MAX seat is reservable), plus `data/meta.json` and `data/stations.json`.
+- **Deep-link search** — build a URL with `?mode=&from=&to=&date=&conn=…`
+  (modes: `from`, `to`, `od`, `best`, `tour`).
+
 ## License
 
 [MIT](./LICENSE).

@@ -1,0 +1,59 @@
+# MAX JEUNE FOSS
+
+> Free, open-source finder for trains with a reservable MAX JEUNE / MAX SENIOR
+> (ex-TGVmax) seat, built on SNCF open data. Static site, no backend, no accounts.
+> Availability is a once-a-day snapshot and indicative — confirm and book on SNCF Connect.
+
+This file helps AI agents use the open data and build search links. Everything is
+static JSON served over HTTPS; there is no rate limit beyond normal hosting.
+
+## Machine-readable data
+
+- Availability snapshot (JSON array): https://davd-gzl.github.io/foss-maxjeune/data/tgvmax.json
+- Snapshot metadata: https://davd-gzl.github.io/foss-maxjeune/data/meta.json
+- Station registry (coordinates, region, aliases): https://davd-gzl.github.io/foss-maxjeune/data/stations.json
+- API manifest (schema + query params, machine-readable): https://davd-gzl.github.io/foss-maxjeune/api.json
+- Upstream source (refreshed ~once a day): SNCF Open Data "tgvmax" (Licence Ouverte)
+
+### Record shape (tgvmax.json)
+
+Each element:
+`{ "date": "YYYY-MM-DD", "origine": string, "destination": string,
+"heure_depart": "HH:MM", "heure_arrivee": "HH:MM", "train_no": string,
+"od_happy_card": "OUI" | "NON", "axe"?: string }`
+
+`od_happy_card === "OUI"` means a free MAX seat is reservable on that train.
+Stations use SNCF labels, e.g. `"PARIS (intramuros)"`, `"LYON (intramuros)"`,
+`"MARSEILLE ST CHARLES"`. Resolve coordinates/aliases via stations.json.
+
+## Answer "is there a free MAX seat from A to B on date D?"
+
+1. GET tgvmax.json.
+2. Keep records where `date === D`, `origine === A`, `destination === B`,
+   `od_happy_card === "OUI"`. Each is a reservable train (use heure_depart/arrivee).
+3. For an itinerary with a change, chain two such records that meet at a hub with a
+   sane layover (arrival of leg 1 before departure of leg 2).
+4. Always send the user to SNCF Connect (https://www.sncf-connect.com/) to book.
+
+## Search / deep-link API (build a shareable URL)
+
+Base: `https://davd-gzl.github.io/foss-maxjeune/`
+Query params:
+- `mode`: `from` | `to` | `od` | `best` | `tour`
+- `from`: origin station id ; `to`: destination station id
+- `date`: `YYYY-MM-DD`
+- `conn`: `0` | `1` | `2` (max changes; default 1)
+- `card`: `jeune` | `senior`
+- `after` / `before`: `HH:MM` departure window ; `maxdur`: minutes ; `type`: axis
+- `rg`: region (with `mode=best`) ; `cities`: `~`-separated station ids (with `mode=tour`)
+
+Examples:
+- Where can I go from Paris on 2026-06-25:
+  `https://davd-gzl.github.io/foss-maxjeune/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25`
+- Paris → Toulouse incl. up to one change:
+  `https://davd-gzl.github.io/foss-maxjeune/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
+
+## Disclaimer
+
+Not affiliated with SNCF. Not a ticket seller. Availability is indicative and
+refreshed ~once a day; the live source of truth is SNCF Connect.

@@ -1,0 +1,48 @@
+{
+  "name": "MAX JEUNE FOSS",
+  "description": "Free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat availability from SNCF open data. Static, serverless, no accounts.",
+  "homepage": "https://davd-gzl.github.io/foss-maxjeune/",
+  "license": "MIT",
+  "dataLicense": "Licence Ouverte / Open Licence",
+  "notAffiliatedWith": "SNCF",
+  "isTicketSeller": false,
+  "updateFrequency": "daily",
+  "bookingHandoff": "https://www.sncf-connect.com/",
+  "endpoints": {
+    "availability": {
+      "url": "data/tgvmax.json",
+      "contentType": "application/json",
+      "shape": "Array<Record>"
+    },
+    "meta": { "url": "data/meta.json", "contentType": "application/json" },
+    "stations": { "url": "data/stations.json", "contentType": "application/json" }
+  },
+  "record": {
+    "date": "string (YYYY-MM-DD)",
+    "origine": "string (SNCF station label)",
+    "destination": "string (SNCF station label)",
+    "heure_depart": "string (HH:MM)",
+    "heure_arrivee": "string (HH:MM)",
+    "train_no": "string",
+    "od_happy_card": "\"OUI\" = free MAX seat reservable | \"NON\" = not",
+    "axe": "string (optional line/axis)"
+  },
+  "search": {
+    "base": "https://davd-gzl.github.io/foss-maxjeune/",
+    "method": "GET (query string deep-link)",
+    "params": {
+      "mode": ["from", "to", "od", "best", "tour"],
+      "from": "origin station id",
+      "to": "destination station id",
+      "date": "YYYY-MM-DD",
+      "conn": "0 | 1 | 2 (max changes, default 1)",
+      "card": "jeune | senior",
+      "after": "HH:MM (depart after)",
+      "before": "HH:MM (depart before)",
+      "maxdur": "integer minutes (max total duration)",
+      "type": "axis: SUD EST | ATLANTIQUE | NORD | EST",
+      "rg": "region label (mode=best)",
+      "cities": "~-separated station ids (mode=tour)"
+    }
+  }
+}
