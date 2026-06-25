@@ -17,8 +17,10 @@ permissions:
   id-token: write
 
 concurrency:
+  # Latest push wins: cancel an in-progress deploy so rapid pushes don't collide
+  # on the Pages "one deployment in flight" limit (which fails the newer run).
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
