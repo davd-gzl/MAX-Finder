@@ -96,4 +96,5 @@ export const nl: Dict = {
   act_report: "Een probleem melden",
   act_back: "Terug",
   act_map: "Op de kaart tonen",
+  field_overnight: "Nachtoverstap",
 };

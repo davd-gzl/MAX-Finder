@@ -14,7 +14,14 @@ import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
 import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
-import { SNCF_CONNECT_URL, MAX_JEUNE_URL, MAX_SENIOR_URL, GITHUB_URL, GITHUB_ISSUES_URL } from "./config";
+import {
+  SNCF_CONNECT_URL,
+  MAX_JEUNE_URL,
+  MAX_SENIOR_URL,
+  GITHUB_URL,
+  GITHUB_ISSUES_URL,
+  OVERNIGHT_MAX_CONNECTION_MIN,
+} from "./config";
 import { notify } from "./pwa/register";
 
 interface Deps {
@@ -36,6 +43,7 @@ interface Refs {
   maxDuration: HTMLInputElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  overnight: HTMLInputElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
   returnField: HTMLElement;
@@ -209,6 +217,7 @@ function syncFormFromQuery(): void {
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
+  refs.overnight.checked = Boolean(query.overnight);
   refs.region.value = query.region ?? "";
   refs.cities.value = (query.cities ?? []).map((id) => deps.registry.label(id)).join(", ");
   updateFieldVisibility();
@@ -227,6 +236,7 @@ function readQueryFromForm(): SearchQuery {
     maxDurationMin: Number.isFinite(maxDur) && maxDur > 0 ? maxDur : undefined,
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
+    overnight: refs.overnight.checked || undefined,
     region: refs.region.value || undefined,
     cities:
       query.mode === "tour"
@@ -255,6 +265,9 @@ function filterOpts() {
     departBefore: query.departBefore,
     maxDurationMin: query.maxDurationMin,
     trainType: query.trainType,
+    // Overnight stopovers: widen the layover ceiling so a journey can wait
+    // overnight at a hub instead of being limited to a ~4h connection.
+    ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
   };
 }
 
@@ -753,6 +766,11 @@ function buildForm(): FormBuild {
     optionEl("3", t("conn_3"), false),
     optionEl("6", t("conn_max"), false),
   ]) as HTMLSelectElement;
+  const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const overnightField = el("label", { class: "field field-check" }, [
+    overnight,
+    el("span", { class: "field-label", text: t("field_overnight") }),
+  ]);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
   ].sort();
@@ -777,6 +795,7 @@ function buildForm(): FormBuild {
       field(t("field_maxDuration"), maxDuration),
       field(t("field_trainType"), trainType),
       field(t("field_connections"), maxConnections),
+      overnightField,
     ]),
   ]);
 
@@ -842,6 +861,7 @@ function buildForm(): FormBuild {
       maxDuration,
       trainType,
       maxConnections,
+      overnight,
       originField,
       destinationField,
       returnField,

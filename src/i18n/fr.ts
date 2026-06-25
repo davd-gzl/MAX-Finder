@@ -107,6 +107,7 @@ export const fr = {
   act_report: "Signaler un problème",
   act_back: "Retour",
   act_map: "Voir sur la carte",
+  field_overnight: "Escale de nuit",
 };
 
 export type Dict = typeof fr;

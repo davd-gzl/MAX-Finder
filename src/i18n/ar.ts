@@ -96,4 +96,5 @@ export const ar: Dict = {
   act_report: "الإبلاغ عن مشكلة",
   act_back: "رجوع",
   act_map: "إظهار على الخريطة",
+  field_overnight: "توقف ليلي",
 };

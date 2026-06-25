@@ -106,6 +106,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxDurationMin != null) p.set("maxdur", String(q.maxDurationMin));
   if (q.trainType) p.set("type", q.trainType);
   if (q.maxConnections !== 1) p.set("conn", String(q.maxConnections));
+  if (q.overnight) p.set("night", "1");
   if (q.region) p.set("rg", q.region);
   if (q.cities && q.cities.length > 0) p.set("cities", q.cities.join("~"));
   return p;
@@ -129,6 +130,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxDurationMin: Number.isFinite(maxdur) && maxdur > 0 ? maxdur : undefined,
     trainType: p.get("type") ?? undefined,
     maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 6 ? conn : 1,
+    overnight: p.get("night") === "1" || undefined,
     region: p.get("rg") ?? undefined,
     cities: cities ? cities.split("~").filter(Boolean) : undefined,
   };

@@ -21,6 +21,8 @@ export const HUB_STATIONS: string[] = [
 /** Allowed layover window (minutes) for a connection. */
 export const MIN_CONNECTION_MIN = 15;
 export const MAX_CONNECTION_MIN = 240;
+/** Layover ceiling when overnight stopovers are allowed (sleep at the hub). */
+export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
 
 export const DEFAULT_CARD: CardType = "jeune";
 
