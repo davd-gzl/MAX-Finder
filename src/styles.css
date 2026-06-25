@@ -382,15 +382,16 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin: -0.2rem -0.15rem -0.2rem 0; /* bigger hit area without growing the chip */
   border: 0;
   background: transparent;
   color: inherit;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 .chip-x:hover {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
@@ -905,6 +906,15 @@ a {
   gap: 0.4rem;
   font-weight: 580;
   font-size: 0.93rem;
+  flex-wrap: wrap;
+}
+/* Let long station names shrink/ellipsize instead of overflowing the card on
+   narrow phones; the arrow icon and day-badge keep their size. */
+.leg-route > span:not(.day-badge) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .layover {
   display: inline-flex;
