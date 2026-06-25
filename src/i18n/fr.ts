@@ -6,6 +6,13 @@ export const fr = {
   best_title: "Meilleurs trajets depuis {station} — {date}",
   field_region: "Région",
   region_any: "Toutes régions",
+  mode_tour: "Tour",
+  tour_title: "Itinéraires depuis {station} — {date}",
+  field_cities: "Villes à visiter",
+  field_cities_ph: "Lyon, Marseille, Nice",
+  tour_hint: "Ajoutez des villes à visiter (séparées par des virgules).",
+  tour_none: "Aucun itinéraire MAX pour ces villes et dates.",
+  tour_day: "Jour {n} — {date}",
 
   mode_from: "Où partir ?",
   mode_to: "Qui vient ici ?",

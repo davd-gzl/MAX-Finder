@@ -8,6 +8,13 @@ export const en: Dict = {
   best_title: "Best trips from {station} — {date}",
   field_region: "Region",
   region_any: "All regions",
+  mode_tour: "Tour",
+  tour_title: "Tours from {station} — {date}",
+  field_cities: "Cities to visit",
+  field_cities_ph: "Lyon, Marseille, Nice",
+  tour_hint: "Add cities to visit (comma-separated).",
+  tour_none: "No MAX tour for these cities and dates.",
+  tour_day: "Day {n} — {date}",
 
   mode_from: "Where to?",
   mode_to: "Who comes here?",

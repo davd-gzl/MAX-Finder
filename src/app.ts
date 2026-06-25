@@ -3,6 +3,7 @@ import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
 import { reachableDestinations, reachableOrigins } from "./core/destinations";
 import { bestTrips, stationsOnDate } from "./core/best";
+import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
 import { findRoundTrips } from "./core/roundtrip";
@@ -38,6 +39,8 @@ interface Refs {
   returnField: HTMLElement;
   region: HTMLSelectElement;
   regionField: HTMLElement;
+  cities: HTMLInputElement;
+  citiesField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -140,6 +143,7 @@ function syncFormFromQuery(): void {
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.region.value = query.region ?? "";
+  refs.cities.value = (query.cities ?? []).map((id) => deps.registry.label(id)).join(", ");
   updateFieldVisibility();
 }
 
@@ -157,7 +161,13 @@ function readQueryFromForm(): SearchQuery {
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
     region: refs.region.value || undefined,
-    cities: query.cities,
+    cities:
+      query.mode === "tour"
+        ? refs.cities.value
+            .split(",")
+            .map((s) => resolveStation(s))
+            .filter((s): s is string => Boolean(s))
+        : query.cities,
   };
 }
 
@@ -220,9 +230,34 @@ function runSearch(): void {
     showMap(query.destination, groups.map((g) => g.station));
   } else if (query.mode === "best") {
     runBestSearch(c);
+  } else if (query.mode === "tour") {
+    runTourSearch(c);
   } else {
     runOdSearch(c);
   }
+}
+
+function runTourSearch(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  if (!query.origin) return showHint(refs.origin);
+  refs.title.textContent = t("tour_title", {
+    station: registry.label(query.origin),
+    date: formatDate(query.date),
+  });
+  const cities = query.cities ?? [];
+  if (cities.length === 0) {
+    refs.results.append(render.emptyEl(t("tour_hint")));
+    return;
+  }
+  const tours = planTours(trains, query.origin, cities, query.date, {
+    maxConnections: query.maxConnections,
+  });
+  if (tours.length === 0) {
+    refs.results.append(render.emptyEl(t("tour_none")));
+    return;
+  }
+  for (const tour of tours) refs.results.append(render.tourEl(tour, c));
+  showMap(query.origin, cities);
 }
 
 function runBestSearch(c: RenderCtx): void {
@@ -342,6 +377,7 @@ function updateFieldVisibility(): void {
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
   refs.regionField.style.display = query.mode === "best" ? "" : "none";
+  refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -453,7 +489,7 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.all()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  for (const m of ["from", "to", "od", "best"] as const) {
+  for (const m of ["from", "to", "od", "best", "tour"] as const) {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
@@ -497,11 +533,14 @@ function buildForm(): FormBuild {
     optionEl("", t("region_any"), true),
     ...regionList.map((r) => optionEl(r, r, false)),
   ]) as HTMLSelectElement;
+  const cities = inputEl("text");
+  cities.placeholder = t("field_cities_ph");
 
   const originField = field(t("field_origin"), origin);
   const destinationField = field(t("field_destination"), destination);
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
+  const citiesField = field(t("field_cities"), cities);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
@@ -525,6 +564,7 @@ function buildForm(): FormBuild {
       returnField,
       field(t("field_card"), card),
       regionField,
+      citiesField,
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn]),
@@ -554,6 +594,8 @@ function buildForm(): FormBuild {
       returnField,
       region,
       regionField,
+      cities,
+      citiesField,
     },
   };
 }
