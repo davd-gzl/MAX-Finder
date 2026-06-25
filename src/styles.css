@@ -141,6 +141,11 @@ a {
   font-size: 0.88rem;
   max-width: 44ch;
 }
+.updated {
+  margin: 0.25rem 0 0;
+  color: var(--faint);
+  font-size: 0.76rem;
+}
 .header-ctls {
   display: flex;
   gap: 0.4rem;
@@ -162,7 +167,7 @@ a {
 /* ---- layout ---- */
 .layout {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1fr 340px;
   gap: 1.6rem;
   align-items: start;
 }
@@ -382,6 +387,40 @@ a {
   padding: 1.6rem;
   text-align: center;
   color: var(--muted);
+}
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  opacity: 0;
+  animation: mf-fade 0.2s ease 0.15s forwards;
+}
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  min-height: 60vh;
+  color: var(--muted);
+}
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: mf-spin 0.7s linear infinite;
+}
+@keyframes mf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mf-fade {
+  to {
+    opacity: 1;
+  }
 }
 
 .group-card,
@@ -720,7 +759,7 @@ a {
   margin-bottom: 0.5rem;
 }
 .map {
-  height: 300px;
+  height: 520px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   overflow: hidden;

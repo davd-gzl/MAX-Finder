@@ -22,12 +22,25 @@ export class StationRegistry {
   private index: { station: Station; hay: string; words: string[] }[] = [];
 
   constructor(stations: Station[]) {
-    for (const s of stations) {
-      this.byId.set(s.id, s);
-      const hay = [s.id, s.label, s.city ?? "", ...(s.aliases ?? [])]
-        .map(normalizeText)
-        .join(" ");
-      this.index.push({ station: s, hay, words: hay.split(/\s+/).filter(Boolean) });
+    for (const s of stations) this.add(s);
+  }
+
+  private add(s: Station): void {
+    this.byId.set(s.id, s);
+    const hay = [s.id, s.label, s.city ?? "", ...(s.aliases ?? [])]
+      .map(normalizeText)
+      .join(" ");
+    this.index.push({ station: s, hay, words: hay.split(/\s+/).filter(Boolean) });
+  }
+
+  /**
+   * Add minimal entries (label only, no coordinates) for any ids not already known,
+   * so every station present in the dataset is searchable even if it isn't in the
+   * curated registry. Such stations are listed/searchable but not plotted on the map.
+   */
+  addMissing(ids: Iterable<string>): void {
+    for (const id of ids) {
+      if (id && !this.byId.has(id)) this.add({ id, label: prettyLabel(id), lat: NaN, lng: NaN });
     }
   }
 
@@ -45,7 +58,7 @@ export class StationRegistry {
 
   coords(id: string): [number, number] | undefined {
     const s = this.byId.get(id);
-    return s ? [s.lat, s.lng] : undefined;
+    return s && Number.isFinite(s.lat) && Number.isFinite(s.lng) ? [s.lat, s.lng] : undefined;
   }
 
   /** Accent-insensitive, word-prefix-aware autocomplete. */

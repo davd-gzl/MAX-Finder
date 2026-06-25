@@ -14,7 +14,7 @@ export class RouteMap {
 
   private ensure(): { map: L.Map; layer: L.LayerGroup } {
     if (!this.map) {
-      this.map = L.map(this.container, { scrollWheelZoom: false }).setView([46.6, 2.4], 5);
+      this.map = L.map(this.container, { scrollWheelZoom: true }).setView([46.6, 2.4], 5);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap",
         maxZoom: 18,

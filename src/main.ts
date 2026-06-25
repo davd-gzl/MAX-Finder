@@ -8,6 +8,7 @@ import { registerServiceWorker } from "./pwa/register";
 
 const root = document.getElementById("app");
 if (root) {
+  root.innerHTML = '<div class="app-loading"><span class="spinner" aria-hidden="true"></span></div>';
   const registry = new StationRegistry(stationData as Station[]);
   loadDataset()
     .then((dataset) => initApp(root, dataset, registry))

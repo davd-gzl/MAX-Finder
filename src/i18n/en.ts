@@ -85,4 +85,5 @@ export const en: Dict = {
 
   ctl_theme: "Theme",
   ctl_lang: "Language",
+  loading: "Loading…",
 };

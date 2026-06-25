@@ -61,6 +61,9 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   settings = store.loadSettings();
   applyTheme(settings.theme);
   setLang(settings.lang);
+  // Every station present in the dataset becomes searchable (the curated registry
+  // only covers map coordinates for the major ones).
+  registry.addMissing(dataset.trains.flatMap((t) => [t.origin, t.destination]));
   labelToId = new Map(registry.all().map((s) => [s.label.toLowerCase(), s.id]));
 
   const today = new Date().toISOString().slice(0, 10);
@@ -193,6 +196,21 @@ function filterOpts() {
 
 function runSearch(): void {
   clear(refs.results);
+  // Delayed spinner: CSS keeps it invisible for 150ms, so instant searches never
+  // flash it, while heavy modes (best/tour on large data) show it. The compute is
+  // deferred a frame so the spinner can paint first.
+  refs.results.append(
+    el("div", { class: "loading", attrs: { role: "status", "aria-label": t("loading") } }, [
+      el("span", { class: "spinner", attrs: { "aria-hidden": "true" } }),
+    ]),
+  );
+  requestAnimationFrame(() => {
+    clear(refs.results);
+    renderSearch();
+  });
+}
+
+function renderSearch(): void {
   const c = ctx();
   const { trains, registry } = deps;
 
@@ -381,6 +399,14 @@ function updateFieldVisibility(): void {
 function buildLayout(root: HTMLElement): void {
   clear(root);
 
+  const meta = deps.meta;
+  const when = meta.updatedAt
+    ? new Date(meta.updatedAt).toLocaleString(getLang(), { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  const updated = when
+    ? t("foot_updated", { date: when }) + (meta.isSample ? ` (${t("foot_sample")})` : "")
+    : t("foot_sample");
+
   // header
   const langSel = el("select", { class: "ctl", attrs: { "aria-label": t("ctl_lang") } }, [
     optionEl("fr", "FR", settings.lang === "fr"),
@@ -414,6 +440,7 @@ function buildLayout(root: HTMLElement): void {
       el("div", {}, [
         el("h1", { text: t("appName") }),
         el("p", { class: "tagline", text: t("tagline") }),
+        el("p", { class: "updated", text: updated }),
       ]),
     ]),
     el("div", { class: "header-ctls" }, [langSel, themeSel]),
@@ -437,13 +464,7 @@ function buildLayout(root: HTMLElement): void {
     favList,
   ]);
 
-  const meta = deps.meta;
-  const updated =
-    meta.isSample || !meta.updatedAt
-      ? t("foot_sample")
-      : t("foot_updated", { date: new Date(meta.updatedAt).toLocaleString(getLang()) });
   const footer = el("footer", { class: "site-footer" }, [
-    el("p", { text: updated }),
     el("p", { class: "muted", text: t("foot_source") }),
     el("p", { class: "muted small", text: t("foot_disclaimer") }),
     el("p", { class: "muted small" }, [
