@@ -194,6 +194,7 @@ a {
   width: 38px;
   padding: 0.4rem;
   color: var(--text);
+  flex: none; /* stay icon-width even where header controls stretch (mobile) */
 }
 
 /* ---- layout ---- */
@@ -619,6 +620,8 @@ a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .dest-meta {
   color: var(--muted);
@@ -628,6 +631,7 @@ a {
 }
 .chev {
   margin-left: auto;
+  flex: none;
   color: var(--faint);
   display: inline-flex;
   transition: transform 0.15s ease;
@@ -972,10 +976,18 @@ a {
 }
 
 /* ---- right-to-left ---- */
-/* Keep clock times and origin→destination order LTR even in an RTL layout. */
+/* Keep clock times, durations and origin→destination order LTR even in an RTL
+   layout, so bidi doesn't scramble "1 h 50" into "h 50 1". */
 [dir="rtl"] .train-time,
-[dir="rtl"] .leg-route {
+[dir="rtl"] .leg-route,
+[dir="rtl"] .dest-meta,
+[dir="rtl"] .train-meta,
+[dir="rtl"] .journey-total {
   direction: ltr;
+}
+/* Mirror the forward/drill-in chevron so it points the reading direction. */
+[dir="rtl"] .chev svg {
+  transform: scaleX(-1);
 }
 
 /* ---- responsive ---- */
