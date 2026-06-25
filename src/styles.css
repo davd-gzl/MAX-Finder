@@ -204,7 +204,14 @@ a {
   gap: 1.6rem;
   align-items: start;
 }
+/* Grid items default to min-width:auto, which lets a wide row (long station
+   name / "via" chip) push the column past the viewport on mobile. Allow them
+   to shrink so rows ellipsize instead of overflowing. */
+.main-col {
+  min-width: 0;
+}
 .side-col {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
@@ -1010,6 +1017,9 @@ a {
   }
   .header-ctls .ctl {
     flex: 1 1 auto;
+  }
+  .header-ctls .icon-ctl {
+    flex: 0 0 auto; /* keep the theme toggle icon-width, don't stretch it */
   }
   .map {
     height: 320px;
