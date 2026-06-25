@@ -92,4 +92,14 @@ export const zh: Dict = {
   act_install: "安装应用",
   data_why:
     "SNCF 开放数据（tgvmax）每天仅在中午前后发布一次。更频繁地刷新只会重复下载相同的数据。预订本身在 SNCF Connect 上实时进行。",
+  tag_popular: "热门",
+  mode_stats: "统计",
+  desc_stats: "当天免费 MAX 座位最多的车站和线路。",
+  stats_top_dest: "座位最多的目的地",
+  stats_top_origin: "座位最多的出发站",
+  stats_top_route: "座位最多的线路",
+  stats_count: "{n} 个 MAX 座位",
+  conn_3: "最多换乘 3 次",
+  conn_max: "不惜一切",
+  pop_title: "人口（INSEE）",
 };

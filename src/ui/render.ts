@@ -14,6 +14,10 @@ export interface RenderCtx {
   bookUrl: (origin: string, destination: string, date: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
+  /** Best-effort city photo URL (Wikimedia), or null. */
+  cityImage: (id: string) => Promise<string | null>;
+  /** Formatted INSEE population for a city, or null if unknown. */
+  cityPopulation: (id: string) => string | null;
   onOpenRoute: (origin: string, destination: string) => void;
   onFocusStation: (id: string) => void;
   onSelectDay: (date: string) => void;
@@ -86,6 +90,39 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
       el("span", { class: "sr-only", text: t("link_newtab") }),
     ],
   );
+}
+
+/** A self-loading city photo (Wikimedia). Stays hidden unless an image is found. */
+export function cityPhotoEl(ctx: RenderCtx, stationId: string): HTMLImageElement {
+  const img = el("img", {
+    class: "dest-photo",
+    attrs: { alt: "", loading: "lazy", decoding: "async", hidden: "" },
+  }) as HTMLImageElement;
+  void ctx.cityImage(stationId).then((url) => {
+    if (url) {
+      img.src = url;
+      img.removeAttribute("hidden");
+    }
+  });
+  return img;
+}
+
+/** A ranked statistics list: rank + label (+ optional sub-figure) + count. */
+export function statListEl(
+  title: string,
+  items: { label: string; count: number; sub?: string | null }[],
+): HTMLElement {
+  const rows = items.map((it, i) =>
+    el("div", { class: "stat-row" }, [
+      el("span", { class: "stat-rank", text: String(i + 1) }),
+      el("span", { class: "stat-label" }, [
+        el("span", { class: "stat-name", text: it.label }),
+        ...(it.sub ? [el("span", { class: "stat-sub", text: it.sub })] : []),
+      ]),
+      el("span", { class: "stat-count", text: t("stats_count", { n: it.count }) }),
+    ]),
+  );
+  return el("section", { class: "stat-block" }, [el("h3", { text: title }), ...rows]);
 }
 
 /** A direct or connecting journey card. */
@@ -184,8 +221,16 @@ export function groupCardEl(
     [icon(I.star)],
   );
 
-  // Expandable panel: trains + a calendar drill-down and the booking handoff.
+  // Lazy city photo (Wikimedia), revealed on first expand if one is found.
+  const photo = el("img", {
+    class: "dest-photo",
+    attrs: { alt: "", loading: "lazy", decoding: "async", hidden: "" },
+  }) as HTMLImageElement;
+  let photoTried = false;
+
+  // Expandable panel: photo + trains + a calendar drill-down and booking handoff.
   const panel = el("div", { class: "dest-panel", attrs: { hidden: "" } }, [
+    photo,
     el("div", { class: "dest-trains" }, group.trains.map((tr) => trainRowEl(tr))),
     el("div", { class: "dest-links" }, [
       el(
@@ -221,6 +266,15 @@ export function groupCardEl(
           panel.toggleAttribute("hidden", !open);
           (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(open));
           ctx.onFocusStation(group.station);
+          if (open && !photoTried) {
+            photoTried = true;
+            void ctx.cityImage(group.station).then((url) => {
+              if (url) {
+                photo.src = url;
+                photo.removeAttribute("hidden");
+              }
+            });
+          }
         },
       },
     },

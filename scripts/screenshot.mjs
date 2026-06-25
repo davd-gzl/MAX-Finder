@@ -41,6 +41,7 @@ const shots = [
   { name: "trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=2026-06-25` },
   { name: "best", url: `${BASE}?mode=best&from=${P}&date=2026-06-25&conn=2` },
   { name: "tour", url: `${BASE}?mode=tour&from=${P}&date=2026-06-25&cities=${encodeURIComponent("LYON (intramuros)")}~${encodeURIComponent("MARSEILLE ST CHARLES")}` },
+  { name: "stats", url: `${BASE}?mode=stats&date=2026-06-25` },
   { name: "mobile", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, mobile: true },
 ];
 

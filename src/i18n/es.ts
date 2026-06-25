@@ -92,4 +92,14 @@ export const es: Dict = {
   act_install: "Instalar la aplicación",
   data_why:
     "Los datos abiertos de SNCF (tgvmax) se publican solo una vez al día, hacia el mediodía. Actualizar más a menudo descargaría datos idénticos. Las reservas se hacen en tiempo real en SNCF Connect.",
+  tag_popular: "Popular",
+  mode_stats: "Estadísticas",
+  desc_stats: "Las estaciones y líneas con más plazas MAX gratuitas ese día.",
+  stats_top_dest: "Destinos mejor servidos",
+  stats_top_origin: "Salidas mejor servidas",
+  stats_top_route: "Líneas mejor servidas",
+  stats_count: "{n} plazas MAX",
+  conn_3: "Máx 3 cambios",
+  conn_max: "Cueste lo que cueste",
+  pop_title: "Población (INSEE)",
 };

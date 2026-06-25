@@ -104,4 +104,14 @@ export const en: Dict = {
   act_install: "Install the app",
   data_why:
     "SNCF open data (tgvmax) is published only once a day, around midday. Refreshing more often would re-download identical data. Bookings themselves happen in real time on SNCF Connect.",
+  tag_popular: "Popular",
+  mode_stats: "Stats",
+  desc_stats: "The stations and routes with the most free MAX seats that day.",
+  stats_top_dest: "Best-served destinations",
+  stats_top_origin: "Best-served departures",
+  stats_top_route: "Best-served routes",
+  stats_count: "{n} MAX seats",
+  conn_3: "3 changes max",
+  conn_max: "Whatever it takes",
+  pop_title: "Population (INSEE)",
 };
