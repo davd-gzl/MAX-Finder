@@ -97,4 +97,5 @@ export const zh: Dict = {
   act_report: "反馈问题",
   act_back: "返回",
   act_map: "在地图上显示",
+  field_overnight: "过夜中转",
 };

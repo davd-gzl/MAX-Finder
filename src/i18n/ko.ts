@@ -97,4 +97,5 @@ export const ko: Dict = {
   act_report: "문제 신고",
   act_back: "뒤로",
   act_map: "지도에서 보기",
+  field_overnight: "야간 경유",
 };

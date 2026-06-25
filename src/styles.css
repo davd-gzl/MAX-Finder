@@ -291,6 +291,23 @@ a {
   color: var(--muted);
   letter-spacing: 0.02em;
 }
+.field-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: end;
+  padding-bottom: 0.55rem;
+  cursor: pointer;
+}
+.field-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.field-check .field-label {
+  cursor: pointer;
+}
 .input {
   width: 100%;
   background: var(--surface);

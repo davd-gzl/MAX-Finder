@@ -96,4 +96,5 @@ export const pt: Dict = {
   act_report: "Relatar um problema",
   act_back: "Voltar",
   act_map: "Ver no mapa",
+  field_overnight: "Escalas noturnas",
 };

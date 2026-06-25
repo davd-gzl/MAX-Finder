@@ -61,6 +61,8 @@ export interface SearchQuery {
   trainType?: string;
   /** Max changes allowed: 0 = direct only, 1 = one change, 2 = two changes. */
   maxConnections: number;
+  /** Allow long overnight layovers at a hub (evening train → sleep → morning train). */
+  overnight?: boolean;
   /** Region filter, used by "best" mode. */
   region?: string;
   /** Cities to visit, used by "tour" mode. */
