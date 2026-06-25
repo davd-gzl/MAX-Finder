@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-24T06:00:00.000Z",
-  "source": "Fixture sample data (dev). Replaced daily in production by the SNCF tgvmax snapshot.",
-  "recordCount": 0,
-  "isSample": true
+  "updatedAt": "2026-06-25T13:43:37.723Z",
+  "source": "SNCF Open Data — tgvmax (Licence Ouverte)",
+  "recordCount": 424285,
+  "isSample": false
 }
