@@ -42,6 +42,7 @@ const shots = [
   { name: "best", url: `${BASE}?mode=best&from=${P}&date=2026-06-25&conn=2` },
   { name: "tour", url: `${BASE}?mode=tour&from=${P}&date=2026-06-25&cities=${encodeURIComponent("LYON (intramuros)")}~${encodeURIComponent("MARSEILLE ST CHARLES")}` },
   { name: "mobile", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, mobile: true },
+  { name: "arabic", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, lang: "ar" },
 ];
 
 const args = chromium.args.filter((a) => !a.startsWith("--user-data-dir") && !a.startsWith("--proxy"));
@@ -60,6 +61,11 @@ for (const s of shots) {
       ? { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
       : { width: 1120, height: 1400, deviceScaleFactor: 2 },
   );
+  if (s.lang) {
+    await page.evaluateOnNewDocument((lang) => {
+      localStorage.setItem("mj.settings", JSON.stringify({ lang, theme: "auto", card: "jeune" }));
+    }, s.lang);
+  }
   await page.goto(s.url, { waitUntil: "networkidle2", timeout: 30000 }).catch(() => {});
   await new Promise((r) => setTimeout(r, 1500));
   // Crop tightly to the app (#app is centred with a max width), not the full page.

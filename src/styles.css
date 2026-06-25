@@ -935,6 +935,13 @@ a {
   color: var(--muted);
 }
 
+/* ---- right-to-left ---- */
+/* Keep clock times and origin→destination order LTR even in an RTL layout. */
+[dir="rtl"] .train-time,
+[dir="rtl"] .leg-route {
+  direction: ltr;
+}
+
 /* ---- responsive ---- */
 @media (max-width: 860px) {
   .map {
