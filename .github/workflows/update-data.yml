@@ -5,8 +5,9 @@ on:
   # midday Paris time). Polling more often returns identical data, so we run
   # twice — shortly after the refresh, plus a later safety catch if it's late.
   schedule:
+    - cron: "0 6 * * *"
     - cron: "0 13 * * *"
-    - cron: "0 17 * * *"
+    - cron: "0 19 * * *"
   workflow_dispatch:
 
 permissions:
