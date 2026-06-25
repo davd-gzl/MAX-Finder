@@ -27,7 +27,7 @@ export function journeyToIcs(j: Journey, summary: string, description = ""): str
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//MAX JEUNE FOSS//EN",
+    "PRODID:-//MAX Finder//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${uid}`,

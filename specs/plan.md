@@ -1,4 +1,4 @@
-# Implementation Plan — MAX JEUNE FOSS
+# Implementation Plan — MAX Finder
 
 Spec-Driven Development artifact. The **how**.
 

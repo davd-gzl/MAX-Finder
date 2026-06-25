@@ -1,5 +1,5 @@
 /**
- * Service Worker for MAX JEUNE FOSS PWA
+ * Service Worker for MAX Finder PWA
  *
  * Scope: /foss-maxjeune/ (registered from that sub-path)
  *

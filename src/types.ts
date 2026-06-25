@@ -1,4 +1,4 @@
-// Domain types for MAX JEUNE FOSS.
+// Domain types for MAX Finder.
 
 /** Which MAX subscription the user holds. */
 export type CardType = "jeune" | "senior";

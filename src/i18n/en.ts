@@ -1,7 +1,7 @@
 import type { Dict } from "./fr";
 
 export const en: Dict = {
-  appName: "MAX JEUNE",
+  appName: "MAX Finder",
   tagline: "MAX JEUNE / SENIOR seats open for reservation.",
   prompt_pick: "Choose a departure station.",
   mode_best: "Ideas",

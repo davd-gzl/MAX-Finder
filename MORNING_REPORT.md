@@ -1,4 +1,4 @@
-# Morning report — MAX JEUNE FOSS
+# Morning report — MAX Finder
 
 Bonjour ☕ — here's what got built overnight, what's verified, the one manual step
 left for you, and the honest list of limitations + follow-ons.

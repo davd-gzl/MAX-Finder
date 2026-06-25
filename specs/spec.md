@@ -1,4 +1,4 @@
-# Specification — MAX JEUNE FOSS
+# Specification — MAX Finder
 
 Spec-Driven Development artifact. Describes **what** and **why**, not implementation details.
 

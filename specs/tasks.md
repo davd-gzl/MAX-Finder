@@ -1,4 +1,4 @@
-# Tasks — MAX JEUNE FOSS
+# Tasks — MAX Finder
 
 Spec-Driven Development artifact. Ordered, checkable units.
 
