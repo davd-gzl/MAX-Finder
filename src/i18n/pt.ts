@@ -93,4 +93,6 @@ export const pt: Dict = {
     "Os dados abertos da SNCF (tgvmax) são publicados apenas uma vez por dia, por volta do meio-dia. Atualizar com mais frequência baixaria dados idênticos. As reservas são feitas em tempo real no SNCF Connect.",
   conn_3: "Máx 3 conexões",
   conn_max: "Custe o que custar",
+  act_report: "Relatar um problema",
+  act_back: "Voltar",
 };

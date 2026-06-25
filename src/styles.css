@@ -938,6 +938,19 @@ a {
 .site-footer a {
   color: var(--muted);
 }
+.foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.6rem;
+}
+.feedback-btn {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+.foot-link {
+  font-size: 0.85rem;
+}
 
 /* ---- right-to-left ---- */
 /* Keep clock times and origin→destination order LTR even in an RTL layout. */
