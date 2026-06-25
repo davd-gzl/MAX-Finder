@@ -4,7 +4,7 @@
 export type CardType = "jeune" | "senior";
 
 /** Search intent. */
-export type SearchMode = "from" | "to" | "od";
+export type SearchMode = "from" | "to" | "od" | "best" | "tour";
 
 /**
  * A raw record as published by the SNCF `tgvmax` Open Data dataset.
@@ -59,10 +59,15 @@ export interface SearchQuery {
   departBefore?: string; // "HH:MM"
   maxDurationMin?: number;
   trainType?: string;
-  allowConnections: boolean;
+  /** Max changes allowed: 0 = direct only, 1 = one change, 2 = two changes. */
+  maxConnections: number;
+  /** Region filter, used by "best" mode. */
+  region?: string;
+  /** Cities to visit, used by "tour" mode. */
+  cities?: string[];
 }
 
-/** A direct (1 leg) or single-connection (2 legs) journey. */
+/** A direct or multi-leg (1..3 legs) journey. */
 export interface Journey {
   date: string;
   origin: string;
@@ -71,8 +76,10 @@ export interface Journey {
   departMin: number;
   arriveMin: number;
   totalDurationMin: number;
-  connectionMin?: number; // layover at the hub (2-leg only)
-  hub?: string;
+  connectionMin?: number; // single-change layover (back-compat convenience)
+  hub?: string; // single-change hub (back-compat convenience)
+  layovers: number[]; // layover before each leg after the first
+  hubs: string[]; // interchange stations, in order
 }
 
 /** One day in the 30-day availability calendar for a route. */

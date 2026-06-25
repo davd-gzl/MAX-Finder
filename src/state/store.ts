@@ -105,14 +105,19 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.departBefore) p.set("before", q.departBefore);
   if (q.maxDurationMin != null) p.set("maxdur", String(q.maxDurationMin));
   if (q.trainType) p.set("type", q.trainType);
-  if (!q.allowConnections) p.set("nc", "1");
+  if (q.maxConnections !== 1) p.set("conn", String(q.maxConnections));
+  if (q.region) p.set("rg", q.region);
+  if (q.cities && q.cities.length > 0) p.set("cities", q.cities.join("~"));
   return p;
 }
 
 export function queryFromParams(p: URLSearchParams, fallbackDate: string): SearchQuery {
   const rawMode = p.get("mode") ?? "from";
-  const mode = (["from", "to", "od"].includes(rawMode) ? rawMode : "from") as SearchMode;
+  const mode = (["from", "to", "od", "best", "tour"].includes(rawMode) ? rawMode : "from") as SearchMode;
   const maxdur = Number(p.get("maxdur"));
+  const connRaw = p.get("conn");
+  const conn = connRaw == null ? 1 : Number(connRaw);
+  const cities = p.get("cities");
   return {
     mode,
     origin: p.get("from") ?? undefined,
@@ -123,7 +128,9 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     departBefore: p.get("before") ?? undefined,
     maxDurationMin: Number.isFinite(maxdur) && maxdur > 0 ? maxdur : undefined,
     trainType: p.get("type") ?? undefined,
-    allowConnections: p.get("nc") !== "1",
+    maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 2 ? conn : 1,
+    region: p.get("rg") ?? undefined,
+    cities: cities ? cities.split("~").filter(Boolean) : undefined,
   };
 }
 

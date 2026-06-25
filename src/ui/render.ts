@@ -76,8 +76,8 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
           icon(I.clock),
           el("span", {
             text: t("lbl_connection", {
-              dur: formatDuration(j.connectionMin ?? 0),
-              hub: ctx.label(j.hub ?? leg.origin),
+              dur: formatDuration(j.layovers[i - 1] ?? 0),
+              hub: ctx.label(j.hubs[i - 1] ?? leg.origin),
             }),
           }),
         ]),
@@ -94,7 +94,10 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   const tag =
     j.legs.length === 1
       ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
-      : el("span", { class: "chip chip-via", text: t("lbl_via", { hub: ctx.label(j.hub ?? "") }) });
+      : el("span", {
+          class: "chip chip-via",
+          text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
+        });
 
   const head = el("div", { class: "journey-head" }, [
     tag,

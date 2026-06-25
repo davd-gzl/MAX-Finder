@@ -32,7 +32,7 @@ interface Refs {
   departBefore: HTMLInputElement;
   maxDuration: HTMLInputElement;
   trainType: HTMLSelectElement;
-  allowConnections: HTMLInputElement;
+  maxConnections: HTMLSelectElement;
   destinationField: HTMLElement;
   returnField: HTMLElement;
   title: HTMLElement;
@@ -60,7 +60,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   const today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? store.queryFromParams(new URLSearchParams(location.search), today)
-    : { mode: "from", date: today, card: settings.card, allowConnections: true };
+    : { mode: "from", date: today, card: settings.card, maxConnections: 1 };
 
   rebuild();
   checkWatchedRoutes();
@@ -135,7 +135,7 @@ function syncFormFromQuery(): void {
   refs.departBefore.value = query.departBefore ?? "";
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.trainType.value = query.trainType ?? "";
-  refs.allowConnections.checked = query.allowConnections;
+  refs.maxConnections.value = String(query.maxConnections);
   updateFieldVisibility();
 }
 
@@ -151,7 +151,9 @@ function readQueryFromForm(): SearchQuery {
     departBefore: refs.departBefore.value || undefined,
     maxDurationMin: Number.isFinite(maxDur) && maxDur > 0 ? maxDur : undefined,
     trainType: refs.trainType.value || undefined,
-    allowConnections: refs.allowConnections.checked,
+    maxConnections: Number(refs.maxConnections.value),
+    region: query.region,
+    cities: query.cities,
   };
 }
 
@@ -229,7 +231,7 @@ function runOdSearch(c: RenderCtx): void {
   });
   const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
     ...filterOpts(),
-    hubs: query.allowConnections ? undefined : [],
+    maxConnections: query.maxConnections,
   });
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
@@ -248,7 +250,7 @@ function runOdSearch(c: RenderCtx): void {
   if (ret) {
     const trips = findRoundTrips(trains, query.origin, query.destination, query.date, ret, {
       ...filterOpts(),
-      hubs: query.allowConnections ? undefined : [],
+      maxConnections: query.maxConnections,
     });
     const section = el("section", { class: "roundtrips" }, [el("h3", { text: t("rt_title") })]);
     if (trips.length === 0) section.append(render.emptyEl(t("rt_none")));
@@ -451,8 +453,11 @@ function buildForm(): FormBuild {
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
   ]) as HTMLSelectElement;
-  const allowConnections = el("input", { type: "checkbox" }) as HTMLInputElement;
-  allowConnections.checked = true;
+  const maxConnections = el("select", { class: "input" }, [
+    optionEl("0", t("conn_0"), false),
+    optionEl("1", t("conn_1"), true),
+    optionEl("2", t("conn_2"), false),
+  ]) as HTMLSelectElement;
 
   const originField = field(t("field_origin"), origin);
   const destinationField = field(t("field_destination"), destination);
@@ -465,7 +470,7 @@ function buildForm(): FormBuild {
       field(t("field_departBefore"), departBefore),
       field(t("field_maxDuration"), maxDuration),
       field(t("field_trainType"), trainType),
-      el("label", { class: "check" }, [allowConnections, el("span", { text: t("field_allowConnections") })]),
+      field(t("field_connections"), maxConnections),
     ]),
   ]);
 
@@ -503,7 +508,7 @@ function buildForm(): FormBuild {
       departBefore,
       maxDuration,
       trainType,
-      allowConnections,
+      maxConnections,
       destinationField,
       returnField,
     },
