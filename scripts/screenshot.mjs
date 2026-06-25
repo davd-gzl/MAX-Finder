@@ -23,7 +23,7 @@ const TYPES = {
 
 const server = http.createServer((req, res) => {
   let pathname = decodeURIComponent((req.url || "/").split("?")[0]);
-  pathname = pathname.replace(/^\/foss-maxjeune\//, "/").replace(/^\/+/, "");
+  pathname = pathname.replace(/^\/MAX-Finder\//, "/").replace(/^\/+/, "");
   let file = join(DIST, pathname);
   if (!file.startsWith(DIST)) return res.writeHead(403).end();
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(DIST, "index.html");
@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
 });
 
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const BASE = `http://127.0.0.1:${server.address().port}/foss-maxjeune/`;
+const BASE = `http://127.0.0.1:${server.address().port}/MAX-Finder/`;
 const P = encodeURIComponent("PARIS (intramuros)");
 const T = encodeURIComponent("TOULOUSE MATABIAU");
 const shots = [

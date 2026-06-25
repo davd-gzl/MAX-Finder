@@ -10,7 +10,7 @@
 /**
  * Registers the service worker in production only.
  * The SW is placed at public/sw.js which Vite copies verbatim to the build
- * output at BASE_URL/sw.js, giving it scope BASE_URL (e.g. /foss-maxjeune/).
+ * output at BASE_URL/sw.js, giving it scope BASE_URL (e.g. /MAX-Finder/).
  *
  * Call this once from main.ts, e.g.:
  *   import { registerServiceWorker } from "./pwa/register";

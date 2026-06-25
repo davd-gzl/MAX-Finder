@@ -12,7 +12,7 @@ description: >-
 
 # Build a FOSS, serverless remake — end to end
 
-This is the method used to build `foss-maxjeune` (a MAX JEUNE / SENIOR train-seat
+This is the method used to build `MAX-Finder` (a MAX JEUNE / SENIOR train-seat
 finder on SNCF open data). It generalizes to any "remake X as a FOSS static app" task.
 
 ## Core principles (decide these first)

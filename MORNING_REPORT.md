@@ -41,7 +41,7 @@ daily GitHub Action refreshes the data. No backend, no cost, runs indefinitely.
 
 **Enable GitHub Pages:** repo **Settings → Pages → Build and deployment → Source = "GitHub
 Actions"**. Then trigger a deploy (push, or run the *Deploy to GitHub Pages* workflow via
-"Run workflow"). Site will be at **https://davd-gzl.github.io/foss-maxjeune/**.
+"Run workflow"). Site will be at **https://davd-gzl.github.io/MAX-Finder/**.
 
 To load **real** data instead of the bundled sample, run the *Update SNCF tgvmax data*
 workflow once (Actions tab → Run workflow); afterwards it runs daily at 06:00 UTC, and the
