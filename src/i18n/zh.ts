@@ -16,7 +16,7 @@ export const zh: Dict = {
   tour_none: "这些城市和日期没有 MAX 行程。",
   tour_day: "第 {n} 天 — {date}",
   mode_from: "去哪里？",
-  mode_to: "谁来这里？",
+  mode_to: "从哪里来？",
   mode_od: "精确行程",
   field_origin: "出发车站",
   field_destination: "到达车站",
@@ -89,4 +89,7 @@ export const zh: Dict = {
   desc_best: "当天从你的车站出发可最快到达的目的地。",
   desc_tour: "用免费 MAX 座位串联多座城市的行程。",
   act_guide: "旅行指南",
+  act_install: "安装应用",
+  data_why:
+    "SNCF 开放数据（tgvmax）每天仅在中午前后发布一次。更频繁地刷新只会重复下载相同的数据。预订本身在 SNCF Connect 上实时进行。",
 };

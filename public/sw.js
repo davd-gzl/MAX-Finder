@@ -10,7 +10,7 @@
  *  - Cross-origin / POST  → passthrough, never cached
  */
 
-const CACHE_NAME = "maxjeune-v1";
+const CACHE_NAME = "maxjeune-v2";
 
 // Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.

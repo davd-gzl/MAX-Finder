@@ -235,7 +235,10 @@ export function groupCardEl(
     ],
   );
 
-  return el("article", { class: "group-card" }, [el("div", { class: "dest-row" }, [star, main]), panel]);
+  return el("article", { class: "group-card", dataset: { station: group.station } }, [
+    el("div", { class: "dest-row" }, [star, main]),
+    panel,
+  ]);
 }
 
 /** A ranked best-trip row ("best" mode): destination + best total time + direct/via. */
@@ -263,7 +266,9 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
-  return el("article", { class: "group-card" }, [el("div", { class: "dest-row" }, [main])]);
+  return el("article", { class: "group-card", dataset: { station: trip.destination } }, [
+    el("div", { class: "dest-row" }, [main]),
+  ]);
 }
 
 /** The 30-day availability strip for a route. */

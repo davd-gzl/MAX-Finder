@@ -4,8 +4,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // UI can be exercised under jsdom.
 vi.mock("../src/ui/map", () => ({
   RouteMap: class {
+    onSelect: ((id: string) => void) | null = null;
     show(): void {}
+    route(): void {}
     invalidate(): void {}
+    focus(): void {}
   },
 }));
 

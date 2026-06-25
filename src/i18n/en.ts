@@ -17,7 +17,7 @@ export const en: Dict = {
   tour_day: "Day {n} — {date}",
 
   mode_from: "Where to?",
-  mode_to: "Who comes here?",
+  mode_to: "Where from?",
   mode_od: "Exact trip",
 
   field_origin: "From station",
@@ -101,4 +101,7 @@ export const en: Dict = {
   desc_best: "The fastest destinations reachable from your station that day.",
   desc_tour: "A multi-city trip chaining free MAX seats between stops.",
   act_guide: "Travel guide",
+  act_install: "Install the app",
+  data_why:
+    "SNCF open data (tgvmax) is published only once a day, around midday. Refreshing more often would re-download identical data. Bookings themselves happen in real time on SNCF Connect.",
 };

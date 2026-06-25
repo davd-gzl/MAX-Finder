@@ -41,6 +41,7 @@ const shots = [
   { name: "trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=2026-06-25` },
   { name: "best", url: `${BASE}?mode=best&from=${P}&date=2026-06-25&conn=2` },
   { name: "tour", url: `${BASE}?mode=tour&from=${P}&date=2026-06-25&cities=${encodeURIComponent("LYON (intramuros)")}~${encodeURIComponent("MARSEILLE ST CHARLES")}` },
+  { name: "mobile", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, mobile: true },
 ];
 
 const args = chromium.args.filter((a) => !a.startsWith("--user-data-dir") && !a.startsWith("--proxy"));
@@ -54,10 +55,16 @@ const browser = await puppeteer.launch({
 for (const s of shots) {
   const page = await browser.newPage();
   await page.setCacheEnabled(false);
-  await page.setViewport({ width: 1240, height: 1500, deviceScaleFactor: 2 });
+  await page.setViewport(
+    s.mobile
+      ? { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+      : { width: 1120, height: 1400, deviceScaleFactor: 2 },
+  );
   await page.goto(s.url, { waitUntil: "networkidle2", timeout: 30000 }).catch(() => {});
   await new Promise((r) => setTimeout(r, 1500));
-  await page.screenshot({ path: `docs/screenshots/${s.name}.png`, fullPage: true });
+  // Crop tightly to the app (#app is centred with a max width), not the full page.
+  const el = await page.$("#app");
+  await (el ?? page).screenshot({ path: `docs/screenshots/${s.name}.png` });
   console.log("captured", s.name);
   await page.close();
 }

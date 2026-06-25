@@ -146,6 +146,21 @@ a {
   color: var(--faint);
   font-size: 0.76rem;
 }
+.updated[title] {
+  cursor: help;
+}
+.updated[title]:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.install-btn {
+  font-weight: 620;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.install-btn[hidden] {
+  display: none;
+}
 .header-ctls {
   display: flex;
   gap: 0.4rem;
@@ -162,6 +177,14 @@ a {
 }
 .ctl:hover {
   border-color: var(--border-strong);
+}
+.icon-ctl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  padding: 0.4rem;
+  color: var(--text);
 }
 
 /* ---- layout ---- */
@@ -221,7 +244,7 @@ a {
   font-weight: 620;
 }
 .mode-desc {
-  margin: -0.45rem 0 1rem;
+  margin: -0.1rem 0 0.95rem;
   color: var(--muted);
   font-size: 0.84rem;
 }
@@ -487,6 +510,20 @@ a {
 .group-card:hover,
 .journey:hover {
   border-color: var(--border-strong);
+}
+.flash {
+  animation: mf-flash 1.1s ease;
+}
+@keyframes mf-flash {
+  0%,
+  40% {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  100% {
+    background: var(--surface);
+    border-color: var(--border);
+  }
 }
 .actions {
   display: flex;
@@ -821,6 +858,12 @@ a {
   background: var(--surface-2);
   font: inherit;
 }
+.leaflet-control-attribution {
+  font-size: 0.68rem;
+}
+.leaflet-control-attribution a {
+  color: var(--muted);
+}
 
 /* ---- favorites aside ---- */
 .favorites {
@@ -874,4 +917,50 @@ a {
 }
 .site-footer a {
   color: var(--muted);
+}
+
+/* ---- responsive ---- */
+@media (max-width: 860px) {
+  .map {
+    height: 380px;
+  }
+}
+@media (max-width: 520px) {
+  #app {
+    padding: 0 0.8rem 2.5rem;
+  }
+  .site-header {
+    padding: 0.9rem 0 1rem;
+    margin-bottom: 1.1rem;
+  }
+  .header-ctls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .header-ctls .ctl {
+    flex: 1 1 auto;
+  }
+  .map {
+    height: 320px;
+  }
+  .mode-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mode-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .mode-tab {
+    white-space: nowrap;
+    margin-right: 0.9rem;
+  }
+  .results-title {
+    font-size: 1.05rem;
+  }
+  .btn,
+  .input,
+  .ctl {
+    font-size: 16px; /* avoid iOS zoom-on-focus */
+  }
 }

@@ -16,7 +16,7 @@ export const ko: Dict = {
   tour_none: "해당 도시와 날짜에 대한 MAX 일정이 없습니다.",
   tour_day: "{n}일째 — {date}",
   mode_from: "어디로 갈까요?",
-  mode_to: "누가 여기로 오나요?",
+  mode_to: "어디서 오나요?",
   mode_od: "정확한 여정",
   field_origin: "출발역",
   field_destination: "도착역",
@@ -89,4 +89,7 @@ export const ko: Dict = {
   desc_best: "그날 출발역에서 가장 빠르게 갈 수 있는 목적지.",
   desc_tour: "여러 도시를 무료 MAX 좌석으로 이어 가는 여행.",
   act_guide: "여행 가이드",
+  act_install: "앱 설치",
+  data_why:
+    "SNCF 공개 데이터(tgvmax)는 하루에 한 번, 정오 무렵에만 갱신됩니다. 더 자주 새로고침해도 동일한 데이터를 다시 받을 뿐입니다. 예약 자체는 SNCF Connect에서 실시간으로 이뤄집니다.",
 };
