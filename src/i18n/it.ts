@@ -98,4 +98,5 @@ export const it: Dict = {
   act_back: "Indietro",
   act_map: "Mostra sulla mappa",
   field_overnight: "Soste notturne",
+  field_via: "Via (opzionale)",
 };

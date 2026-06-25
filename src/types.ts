@@ -63,6 +63,8 @@ export interface SearchQuery {
   maxConnections: number;
   /** Allow long overnight layovers at a hub (evening train → sleep → morning train). */
   overnight?: boolean;
+  /** Force the journey to pass through this station ("exact trip" mode only). */
+  via?: string;
   /** Region filter, used by "best" mode. */
   region?: string;
   /** Cities to visit, used by "tour" mode. */

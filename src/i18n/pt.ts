@@ -97,4 +97,5 @@ export const pt: Dict = {
   act_back: "Voltar",
   act_map: "Ver no mapa",
   field_overnight: "Escalas noturnas",
+  field_via: "Via (opcional)",
 };

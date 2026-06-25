@@ -98,4 +98,5 @@ export const zh: Dict = {
   act_back: "返回",
   act_map: "在地图上显示",
   field_overnight: "过夜中转",
+  field_via: "经由（可选）",
 };

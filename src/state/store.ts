@@ -99,6 +99,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   p.set("mode", q.mode);
   if (q.origin) p.set("from", q.origin);
   if (q.destination) p.set("to", q.destination);
+  if (q.via) p.set("via", q.via);
   p.set("date", q.date);
   p.set("card", q.card);
   if (q.departAfter) p.set("after", q.departAfter);
@@ -123,6 +124,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     mode,
     origin: p.get("from") ?? undefined,
     destination: p.get("to") ?? undefined,
+    via: p.get("via") ?? undefined,
     date: p.get("date") ?? fallbackDate,
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,
