@@ -31,3 +31,7 @@ export const DATA_URL = `${BASE}data/tgvmax.json`;
 export const META_URL = `${BASE}data/meta.json`;
 
 export const SNCF_CONNECT_URL = "https://www.sncf-connect.com/";
+
+/** Official SNCF pages describing the MAX JEUNE / MAX SENIOR subscriptions. */
+export const MAX_JEUNE_URL = "https://www.sncf-connect.com/catalogue/description/max-jeune";
+export const MAX_SENIOR_URL = "https://www.sncf-connect.com/catalogue/description/max-senior";

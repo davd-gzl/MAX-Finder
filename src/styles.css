@@ -297,6 +297,47 @@ a {
   margin-top: 1.15rem;
   flex-wrap: wrap;
 }
+.howto {
+  margin-top: 0.95rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+.howto > summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 560;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.howto > summary::before {
+  content: "ⓘ ";
+}
+.howto-list {
+  margin: 0.55rem 0;
+  padding-left: 1.15rem;
+  font-size: 0.85rem;
+}
+.howto-list li {
+  margin: 0.25rem 0;
+}
+.howto-links {
+  margin: 0.4rem 0;
+  font-size: 0.85rem;
+}
+.howto-links a {
+  color: var(--accent);
+  font-weight: 560;
+}
+.notice {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 560;
+}
 
 /* ---- buttons ---- */
 .btn {

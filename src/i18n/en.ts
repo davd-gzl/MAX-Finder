@@ -27,6 +27,14 @@ export const en: Dict = {
   field_card: "Pass",
   card_jeune: "MAX JEUNE",
   card_senior: "MAX SENIOR",
+  how_title: "How does it work?",
+  how_jeune: "MAX JEUNE: free reservations 7 days a week, subject to availability.",
+  how_senior:
+    "MAX SENIOR: Monday to Friday, off-peak only — not on weekends or peak periods (Fri afternoon/evening, Mon morning, eves of holidays).",
+  how_note:
+    "This tool shows MAX seats open for reservation (SNCF open data); it does not enforce these per-pass rules. Check SNCF Connect.",
+  senior_weekend_warn: "MAX SENIOR isn't valid on weekends.",
+  how_more: "Learn more / subscribe:",
   field_advanced: "Advanced filters",
   field_departAfter: "Depart after",
   field_departBefore: "Depart before",

@@ -25,6 +25,14 @@ export const fr = {
   field_card: "Carte",
   card_jeune: "MAX JEUNE",
   card_senior: "MAX SENIOR",
+  how_title: "Comment ça marche ?",
+  how_jeune: "MAX JEUNE : réservations gratuites 7j/7, dans la limite des places.",
+  how_senior:
+    "MAX SENIOR : du lundi au vendredi en heures creuses — pas le week-end, ni en forte affluence (ven. après-midi/soir, lun. matin, veilles de ponts et vacances).",
+  how_note:
+    "Cet outil affiche les places MAX ouvertes à la réservation (open data SNCF) ; il n'applique pas ces règles par abonnement. Vérifiez sur SNCF Connect.",
+  senior_weekend_warn: "MAX SENIOR n'est pas valable le week-end.",
+  how_more: "En savoir plus / s'abonner :",
   field_advanced: "Filtres avancés",
   field_departAfter: "Départ après",
   field_departBefore: "Départ avant",
