@@ -432,7 +432,13 @@ function runOdSearch(c: RenderCtx): void {
 
   // A "via" forces the route through a chosen station: add it to the allowed
   // interchange set, require ≥1 change, and keep only journeys passing through it.
-  const viaId = query.via;
+  // A via that equals an endpoint is meaningless (the route already goes there),
+  // so treat it as no via — otherwise it would require an interchange at the
+  // origin/destination, which never appears in `hubs`, and return zero results.
+  const viaId =
+    query.via && query.via !== query.origin && query.via !== query.destination
+      ? query.via
+      : undefined;
   const connOpts = {
     ...filterOpts(),
     maxConnections: viaId ? Math.max(1, query.maxConnections) : query.maxConnections,
@@ -449,6 +455,7 @@ function runOdSearch(c: RenderCtx): void {
     query.destination,
     dateRange(today, BOOKING_WINDOW_DAYS),
     connOpts,
+    passesVia,
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 

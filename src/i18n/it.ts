@@ -97,6 +97,6 @@ export const it: Dict = {
   act_report: "Segnala un problema",
   act_back: "Indietro",
   act_map: "Mostra sulla mappa",
-  field_overnight: "Soste notturne",
+  field_overnight: "Sosta notturna",
   field_via: "Via (opzionale)",
 };

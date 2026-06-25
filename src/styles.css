@@ -731,6 +731,16 @@ a {
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--border-strong);
+  /* When the row is tight (long hub name / narrow screen) the chip yields
+     first: it shrinks and ellipsizes so the destination name keeps priority. */
+  display: inline-block;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.5;
 }
 .chip-soft {
   background: var(--surface-2);
@@ -829,6 +839,13 @@ a {
 @media (max-width: 520px) {
   .cal-grid {
     grid-template-columns: repeat(7, 1fr);
+  }
+  /* On phones the destination name keeps priority; the via chip caps tighter. */
+  .dest-name {
+    flex: 2 1 auto;
+  }
+  .chip-via {
+    max-width: 9ch;
   }
 }
 .cal-cell {

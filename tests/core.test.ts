@@ -145,6 +145,25 @@ describe("availabilityCalendar", () => {
     expect(cal.map((d) => d.available)).toEqual([true, true, false]);
     expect(cal.map((d) => d.count)).toEqual([3, 1, 0]);
   });
+
+  it("applies the accept predicate so counts match a via-filtered list", () => {
+    const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
+    // Rejecting every journey zeroes the calendar — proves the filter is applied.
+    const none = availabilityCalendar(
+      trains,
+      "PARIS (intramuros)",
+      "LYON (intramuros)",
+      dates,
+      {},
+      () => false,
+    );
+    expect(none.map((d) => d.count)).toEqual([0, 0, 0]);
+    expect(none.every((d) => !d.available)).toBe(true);
+
+    // Accept-all matches the unfiltered counts.
+    const all = availabilityCalendar(trains, "PARIS (intramuros)", "LYON (intramuros)", dates, {}, () => true);
+    expect(all.map((d) => d.count)).toEqual([3, 1, 0]);
+  });
 });
 
 describe("findRoundTrips", () => {
