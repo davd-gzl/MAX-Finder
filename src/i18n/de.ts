@@ -82,4 +82,11 @@ export const de: Dict = {
   ctl_theme: "Thema",
   ctl_lang: "Sprache",
   loading: "Laden…",
+
+  desc_from: "Alle Ziele mit einem kostenlosen MAX-Platz ab deinem Bahnhof.",
+  desc_to: "Alle Abfahrtsbahnhöfe mit einem kostenlosen MAX-Platz zu einem Ziel.",
+  desc_od: "Eine genaue Strecke: Umstiege, Verfügbarkeit über 30 Tage, Hin- und Rückfahrten.",
+  desc_best: "Die schnellsten von deinem Bahnhof aus erreichbaren Ziele an diesem Tag.",
+  desc_tour: "Eine Reise durch mehrere Städte mit kostenlosen MAX-Plätzen zwischen den Stopps.",
+  act_guide: "Reiseführer",
 };

@@ -25,6 +25,7 @@ interface Deps {
 
 interface Refs {
   modeTabs: HTMLElement;
+  modeDesc: HTMLElement;
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
@@ -108,11 +109,23 @@ function isWeekend(iso: string): boolean {
   return day === 0 || day === 6;
 }
 
+// Wikivoyage language editions that exist; others (e.g. ko) fall back to English.
+const WIKIVOYAGE_LANGS = new Set(["fr", "en", "es", "de", "it", "zh"]);
+
+/** Travel-guide (Wikivoyage) URL for a station's city, in the current language. */
+function cityInfoUrl(id: string): string {
+  const lang = getLang();
+  const wv = WIKIVOYAGE_LANGS.has(lang) ? lang : "en";
+  const article = deps.registry.city(id).replace(/ /g, "_");
+  return `https://${wv}.wikivoyage.org/wiki/${encodeURIComponent(article)}`;
+}
+
 function ctx(): RenderCtx {
   return {
     label: (id) => deps.registry.label(id),
     formatDate,
     bookUrl: () => SNCF_CONNECT_URL,
+    cityInfoUrl,
     onOpenRoute: (origin, destination) => {
       query = { ...query, mode: "od", origin, destination };
       syncFormFromQuery();
@@ -142,6 +155,7 @@ function ctx(): RenderCtx {
 
 function syncFormFromQuery(): void {
   setActiveTab(query.mode);
+  refs.modeDesc.textContent = t(`desc_${query.mode}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.date.value = query.date;
@@ -324,6 +338,7 @@ function runOdSearch(c: RenderCtx): void {
     destination: registry.label(query.destination),
     date: formatDate(query.date),
   });
+  refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
   const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
     ...filterOpts(),
     maxConnections: query.maxConnections,
@@ -536,6 +551,7 @@ function buildForm(): FormBuild {
     });
     modeTabs.append(btn);
   }
+  const modeDesc = el("p", { class: "mode-desc" });
 
   const origin = inputEl("text", "station-list");
   const destination = inputEl("text", "station-list");
@@ -611,6 +627,7 @@ function buildForm(): FormBuild {
 
   const form = el("form", { class: "search-form" }, [
     modeTabs,
+    modeDesc,
     el("div", { class: "fields" }, [
       originField,
       destinationField,
@@ -635,6 +652,7 @@ function buildForm(): FormBuild {
     form,
     refs: {
       modeTabs,
+      modeDesc,
       origin,
       destination,
       date,
@@ -655,6 +673,18 @@ function buildForm(): FormBuild {
   };
 }
 
+/**
+ * Prefill the search form with a saved route (origin + destination, exact-trip
+ * mode) without running it — so clicking a favorite sets up the start rather than
+ * jumping straight to a result. The user reviews and presses Search.
+ */
+function fillRoute(origin: string, destination: string): void {
+  query = { ...query, mode: "od", origin, destination };
+  syncFormFromQuery();
+  refs.origin.focus({ preventScroll: true });
+  refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderFavorites(): void {
   clear(refs.favList);
   const favs = store.loadFavorites();
@@ -668,7 +698,7 @@ function renderFavorites(): void {
         class: "fav-open",
         type: "button",
         text: `${deps.registry.label(f.origin)} → ${deps.registry.label(f.destination)}`,
-        on: { click: () => ctx().onOpenRoute(f.origin, f.destination) },
+        on: { click: () => fillRoute(f.origin, f.destination) },
       }),
       el("button", {
         class: "iconbtn",

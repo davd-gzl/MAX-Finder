@@ -12,6 +12,8 @@ export interface RenderCtx {
   label: (id: string) => string;
   formatDate: (iso: string) => string;
   bookUrl: (origin: string, destination: string, date: string) => string;
+  /** External travel-guide (Wikivoyage) URL for a station's city. */
+  cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
   onFocusStation: (id: string) => void;
   onSelectDay: (date: string) => void;
@@ -63,6 +65,23 @@ function bookLink(ctx: RenderCtx, origin: string, destination: string, date: str
     },
     [
       el("span", { text: t("act_book") }),
+      icon(I.external),
+      el("span", { class: "sr-only", text: t("link_newtab") }),
+    ],
+  );
+}
+
+/** External travel-guide (Wikivoyage) link for a station's city. */
+export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
+  return el(
+    "a",
+    {
+      class: "linklike",
+      href: ctx.cityInfoUrl(stationId),
+      attrs: { target: "_blank", rel: "noopener noreferrer" },
+    },
+    [
+      el("span", { text: t("act_guide") }),
       icon(I.external),
       el("span", { class: "sr-only", text: t("link_newtab") }),
     ],
@@ -183,6 +202,7 @@ export function groupCardEl(
         },
         [el("span", { text: t("act_book") }), icon(I.external), el("span", { class: "sr-only", text: t("link_newtab") })],
       ),
+      guideLinkEl(ctx, group.station),
     ]),
   ]);
 

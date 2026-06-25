@@ -72,6 +72,11 @@ export class StationRegistry {
     return this.byId.get(id)?.label ?? prettyLabel(id);
   }
 
+  /** Best-guess city name for a station, used for external info links. */
+  city(id: string): string {
+    return this.byId.get(id)?.city ?? this.label(id);
+  }
+
   coords(id: string): [number, number] | undefined {
     const s = this.byId.get(id);
     return s && Number.isFinite(s.lat) && Number.isFinite(s.lng) ? [s.lat, s.lng] : undefined;
