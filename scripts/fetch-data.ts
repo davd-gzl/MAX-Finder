@@ -145,8 +145,18 @@ async function main(): Promise<void> {
 
   console.log(`[fetch-data] Downloaded ${rawArray.length} raw records. Mapping…`);
 
-  const records: MappedRecord[] = rawArray.map((item) =>
+  const mapped: MappedRecord[] = rawArray.map((item) =>
     mapRecord(item as Record<string, unknown>)
+  );
+
+  // The app only ever shows reservable MAX seats, so drop the (huge) majority of
+  // rows where od_happy_card !== "OUI". The full export is ~77 MB and ~90% of it
+  // is unavailable trains the UI never displays — keeping it would make the
+  // client download/parse a payload large enough to hang or crash mobile
+  // browsers. Filtering here keeps the served snapshot ~6 MB.
+  const records = mapped.filter((r) => r.od_happy_card.toUpperCase() === "OUI");
+  console.log(
+    `[fetch-data] Kept ${records.length} reservable (OUI) of ${mapped.length} mapped records.`,
   );
 
   const meta: Meta = {
