@@ -83,6 +83,7 @@ export const fr = {
 
   ctl_theme: "Thème",
   ctl_lang: "Langue",
+  loading: "Chargement…",
 };
 
 export type Dict = typeof fr;

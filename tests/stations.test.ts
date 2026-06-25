@@ -40,6 +40,18 @@ describe("StationRegistry.search", () => {
   });
 });
 
+describe("StationRegistry.addMissing", () => {
+  it("makes dataset-only stations searchable, with a pretty label and no coords", () => {
+    const r = new StationRegistry(stationData as Station[]);
+    expect(r.search("arras")).toHaveLength(0); // not in the curated set
+    r.addMissing(["ARRAS", "PARIS (intramuros)"]);
+    expect(r.get("ARRAS")).toBeDefined();
+    expect(r.label("ARRAS")).toBe("Arras");
+    expect(r.coords("ARRAS")).toBeUndefined(); // no coordinates -> not plotted on the map
+    expect(r.search("arras").map((s) => s.id)).toContain("ARRAS");
+  });
+});
+
 describe("StationRegistry lookups", () => {
   it("returns coordinates and labels", () => {
     expect(registry.coords("PARIS (intramuros)")).toEqual([48.8566, 2.3522]);

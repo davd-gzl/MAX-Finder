@@ -35,12 +35,11 @@ function setup(search: string): HTMLElement {
 }
 
 beforeEach(() => {
-  if (typeof globalThis.requestAnimationFrame !== "function") {
-    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      cb(0);
-      return 0;
-    }) as typeof requestAnimationFrame;
-  }
+  // Run rAF synchronously so deferred search rendering completes within the test.
+  globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+    cb(0);
+    return 0;
+  }) as typeof requestAnimationFrame;
 });
 
 describe("app (jsdom smoke)", () => {
