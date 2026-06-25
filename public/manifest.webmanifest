@@ -1,6 +1,6 @@
 {
-  "name": "MAX JEUNE FOSS",
-  "short_name": "MAX JEUNE",
+  "name": "MAX Finder",
+  "short_name": "MAX Finder",
   "description": "Trouvez des billets de train gratuits MAX JEUNE et MAX SENIOR — Find free MAX JEUNE/SENIOR train seats on SNCF routes.",
   "start_url": "/foss-maxjeune/",
   "scope": "/foss-maxjeune/",

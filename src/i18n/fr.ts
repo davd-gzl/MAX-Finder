@@ -1,5 +1,5 @@
 export const fr = {
-  appName: "MAX JEUNE",
+  appName: "MAX Finder",
   tagline: "Places MAX JEUNE / SENIOR ouvertes à la réservation.",
   prompt_pick: "Choisissez une gare de départ.",
   mode_best: "Idées",

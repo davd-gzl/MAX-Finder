@@ -1,4 +1,4 @@
-# MAX JEUNE FOSS
+# MAX Finder
 
 A free, open-source, **serverless** finder for trains where a **MAX JEUNE** / **MAX SENIOR**
 (ex-TGVmax) seat is currently reservable — so you don't have to probe station-by-station in

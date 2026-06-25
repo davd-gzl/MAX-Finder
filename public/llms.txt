@@ -1,4 +1,4 @@
-# MAX JEUNE FOSS
+# MAX Finder
 
 > Free, open-source finder for trains with a reservable MAX JEUNE / MAX SENIOR
 > (ex-TGVmax) seat, built on SNCF open data. Static site, no backend, no accounts.
