@@ -278,13 +278,13 @@ a {
   gap: 0.85rem;
   margin-top: 0.7rem;
 }
-.check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: end;
-  font-size: 0.9rem;
-  color: var(--muted);
+.day-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 5px;
+  padding: 0 0.3rem;
 }
 .form-actions {
   display: flex;

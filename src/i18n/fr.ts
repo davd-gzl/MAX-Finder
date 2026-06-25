@@ -31,15 +31,12 @@ export const fr = {
   field_maxDuration: "Durée max (min)",
   field_trainType: "Type / axe",
   field_anyType: "Tous",
-  field_allowConnections: "Inclure les correspondances",
   field_connections: "Correspondances",
   conn_0: "Directes uniquement",
   conn_1: "1 correspondance max",
   conn_2: "2 correspondances max",
 
   btn_search: "Rechercher",
-  btn_surprise: "Surprends-moi",
-  btn_reset: "Réinitialiser",
 
   res_from_title: "Au départ de {station} — {date}",
   res_to_title: "Pour arriver à {station} — {date}",
@@ -53,15 +50,13 @@ export const fr = {
   lbl_via: "via {hub}",
   lbl_connection: "Correspondance de {dur} à {hub}",
   lbl_train: "Train {no}",
-  lbl_arrow: "→",
+  lbl_dayoffset: "+{n} j",
 
   act_book: "Réserver sur SNCF Connect",
   act_ics: "Ajouter au calendrier",
   act_calendar: "Calendrier",
-  act_open: "Voir les trains",
   act_fav_add: "Ajouter aux favoris",
   act_fav_remove: "Retirer des favoris",
-  act_details: "Détails",
 
   cal_title: "Disponibilité sur 30 jours",
   cal_legend: "vert = place MAX dispo",
@@ -88,9 +83,6 @@ export const fr = {
 
   ctl_theme: "Thème",
   ctl_lang: "Langue",
-
-  loading: "Chargement des données…",
-  surprise_none: "Pas de destination disponible trouvée.",
 };
 
 export type Dict = typeof fr;

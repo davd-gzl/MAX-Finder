@@ -33,15 +33,12 @@ export const en: Dict = {
   field_maxDuration: "Max duration (min)",
   field_trainType: "Type / line",
   field_anyType: "Any",
-  field_allowConnections: "Include connections",
   field_connections: "Connections",
   conn_0: "Direct only",
   conn_1: "1 change max",
   conn_2: "2 changes max",
 
   btn_search: "Search",
-  btn_surprise: "Surprise me",
-  btn_reset: "Reset",
 
   res_from_title: "Departing {station} — {date}",
   res_to_title: "Arriving at {station} — {date}",
@@ -55,15 +52,13 @@ export const en: Dict = {
   lbl_via: "via {hub}",
   lbl_connection: "{dur} connection at {hub}",
   lbl_train: "Train {no}",
-  lbl_arrow: "→",
+  lbl_dayoffset: "+{n} d",
 
   act_book: "Book on SNCF Connect",
   act_ics: "Add to calendar",
   act_calendar: "Calendar",
-  act_open: "Show trains",
   act_fav_add: "Add to favorites",
   act_fav_remove: "Remove from favorites",
-  act_details: "Details",
 
   cal_title: "30-day availability",
   cal_legend: "green = MAX seat available",
@@ -90,7 +85,4 @@ export const en: Dict = {
 
   ctl_theme: "Theme",
   ctl_lang: "Language",
-
-  loading: "Loading data…",
-  surprise_none: "No available destination found.",
 };

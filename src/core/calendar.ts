@@ -1,24 +1,20 @@
 import type { MaxTrain, CalendarDay } from "../types";
+import { findJourneys, type ConnectionOptions } from "./connections";
 
 /**
- * Availability over a set of dates for one O-D route. If `dates` is omitted,
- * only dates that actually have free-MAX trains are returned (sorted).
+ * Availability over a set of dates for one O-D route. A day is "available" if at
+ * least one free-MAX journey exists that day (direct or via connections, per
+ * `opts`), so the calendar matches the journeys shown for the route.
  */
 export function availabilityCalendar(
   trains: MaxTrain[],
   origin: string,
   destination: string,
-  dates?: string[],
+  dates: string[],
+  opts: ConnectionOptions = {},
 ): CalendarDay[] {
-  const byDate = new Map<string, number>();
-  for (const t of trains) {
-    if (t.available && t.origin === origin && t.destination === destination) {
-      byDate.set(t.date, (byDate.get(t.date) ?? 0) + 1);
-    }
-  }
-  const keys = dates ?? [...byDate.keys()].sort();
-  return keys.map((date) => {
-    const count = byDate.get(date) ?? 0;
+  return dates.map((date) => {
+    const count = findJourneys(trains, origin, destination, date, opts).length;
     return { date, available: count > 0, count };
   });
 }

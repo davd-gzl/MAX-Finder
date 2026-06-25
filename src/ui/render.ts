@@ -5,7 +5,7 @@ import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
-import { formatDuration } from "../util/time";
+import { formatDuration, dayIndex } from "../util/time";
 import { t } from "../i18n";
 
 export interface RenderCtx {
@@ -89,6 +89,14 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
       el("span", { text: ctx.label(leg.origin) }),
       icon(I.arrow),
       el("span", { text: ctx.label(leg.destination) }),
+      ...(leg.date !== j.date
+        ? [
+            el("span", {
+              class: "day-badge",
+              text: t("lbl_dayoffset", { n: dayIndex(leg.date) - dayIndex(j.date) }),
+            }),
+          ]
+        : []),
     ]);
     legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
   });
