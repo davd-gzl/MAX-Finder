@@ -2,6 +2,10 @@ export const fr = {
   appName: "MAX JEUNE",
   tagline: "Places MAX JEUNE / SENIOR ouvertes à la réservation.",
   prompt_pick: "Choisissez une gare de départ.",
+  mode_best: "Idées",
+  best_title: "Meilleurs trajets depuis {station} — {date}",
+  field_region: "Région",
+  region_any: "Toutes régions",
 
   mode_from: "Où partir ?",
   mode_to: "Qui vient ici ?",

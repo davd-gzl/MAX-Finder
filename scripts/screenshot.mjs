@@ -39,6 +39,7 @@ const T = encodeURIComponent("TOULOUSE MATABIAU");
 const shots = [
   { name: "from", url: `${BASE}?mode=from&from=${P}&date=2026-06-25` },
   { name: "trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=2026-06-25` },
+  { name: "best", url: `${BASE}?mode=best&from=${P}&date=2026-06-25&conn=2` },
 ];
 
 const args = chromium.args.filter((a) => !a.startsWith("--user-data-dir") && !a.startsWith("--proxy"));

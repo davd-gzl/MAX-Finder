@@ -1,5 +1,6 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
 import type { StationGroup } from "../core/destinations";
+import type { BestTrip } from "../core/best";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
@@ -204,6 +205,34 @@ export function groupCardEl(
   );
 
   return el("article", { class: "group-card" }, [el("div", { class: "dest-row" }, [star, main]), panel]);
+}
+
+/** A ranked best-trip row ("best" mode): destination + best total time + direct/via. */
+export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
+  const j = trip.journey;
+  const tag =
+    j.legs.length === 1
+      ? t("lbl_direct")
+      : t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") });
+  const main = el(
+    "button",
+    {
+      class: "dest-main",
+      type: "button",
+      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${formatDuration(j.totalDurationMin)}` },
+      on: { click: () => ctx.onOpenRoute(j.origin, trip.destination) },
+    },
+    [
+      el("span", { class: "dest-name", text: ctx.label(trip.destination) }),
+      el("span", {
+        class: "dest-meta",
+        attrs: { "aria-hidden": "true" },
+        text: `${formatDuration(j.totalDurationMin)} · ${tag}`,
+      }),
+      el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
+    ],
+  );
+  return el("article", { class: "group-card" }, [el("div", { class: "dest-row" }, [main])]);
 }
 
 /** The 30-day availability strip for a route. */

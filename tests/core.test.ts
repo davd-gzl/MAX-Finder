@@ -6,6 +6,7 @@ import { reachableDestinations, reachableOrigins } from "../src/core/destination
 import { findJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
+import { bestTrips, stationsOnDate } from "../src/core/best";
 import sample from "../data/tgvmax.sample.json";
 
 const trains = normalizeRecords(sample as RawRecord[]);
@@ -159,6 +160,28 @@ describe("findRoundTrips", () => {
     expect(t.stayMinutes).toBeGreaterThan(0);
     expect(t.outbound.origin).toBe("PARIS (intramuros)");
     expect(t.inbound.destination).toBe("PARIS (intramuros)");
+  });
+});
+
+describe("bestTrips", () => {
+  it("ranks reachable destinations by shortest total time, including connection-only ones", () => {
+    const trips = bestTrips(
+      trains,
+      "PARIS (intramuros)",
+      "2026-06-25",
+      stationsOnDate(trains, "2026-06-25"),
+      { maxConnections: 1 },
+    );
+    expect(trips.length).toBeGreaterThan(0);
+    expect(trips[0]!.destination).toBe("LILLE"); // 1h02 — the shortest hop
+    for (let i = 1; i < trips.length; i++) {
+      expect(trips[i]!.journey.totalDurationMin).toBeGreaterThanOrEqual(
+        trips[i - 1]!.journey.totalDurationMin,
+      );
+    }
+    const toulouse = trips.find((tr) => tr.destination === "TOULOUSE MATABIAU");
+    expect(toulouse).toBeDefined();
+    expect(toulouse!.journey.legs.length).toBe(2); // only reachable via a change
   });
 });
 
