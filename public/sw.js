@@ -10,7 +10,7 @@
  *  - Cross-origin / POST  → passthrough, never cached
  */
 
-const CACHE_NAME = "maxjeune-v3";
+const CACHE_NAME = "maxjeune-v4";
 
 // Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.
@@ -92,7 +92,10 @@ self.addEventListener("fetch", (event) => {
 async function networkFirstWithShellFallback(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const networkResponse = await fetch(request);
+    // cache:"reload" bypasses the browser HTTP cache so the navigation always
+    // gets the freshly deployed index.html — never a stale copy that points to
+    // a hashed bundle that no longer exists (the "white page" failure mode).
+    const networkResponse = await fetch(request, { cache: "reload" });
     if (networkResponse.ok) {
       cache.put(request, networkResponse.clone());
     }
