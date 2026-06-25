@@ -56,6 +56,26 @@ let refs: Refs;
 let map: RouteMap | null = null;
 let labelToId: Map<string, string>;
 
+// PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: string }>;
+}
+let installPrompt: InstallPromptEvent | null = null;
+let installBtnEl: HTMLElement | null = null;
+
+function refreshInstallBtn(): void {
+  installBtnEl?.toggleAttribute("hidden", !installPrompt);
+}
+
+async function promptInstall(): Promise<void> {
+  if (!installPrompt) return;
+  await installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => undefined);
+  installPrompt = null;
+  refreshInstallBtn();
+}
+
 export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRegistry): void {
   deps = { trains: dataset.trains, meta: dataset.meta, registry };
   rootRef = root;
@@ -65,7 +85,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   // Every station present in the dataset becomes searchable (the curated registry
   // only covers map coordinates for the major ones).
   registry.addMissing(dataset.trains.flatMap((t) => [t.origin, t.destination]));
-  labelToId = new Map(registry.all().map((s) => [s.label.toLowerCase(), s.id]));
+  labelToId = new Map(registry.list().map((s) => [s.label.toLowerCase(), s.id]));
 
   const today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
@@ -74,6 +94,16 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 
   rebuild();
   checkWatchedRoutes();
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installPrompt = e as InstallPromptEvent;
+    refreshInstallBtn();
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    refreshInstallBtn();
+  });
 }
 
 function rebuild(): void {
@@ -366,18 +396,53 @@ function runOdSearch(c: RenderCtx): void {
     refs.results.append(section);
   }
 
-  showMap(query.origin, [query.destination, ...journeys.flatMap((j) => (j.hub ? [j.hub] : []))]);
+  // Draw the most relevant journey as an ordered path (origin → via → destination),
+  // so a correspondence shows up as a secondary point on the line.
+  const display = journeys.length
+    ? journeys.reduce((a, b) => (b.totalDurationMin < a.totalDurationMin ? b : a))
+    : null;
+  showRoute(display ? [display.origin, ...display.hubs, display.destination] : [query.origin, query.destination]);
 }
 
 function showHint(input: HTMLInputElement): void {
-  refs.title.textContent = t("prompt_pick");
-  input.focus();
+  // Empty state: no nagging prompt — just a blank heading and a ready cursor.
+  refs.title.textContent = "";
+  input.focus({ preventScroll: true });
+}
+
+function ensureMap(): RouteMap {
+  if (!map) {
+    map = new RouteMap(refs.mapEl, deps.registry);
+    map.onSelect = selectStation;
+  }
+  return map;
 }
 
 function showMap(hub: string, others: string[]): void {
-  if (!map) map = new RouteMap(refs.mapEl, deps.registry);
-  map.show(hub, [...new Set(others)]);
-  requestAnimationFrame(() => map?.invalidate());
+  const m = ensureMap();
+  m.show(hub, [...new Set(others)]);
+  requestAnimationFrame(() => m.invalidate());
+}
+
+function showRoute(stations: string[]): void {
+  const m = ensureMap();
+  m.route(stations);
+  requestAnimationFrame(() => m.invalidate());
+}
+
+/** Reveal & expand the destination card matching a clicked map marker. */
+function selectStation(id: string): void {
+  const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
+  const card = refs.results.querySelector<HTMLElement>(sel);
+  if (!card) return;
+  const panel = card.querySelector<HTMLElement>(".dest-panel");
+  if (panel?.hasAttribute("hidden")) {
+    panel.removeAttribute("hidden");
+    card.querySelector(".dest-main")?.setAttribute("aria-expanded", "true");
+  }
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.add("flash");
+  window.setTimeout(() => card.classList.remove("flash"), 1100);
 }
 
 // --- watched routes ---------------------------------------------------------
@@ -446,16 +511,45 @@ function buildLayout(root: HTMLElement): void {
     rebuild();
   });
 
-  const themeSel = el("select", { class: "ctl", attrs: { "aria-label": t("ctl_theme") } }, [
-    optionEl("auto", "🌓", settings.theme === "auto"),
-    optionEl("light", "☀️", settings.theme === "light"),
-    optionEl("dark", "🌙", settings.theme === "dark"),
-  ]) as HTMLSelectElement;
-  themeSel.addEventListener("change", () => {
-    settings = { ...settings, theme: themeSel.value as store.Theme };
-    applyTheme(settings.theme);
-    store.saveSettings(settings);
+  // Theme cycles auto → light → dark on a single monochrome icon button.
+  const themeBtn = el("button", {
+    class: "ctl icon-ctl",
+    type: "button",
+    attrs: { "aria-label": t("ctl_theme"), title: t("ctl_theme") },
+    html: themeSvg(settings.theme),
   });
+  themeBtn.addEventListener("click", () => {
+    const order: store.Theme[] = ["auto", "light", "dark"];
+    const next = order[(order.indexOf(settings.theme) + 1) % order.length]!;
+    settings = { ...settings, theme: next };
+    applyTheme(next);
+    store.saveSettings(settings);
+    themeBtn.innerHTML = themeSvg(next);
+  });
+
+  // Card (pass) is a global preference, kept at the top and persisted at once.
+  const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
+    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
+    optionEl("senior", t("card_senior"), settings.card === "senior"),
+  ]) as HTMLSelectElement;
+  cardSel.addEventListener("change", () => {
+    const card: store.Settings["card"] = cardSel.value === "senior" ? "senior" : "jeune";
+    settings = { ...settings, card };
+    store.saveSettings(settings);
+    query = { ...query, card };
+    store.updateUrl(query);
+    runSearch(); // refresh the MAX SENIOR weekend notice
+  });
+
+  // Install (Add to home screen) — revealed only when the browser offers it.
+  const installBtn = el("button", {
+    class: "ctl install-btn",
+    type: "button",
+    text: t("act_install"),
+    attrs: { hidden: "" },
+    on: { click: () => void promptInstall() },
+  });
+  installBtnEl = installBtn;
 
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
@@ -467,10 +561,13 @@ function buildLayout(root: HTMLElement): void {
       el("div", {}, [
         el("h1", { text: t("appName") }),
         el("p", { class: "tagline", text: t("tagline") }),
-        el("p", { class: "updated", text: updated }),
+        el("p", { class: "updated", attrs: { title: t("data_why"), tabindex: "0" } }, [
+          el("span", { text: updated }),
+          el("span", { class: "sr-only", text: t("data_why") }),
+        ]),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [langSel, themeSel]),
+    el("div", { class: "header-ctls" }, [cardSel, langSel, themeBtn, installBtn]),
   ]);
 
   // form
@@ -520,19 +617,21 @@ function buildLayout(root: HTMLElement): void {
     results,
     mapEl,
     favList,
+    card: cardSel,
   };
   map = null;
   renderFavorites();
+  refreshInstallBtn();
 }
 
 interface FormBuild {
   form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList">;
+  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "card">;
 }
 
 function buildForm(): FormBuild {
   const stationList = el("datalist", { id: "station-list" });
-  for (const s of deps.registry.all()) stationList.append(el("option", { value: s.label }));
+  for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
   for (const m of ["from", "to", "od", "best", "tour"] as const) {
@@ -557,10 +656,6 @@ function buildForm(): FormBuild {
   const destination = inputEl("text", "station-list");
   const date = inputEl("date");
   const returnDate = inputEl("date");
-  const card = el("select", { class: "input" }, [
-    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
-    optionEl("senior", t("card_senior"), settings.card === "senior"),
-  ]) as HTMLSelectElement;
   const departAfter = inputEl("time");
   const departBefore = inputEl("time");
   const maxDuration = inputEl("number");
@@ -633,7 +728,6 @@ function buildForm(): FormBuild {
       destinationField,
       field(t("field_date"), date),
       returnField,
-      field(t("field_card"), card),
       regionField,
       citiesField,
     ]),
@@ -657,7 +751,6 @@ function buildForm(): FormBuild {
       destination,
       date,
       returnDate,
-      card,
       departAfter,
       departBefore,
       maxDuration,
@@ -688,10 +781,10 @@ function fillRoute(origin: string, destination: string): void {
 function renderFavorites(): void {
   clear(refs.favList);
   const favs = store.loadFavorites();
-  if (favs.length === 0) {
-    refs.favList.append(el("p", { class: "muted small", text: t("fav_none") }));
-    return;
-  }
+  // Hide the whole card while empty so it doesn't take prime space in the rail
+  // (and so the map sits directly under the results on mobile).
+  refs.favList.parentElement?.toggleAttribute("hidden", favs.length === 0);
+  if (favs.length === 0) return;
   for (const f of favs) {
     const row = el("div", { class: "fav-row" }, [
       el("button", {
@@ -734,4 +827,16 @@ function optionEl(value: string, label: string, selected: boolean): HTMLElement 
   const o = el("option", { value, text: label }) as HTMLOptionElement;
   o.selected = selected;
   return o;
+}
+
+/** Monochrome theme glyph (sun / moon / half-disc) drawn in currentColor. */
+function themeSvg(theme: store.Theme): string {
+  const wrap = (inner: string): string =>
+    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  if (theme === "light")
+    return wrap(
+      '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4l1.4-1.4M18 6l1.4-1.4"/>',
+    );
+  if (theme === "dark") return wrap('<path d="M20.5 13.2A8 8 0 1 1 10.8 3.5 6.3 6.3 0 0 0 20.5 13.2z"/>');
+  return wrap('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>');
 }

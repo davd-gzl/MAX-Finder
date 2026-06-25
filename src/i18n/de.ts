@@ -16,7 +16,7 @@ export const de: Dict = {
   tour_none: "Keine MAX-Route für diese Städte und Daten.",
   tour_day: "Tag {n} — {date}",
   mode_from: "Wohin?",
-  mode_to: "Wer kommt hierher?",
+  mode_to: "Woher?",
   mode_od: "Genaue Fahrt",
   field_origin: "Abfahrtsbahnhof",
   field_destination: "Zielbahnhof",
@@ -89,4 +89,7 @@ export const de: Dict = {
   desc_best: "Die schnellsten von deinem Bahnhof aus erreichbaren Ziele an diesem Tag.",
   desc_tour: "Eine Reise durch mehrere Städte mit kostenlosen MAX-Plätzen zwischen den Stopps.",
   act_guide: "Reiseführer",
+  act_install: "App installieren",
+  data_why:
+    "Die offenen SNCF-Daten (tgvmax) werden nur einmal täglich veröffentlicht, gegen Mittag. Häufigeres Aktualisieren würde identische Daten erneut laden. Buchungen erfolgen in Echtzeit auf SNCF Connect.",
 };

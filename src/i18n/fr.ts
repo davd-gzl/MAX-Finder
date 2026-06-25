@@ -15,7 +15,7 @@ export const fr = {
   tour_day: "Jour {n} — {date}",
 
   mode_from: "Où partir ?",
-  mode_to: "Qui vient ici ?",
+  mode_to: "D'où venir ?",
   mode_od: "Trajet précis",
 
   field_origin: "Gare de départ",
@@ -99,6 +99,9 @@ export const fr = {
   desc_best: "Les destinations les plus rapides accessibles depuis votre gare ce jour-là.",
   desc_tour: "Un voyage multi-villes enchaînant les places MAX gratuites entre les étapes.",
   act_guide: "Guide de voyage",
+  act_install: "Installer l'application",
+  data_why:
+    "Les données ouvertes SNCF (tgvmax) ne sont publiées qu'une fois par jour, vers midi. Actualiser plus souvent téléchargerait des données identiques. Les réservations, elles, se font en temps réel sur SNCF Connect.",
 };
 
 export type Dict = typeof fr;
