@@ -459,13 +459,17 @@ function runOdSearch(c: RenderCtx): void {
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 
+  // Sort by total travel time, fastest first (then earliest departure as a
+  // tiebreak) so the best option is at the top of the list and the slowest last.
   const journeys: Journey[] = findJourneys(
     trains,
     query.origin,
     query.destination,
     query.date,
     connOpts,
-  ).filter(passesVia);
+  )
+    .filter(passesVia)
+    .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
@@ -482,10 +486,9 @@ function runOdSearch(c: RenderCtx): void {
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),
-  // so a correspondence shows up as a secondary point on the line.
-  const display = journeys.length
-    ? journeys.reduce((a, b) => (b.totalDurationMin < a.totalDurationMin ? b : a))
-    : null;
+  // so a correspondence shows up as a secondary point on the line. The list is
+  // sorted fastest-first, so the first journey is the quickest.
+  const display = journeys[0] ?? null;
   showRoute(display ? [display.origin, ...display.hubs, display.destination] : [query.origin, query.destination]);
 }
 
