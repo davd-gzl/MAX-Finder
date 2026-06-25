@@ -36,6 +36,7 @@ interface Refs {
   maxDuration: HTMLInputElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  originField: HTMLElement;
   destinationField: HTMLElement;
   returnField: HTMLElement;
   region: HTMLSelectElement;
@@ -504,6 +505,8 @@ function setActiveTab(mode: SearchQuery["mode"]): void {
 }
 
 function updateFieldVisibility(): void {
+  // "D'où venir" (to) picks a destination, so the departure field is irrelevant.
+  refs.originField.style.display = query.mode === "to" ? "none" : "";
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
@@ -804,6 +807,7 @@ function buildForm(): FormBuild {
       maxDuration,
       trainType,
       maxConnections,
+      originField,
       destinationField,
       returnField,
       region,
