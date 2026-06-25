@@ -93,4 +93,6 @@ export const ja: Dict = {
     "SNCF のオープンデータ（tgvmax）は1日1回、正午ごろにのみ公開されます。それより頻繁に更新しても同じデータを取得するだけです。予約自体は SNCF Connect でリアルタイムに行われます。",
   conn_3: "乗り換え3回まで",
   conn_max: "何が何でも",
+  act_report: "問題を報告",
+  act_back: "戻る",
 };

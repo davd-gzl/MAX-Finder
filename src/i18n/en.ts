@@ -106,4 +106,6 @@ export const en: Dict = {
     "SNCF open data (tgvmax) is published only once a day, around midday. Refreshing more often would re-download identical data. Bookings themselves happen in real time on SNCF Connect.",
   conn_3: "3 changes max",
   conn_max: "Whatever it takes",
+  act_report: "Report an issue",
+  act_back: "Back",
 };

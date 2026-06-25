@@ -14,7 +14,7 @@ import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
 import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
-import { SNCF_CONNECT_URL, MAX_JEUNE_URL, MAX_SENIOR_URL } from "./config";
+import { SNCF_CONNECT_URL, MAX_JEUNE_URL, MAX_SENIOR_URL, GITHUB_URL, GITHUB_ISSUES_URL } from "./config";
 import { notify } from "./pwa/register";
 
 interface Deps {
@@ -579,7 +579,7 @@ function buildLayout(root: HTMLElement): void {
   const ghLink = el("a", {
     class: "ctl gh-link",
     html: `<span aria-hidden="true">★</span> GitHub`,
-    href: "https://github.com/davd-gzl/MAX-Finder",
+    href: GITHUB_URL,
     attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub" },
   });
 
@@ -623,10 +623,17 @@ function buildLayout(root: HTMLElement): void {
   const footer = el("footer", { class: "site-footer" }, [
     el("p", { class: "muted", text: t("foot_source") }),
     el("p", { class: "muted small", text: t("foot_disclaimer") }),
-    el("p", { class: "muted small" }, [
+    el("div", { class: "foot-actions" }, [
       el("a", {
+        class: "btn btn-ghost feedback-btn",
+        text: t("act_report"),
+        href: GITHUB_ISSUES_URL,
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+      el("a", {
+        class: "foot-link",
         text: "GitHub",
-        href: "https://github.com/davd-gzl/MAX-Finder",
+        href: GITHUB_URL,
         attrs: { target: "_blank", rel: "noopener noreferrer" },
       }),
     ]),

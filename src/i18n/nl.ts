@@ -93,4 +93,6 @@ export const nl: Dict = {
     "De open data van SNCF (tgvmax) worden maar één keer per dag gepubliceerd, rond het middaguur. Vaker verversen zou identieke gegevens opnieuw downloaden. Reserveringen zelf gebeuren in realtime op SNCF Connect.",
   conn_3: "Max. 3 overstappen",
   conn_max: "Koste wat het kost",
+  act_report: "Een probleem melden",
+  act_back: "Terug",
 };

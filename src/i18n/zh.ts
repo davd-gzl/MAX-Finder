@@ -94,4 +94,6 @@ export const zh: Dict = {
     "SNCF 开放数据（tgvmax）每天仅在中午前后发布一次。更频繁地刷新只会重复下载相同的数据。预订本身在 SNCF Connect 上实时进行。",
   conn_3: "最多换乘 3 次",
   conn_max: "不惜一切",
+  act_report: "反馈问题",
+  act_back: "返回",
 };

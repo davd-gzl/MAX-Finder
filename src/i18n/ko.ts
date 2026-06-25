@@ -94,4 +94,6 @@ export const ko: Dict = {
     "SNCF 공개 데이터(tgvmax)는 하루에 한 번, 정오 무렵에만 갱신됩니다. 더 자주 새로고침해도 동일한 데이터를 다시 받을 뿐입니다. 예약 자체는 SNCF Connect에서 실시간으로 이뤄집니다.",
   conn_3: "최대 3회 환승",
   conn_max: "무슨 일이 있어도",
+  act_report: "문제 신고",
+  act_back: "뒤로",
 };
