@@ -1,6 +1,6 @@
 import type { MaxTrain, Journey } from "../types";
 import { HUB_STATIONS, MIN_CONNECTION_MIN, MAX_CONNECTION_MIN } from "../config";
-import { filterTrains } from "./search";
+import { absoluteMinute, addDays, parseTimeToMinutes } from "../util/time";
 
 export interface ConnectionOptions {
   /** 0 = direct only, 1 = one change (default), 2 = two changes. */
@@ -14,7 +14,7 @@ export interface ConnectionOptions {
   trainType?: string;
 }
 
-/** Build a Journey from an ordered list of legs (1..n). */
+/** Build a Journey from an ordered list of legs (1..n), on an absolute timeline. */
 export function toJourney(legs: MaxTrain[]): Journey {
   const first = legs[0];
   const last = legs[legs.length - 1];
@@ -25,7 +25,7 @@ export function toJourney(legs: MaxTrain[]): Journey {
     const prev = legs[i - 1];
     const cur = legs[i];
     if (!prev || !cur) continue;
-    layovers.push(cur.departMin - prev.arriveMin);
+    layovers.push(absoluteMinute(cur.date, cur.departMin) - absoluteMinute(prev.date, prev.arriveMin));
     hubs.push(prev.destination);
   }
   return {
@@ -35,7 +35,8 @@ export function toJourney(legs: MaxTrain[]): Journey {
     legs,
     departMin: first.departMin,
     arriveMin: last.arriveMin,
-    totalDurationMin: last.arriveMin - first.departMin,
+    totalDurationMin:
+      absoluteMinute(last.date, last.arriveMin) - absoluteMinute(first.date, first.departMin),
     connectionMin: layovers.length === 1 ? layovers[0] : undefined,
     hub: hubs.length === 1 ? hubs[0] : undefined,
     layovers,
@@ -47,7 +48,7 @@ function dedupe(journeys: Journey[]): Journey[] {
   const seen = new Set<string>();
   const out: Journey[] = [];
   for (const j of journeys) {
-    const key = `${j.date}|${j.legs.map((l) => `${l.trainNo}@${l.origin}`).join(">")}`;
+    const key = `${j.legs.map((l) => `${l.date}/${l.trainNo}@${l.origin}`).join(">")}`;
     if (!seen.has(key)) {
       seen.add(key);
       out.push(j);
@@ -57,11 +58,12 @@ function dedupe(journeys: Journey[]): Journey[] {
 }
 
 /**
- * Find journeys from `origin` to `destination` on `date` with up to
- * `maxConnections` changes. Direct trains and every valid shorter journey are
- * included. Intermediate stops must be hubs; each layover must fall within the
- * allowed window; no station is visited twice. Sorted by departure, then total
- * duration, then fewest legs.
+ * Find journeys from `origin` to `destination` departing on `date`, with up to
+ * `maxConnections` changes. Connecting legs may fall on the following day, so a
+ * leg arriving just after midnight can still connect; layovers and total duration
+ * are computed on an absolute (cross-date) timeline. Intermediate stops must be
+ * hubs; each layover must fall within the allowed window; no station is visited
+ * twice. Sorted by departure, then total duration, then fewest legs.
  */
 export function findJourneys(
   trains: MaxTrain[],
@@ -74,17 +76,31 @@ export function findJourneys(
   const hubSet = new Set(opts.hubs ?? HUB_STATIONS);
   const minC = opts.minConnectionMin ?? MIN_CONNECTION_MIN;
   const maxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
+  const next = addDays(date, 1);
 
-  const dayPool = filterTrains(trains, { date, trainType: opts.trainType });
-  const firstPool = filterTrains(trains, {
-    date,
-    departAfter: opts.departAfter,
-    departBefore: opts.departBefore,
-    trainType: opts.trainType,
-  });
+  // Available legs departing on `date` or the following day (so connections can
+  // cross midnight). Sorted on the absolute timeline.
+  const pool = trains
+    .filter(
+      (t) =>
+        t.available &&
+        (t.date === date || t.date === next) &&
+        (!opts.trainType || (t.axe ?? "") === opts.trainType),
+    )
+    .sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
+
+  // The first leg must depart on `date`, within the user's time window.
+  const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
+  const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const firstPool = pool.filter(
+    (t) =>
+      t.date === date &&
+      (after === undefined || t.departMin >= after) &&
+      (before === undefined || t.departMin <= before),
+  );
 
   const byOrigin = new Map<string, MaxTrain[]>();
-  for (const t of dayPool) {
+  for (const t of pool) {
     const arr = byOrigin.get(t.origin);
     if (arr) arr.push(t);
     else byOrigin.set(t.origin, [t]);
@@ -107,9 +123,10 @@ export function findJourneys(
       visited.add(l.origin);
       visited.add(l.destination);
     }
+    const lastArr = absoluteMinute(last.date, last.arriveMin);
     for (const nx of byOrigin.get(last.destination) ?? []) {
       if (visited.has(nx.destination)) continue;
-      const layover = nx.departMin - last.arriveMin;
+      const layover = absoluteMinute(nx.date, nx.departMin) - lastArr;
       if (layover < minC || layover > maxC) continue;
       path.push(nx);
       dfs();

@@ -27,6 +27,11 @@ export function dayIndex(date: string): number {
   return Math.round(Date.parse(`${date}T00:00:00Z`) / 86_400_000);
 }
 
+/** "YYYY-MM-DD" shifted by `n` days. */
+export function addDays(date: string, n: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Absolute minute on a continuous timeline across dates. */
 export function absoluteMinute(date: string, minutesFromMidnight: number): number {
   return dayIndex(date) * 1440 + minutesFromMidnight;

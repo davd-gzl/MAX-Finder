@@ -302,13 +302,11 @@ function runOdSearch(c: RenderCtx): void {
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
-  // 30-day availability calendar
-  const cal = availabilityCalendar(
-    trains,
-    query.origin,
-    query.destination,
-    dateRange(query.date, 30),
-  );
+  // 30-day availability calendar (connection-aware, matching the journeys above)
+  const cal = availabilityCalendar(trains, query.origin, query.destination, dateRange(query.date, 30), {
+    ...filterOpts(),
+    maxConnections: query.maxConnections,
+  });
   refs.results.append(render.calendarEl(cal, c));
 
   // optional round trips

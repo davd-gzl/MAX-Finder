@@ -208,6 +208,23 @@ describe("findJourneys multi-hop (2 changes)", () => {
   });
 });
 
+describe("findJourneys across midnight", () => {
+  const overnight = normalizeRecords([
+    { date: "2026-08-01", origine: "NANTES", destination: "LYON (intramuros)", heure_depart: "23:00", heure_arrivee: "00:30", train_no: "T1", od_happy_card: "OUI" },
+    { date: "2026-08-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "01:00", heure_arrivee: "02:00", train_no: "T2", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("pairs a leg arriving after midnight with an early next-day leg", () => {
+    const js = findJourneys(overnight, "NANTES", "MARSEILLE ST CHARLES", "2026-08-01", {
+      maxConnections: 1,
+    });
+    expect(js).toHaveLength(1);
+    expect(js[0]!.legs.map((l) => l.trainNo)).toEqual(["T1", "T2"]);
+    expect(js[0]!.layovers).toEqual([30]); // 00:30 -> 01:00 next day
+    expect(js[0]!.totalDurationMin).toBe(180); // 23:00 -> 02:00 (+1 day)
+  });
+});
+
 describe("planTours", () => {
   const data = normalizeRecords([
     { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
