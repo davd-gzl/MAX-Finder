@@ -101,5 +101,6 @@ export const it: Dict = {
   field_via: "Via (opzionale)",
   stat_window: "{trains} treni · {days} g",
   act_surprise: "A caso",
+  cities_add: "Aggiungi una città…",
   stat_window_hint: "{trains} treni MAX verso questa destinazione in {days} giorni a venire. Apri il viaggio esatto per vedere le date.",
 };

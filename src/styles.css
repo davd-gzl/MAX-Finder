@@ -335,6 +335,66 @@ a {
 .input::placeholder {
   color: var(--faint);
 }
+/* ---- tour cities chip input ---- */
+.cities-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.4rem;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.cities-input:focus-within {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
+}
+.cities-input .input {
+  flex: 1 1 9ch;
+  min-width: 9ch;
+  width: auto;
+  border: 0;
+  padding: 0.2rem 0.15rem;
+}
+.cities-input .input:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+.city-chips {
+  display: contents;
+}
+.city-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 7px;
+  padding: 0.12rem 0.2rem 0.12rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 560;
+  white-space: nowrap;
+}
+.chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.chip-x:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
 .input:focus,
 .mode-tab:focus-visible,
 .btn:focus-visible,
