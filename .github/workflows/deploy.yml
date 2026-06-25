@@ -60,9 +60,27 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
 
     steps:
+      # The GitHub Pages API allows only one deployment in flight and rejects a
+      # new one with a 400 ("in progress deployment") if a prior deploy is still
+      # settling server-side — separate from the Actions `concurrency` group,
+      # which only cancels overlapping *runs*. So a deploy can fail purely because
+      # a previous one hasn't finished settling. Try once, and on failure wait for
+      # the lock to clear and retry, so the deploy recovers without a manual re-run.
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
+        continue-on-error: true
+      - name: Wait for the in-flight deployment to settle
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 90
+      - name: Deploy to GitHub Pages (retry)
+        if: steps.deployment.outcome == 'failure'
+        id: deployment-retry
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
