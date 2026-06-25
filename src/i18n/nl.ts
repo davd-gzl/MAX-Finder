@@ -97,4 +97,5 @@ export const nl: Dict = {
   act_back: "Terug",
   act_map: "Op de kaart tonen",
   field_overnight: "Nachtoverstap",
+  field_via: "Via (optioneel)",
 };

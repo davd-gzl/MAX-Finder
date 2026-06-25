@@ -97,4 +97,5 @@ export const ja: Dict = {
   act_back: "戻る",
   act_map: "地図で表示",
   field_overnight: "夜行乗り継ぎ",
+  field_via: "経由（任意）",
 };

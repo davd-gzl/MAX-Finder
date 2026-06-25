@@ -108,6 +108,7 @@ export const fr = {
   act_back: "Retour",
   act_map: "Voir sur la carte",
   field_overnight: "Escale de nuit",
+  field_via: "Via (optionnel)",
 };
 
 export type Dict = typeof fr;

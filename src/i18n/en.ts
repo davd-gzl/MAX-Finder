@@ -110,4 +110,5 @@ export const en: Dict = {
   act_back: "Back",
   act_map: "Show on map",
   field_overnight: "Overnight stopovers",
+  field_via: "Via (optional)",
 };

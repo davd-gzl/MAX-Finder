@@ -21,6 +21,7 @@ import {
   GITHUB_URL,
   GITHUB_ISSUES_URL,
   OVERNIGHT_MAX_CONNECTION_MIN,
+  HUB_STATIONS,
 } from "./config";
 import { notify } from "./pwa/register";
 
@@ -44,8 +45,10 @@ interface Refs {
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
   overnight: HTMLInputElement;
+  via: HTMLInputElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
+  viaField: HTMLElement;
   returnField: HTMLElement;
   region: HTMLSelectElement;
   regionField: HTMLElement;
@@ -210,6 +213,7 @@ function syncFormFromQuery(): void {
   refs.modeDesc.textContent = t(`desc_${query.mode}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
+  refs.via.value = query.via ? deps.registry.label(query.via) : "";
   refs.date.value = query.date;
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
@@ -229,6 +233,7 @@ function readQueryFromForm(): SearchQuery {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
+    via: resolveStation(refs.via.value),
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -425,6 +430,16 @@ function runOdSearch(c: RenderCtx): void {
   });
   refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
 
+  // A "via" forces the route through a chosen station: add it to the allowed
+  // interchange set, require ≥1 change, and keep only journeys passing through it.
+  const viaId = query.via;
+  const connOpts = {
+    ...filterOpts(),
+    maxConnections: viaId ? Math.max(1, query.maxConnections) : query.maxConnections,
+    ...(viaId ? { hubs: [...HUB_STATIONS, viaId] } : {}),
+  };
+  const passesVia = (j: Journey): boolean => !viaId || j.hubs.includes(viaId);
+
   // 30-day availability calendar, anchored to today's bookable window (not the
   // selected date) so clicking a day doesn't shift the strip. The chosen date is
   // highlighted in place.
@@ -433,24 +448,26 @@ function runOdSearch(c: RenderCtx): void {
     query.origin,
     query.destination,
     dateRange(today, BOOKING_WINDOW_DAYS),
-    { ...filterOpts(), maxConnections: query.maxConnections },
+    connOpts,
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 
-  const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
+  const journeys: Journey[] = findJourneys(
+    trains,
+    query.origin,
+    query.destination,
+    query.date,
+    connOpts,
+  ).filter(passesVia);
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
   // optional round trips
   const ret = refs.returnDate.value;
   if (ret) {
-    const trips = findRoundTrips(trains, query.origin, query.destination, query.date, ret, {
-      ...filterOpts(),
-      maxConnections: query.maxConnections,
-    });
+    const trips = findRoundTrips(trains, query.origin, query.destination, query.date, ret, connOpts).filter(
+      (rt) => passesVia(rt.outbound) && passesVia(rt.inbound),
+    );
     const section = el("section", { class: "roundtrips" }, [el("h3", { text: t("rt_title") })]);
     if (trips.length === 0) section.append(render.emptyEl(t("rt_none")));
     else for (const rt of trips.slice(0, 20)) section.append(render.roundTripEl(rt, c));
@@ -555,6 +572,7 @@ function updateFieldVisibility(): void {
   refs.originField.style.display = query.mode === "to" ? "none" : "";
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
+  refs.viaField.style.display = query.mode === "od" ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
   refs.regionField.style.display = query.mode === "best" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
@@ -743,6 +761,7 @@ function buildForm(): FormBuild {
 
   const origin = inputEl("text", "station-list");
   const destination = inputEl("text", "station-list");
+  const via = inputEl("text", "station-list");
   const date = inputEl("date");
   const returnDate = inputEl("date");
   // Constrain dates to exactly the window the 30-day calendar renders.
@@ -783,6 +802,7 @@ function buildForm(): FormBuild {
 
   const originField = field(t("field_origin"), origin);
   const destinationField = field(t("field_destination"), destination);
+  const viaField = field(t("field_via"), via);
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
   const citiesField = field(t("field_cities"), cities);
@@ -830,6 +850,7 @@ function buildForm(): FormBuild {
     el("div", { class: "fields" }, [
       originField,
       destinationField,
+      viaField,
       field(t("field_date"), date),
       returnField,
       regionField,
@@ -862,8 +883,10 @@ function buildForm(): FormBuild {
       trainType,
       maxConnections,
       overnight,
+      via,
       originField,
       destinationField,
+      viaField,
       returnField,
       region,
       regionField,

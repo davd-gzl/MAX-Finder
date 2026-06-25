@@ -98,4 +98,5 @@ export const es: Dict = {
   act_back: "Volver",
   act_map: "Ver en el mapa",
   field_overnight: "Escalas nocturnas",
+  field_via: "Vía (opcional)",
 };

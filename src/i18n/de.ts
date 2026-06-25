@@ -98,4 +98,5 @@ export const de: Dict = {
   act_back: "Zurück",
   act_map: "Auf der Karte zeigen",
   field_overnight: "Umstieg über Nacht",
+  field_via: "Über (optional)",
 };
