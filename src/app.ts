@@ -60,6 +60,10 @@ let labelToId: Map<string, string>;
 // and the date picker stay anchored to a today..today+30 window.
 let today = "";
 const BOOKING_WINDOW_DAYS = 30;
+// Cap on connection-only ("via") destinations appended to a browse list.
+const MAX_VIA_RESULTS = 30;
+// Query history for the in-app Back button (drilling into a route pushes here).
+let navStack: SearchQuery[] = [];
 
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
@@ -162,6 +166,7 @@ function ctx(): RenderCtx {
     bookUrl: () => SNCF_CONNECT_URL,
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
+      navStack.push({ ...query }); // remember the list we came from
       query = { ...query, mode: "od", origin, destination };
       syncFormFromQuery();
       applyAndRun();
@@ -259,14 +264,25 @@ function runSearch(): void {
       el("span", { class: "spinner", attrs: { "aria-hidden": "true" } }),
     ]),
   );
+  // Two frames so the spinner actually paints before a heavy (connection-aware)
+  // compute blocks the main thread — otherwise long searches show no feedback.
   requestAnimationFrame(() => {
-    clear(refs.results);
-    renderSearch();
+    requestAnimationFrame(() => {
+      clear(refs.results);
+      renderSearch();
+    });
   });
 }
 
 function renderSearch(): void {
   const c = ctx();
+
+  // Back to the previous list (instant — journeys are memoized).
+  if (navStack.length) {
+    refs.results.append(
+      el("button", { class: "back-btn", type: "button", text: `← ${t("act_back")}`, on: { click: goBack } }),
+    );
+  }
 
   // MAX SENIOR free tickets are weekday-only — flag a weekend date.
   if (query.card === "senior" && isWeekend(query.date)) {
@@ -308,13 +324,16 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       : reachableOrigins(trains, anchor, query.date, filterOpts());
   const directStations = new Set(groups.map((g) => g.station));
 
-  // Destinations reachable only with a change (not already direct).
+  // Destinations reachable only with a change (not already direct), capped so the
+  // "via" list stays compact like the direct list (reachableBest is duration-sorted).
   const connecting =
     query.maxConnections > 0
       ? reachableBest(trains, anchor, query.date, stationsOnDate(trains, query.date), {
           ...filterOpts(),
           maxConnections: query.maxConnections,
-        }, dir).filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
+        }, dir)
+          .filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
+          .slice(0, MAX_VIA_RESULTS)
       : [];
 
   const total = groups.length + connecting.length;
@@ -433,6 +452,15 @@ function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
   input.focus({ preventScroll: true });
+}
+
+function goBack(): void {
+  const prev = navStack.pop();
+  if (!prev) return;
+  query = prev;
+  syncFormFromQuery();
+  store.updateUrl(query);
+  runSearch();
 }
 
 function ensureMap(): RouteMap {
@@ -684,6 +712,7 @@ function buildForm(): FormBuild {
       dataset: { mode: m },
       on: {
         click: () => {
+          navStack = []; // switching mode starts a new history
           query = { ...readQueryFromForm(), mode: m };
           syncFormFromQuery();
           applyAndRun();
@@ -699,8 +728,8 @@ function buildForm(): FormBuild {
   const date = inputEl("date");
   const returnDate = inputEl("date");
   // Constrain dates to the bookable window (today .. today + 30 days).
-  const window = dateRange(today, BOOKING_WINDOW_DAYS + 1);
-  const lastBookable = window[window.length - 1] ?? today;
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS + 1);
+  const lastBookable = windowDates[windowDates.length - 1] ?? today;
   date.min = today;
   date.max = lastBookable;
   returnDate.min = today;
@@ -789,6 +818,7 @@ function buildForm(): FormBuild {
   ]);
   form.addEventListener("submit", (e) => {
     e.preventDefault();
+    navStack = []; // a fresh search starts a new history
     query = readQueryFromForm();
     applyAndRun();
   });

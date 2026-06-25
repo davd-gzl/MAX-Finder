@@ -149,19 +149,10 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   return el("article", { class: "journey" }, [head, legs, actions]);
 }
 
-/** A destination/origin group card (for "from"/"to" modes). */
-export function groupCardEl(
-  group: StationGroup,
-  mode: SearchMode,
-  anchor: string,
-  ctx: RenderCtx,
-): HTMLElement {
-  const origin = mode === "from" ? anchor : group.station;
-  const destination = mode === "from" ? group.station : anchor;
-  const route: RoutePair = { origin, destination };
-
+/** A favourite-toggle star button for a route, with live aria/label updates. */
+function favStarEl(route: RoutePair, ctx: RenderCtx): HTMLElement {
   const favLabel = (): string => (ctx.isFavorite(route) ? t("act_fav_remove") : t("act_fav_add"));
-  const star = el(
+  return el(
     "button",
     {
       class: ctx.isFavorite(route) ? "star is-fav" : "star",
@@ -183,6 +174,20 @@ export function groupCardEl(
     },
     [icon(I.star)],
   );
+}
+
+/** A destination/origin group card (for "from"/"to" modes). */
+export function groupCardEl(
+  group: StationGroup,
+  mode: SearchMode,
+  anchor: string,
+  ctx: RenderCtx,
+): HTMLElement {
+  const origin = mode === "from" ? anchor : group.station;
+  const destination = mode === "from" ? group.station : anchor;
+  const route: RoutePair = { origin, destination };
+
+  const star = favStarEl(route, ctx);
 
   // Expandable panel: trains + a calendar drill-down and the booking handoff.
   const panel = el("div", { class: "dest-panel", attrs: { hidden: "" } }, [
@@ -246,30 +251,42 @@ export function groupCardEl(
  * Used by "best" mode and by the connection-aware "from"/"to" browse results.
  */
 export function reachTripRowEl(station: string, j: Journey, ctx: RenderCtx): HTMLElement {
-  const tag =
-    j.legs.length === 1
-      ? t("lbl_direct")
-      : t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") });
+  const route: RoutePair = { origin: j.origin, destination: j.destination };
+  const via = j.legs.length > 1;
+  // Connecting trips get a "via" chip so a correspondence is obvious in the list;
+  // direct trips stay clean.
+  const viaChip = via
+    ? [
+        el("span", {
+          class: "chip chip-via",
+          text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
+        }),
+      ]
+    : [];
+  const aria = `${ctx.label(station)} — ${formatDuration(j.totalDurationMin)}${
+    via ? ` (${t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") })})` : ""
+  }`;
   const main = el(
     "button",
     {
       class: "dest-main",
       type: "button",
-      attrs: { "aria-label": `${ctx.label(station)} — ${formatDuration(j.totalDurationMin)}` },
+      attrs: { "aria-label": aria },
       on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
     },
     [
       el("span", { class: "dest-name", text: ctx.label(station) }),
+      ...viaChip,
       el("span", {
         class: "dest-meta",
         attrs: { "aria-hidden": "true" },
-        text: `${formatDuration(j.totalDurationMin)} · ${tag}`,
+        text: formatDuration(j.totalDurationMin),
       }),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
   return el("article", { class: "group-card", dataset: { station } }, [
-    el("div", { class: "dest-row" }, [main]),
+    el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
   ]);
 }
 
