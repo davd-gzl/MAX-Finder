@@ -9,9 +9,11 @@ SNCF Connect.
 
 ## Screenshots
 
-| Where can I go? (origin → destinations + map) | Exact trip (direct + connections + calendar) |
+| Where to? (origin → destinations) | Exact trip (direct + connections + calendar) |
 | --- | --- |
 | ![Origin search](docs/screenshots/from.png) | ![Trip search](docs/screenshots/trip.png) |
+| Ideas (destinations ranked by travel time) | Tour (multi-city, day-by-day itinerary) |
+| ![Best trips](docs/screenshots/best.png) | ![Tour planner](docs/screenshots/tour.png) |
 
 ## Why
 

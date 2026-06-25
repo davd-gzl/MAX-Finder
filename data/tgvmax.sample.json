@@ -18,5 +18,6 @@
   { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "LILLE", "heure_depart": "17:00", "heure_arrivee": "18:02", "train_no": "7201", "od_happy_card": "OUI", "axe": "NORD" },
   { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "STRASBOURG", "heure_depart": "16:00", "heure_arrivee": "17:50", "train_no": "9501", "od_happy_card": "OUI", "axe": "EST" },
   { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "NICE VILLE", "heure_depart": "06:00", "heure_arrivee": "12:00", "train_no": "6171", "od_happy_card": "OUI", "axe": "SUD EST" },
-  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "TOULON", "heure_depart": "23:00", "heure_arrivee": "00:50", "train_no": "6190", "od_happy_card": "OUI", "axe": "SUD EST" }
+  { "date": "2026-06-25", "origine": "PARIS (intramuros)", "destination": "TOULON", "heure_depart": "23:00", "heure_arrivee": "00:50", "train_no": "6190", "od_happy_card": "OUI", "axe": "SUD EST" },
+  { "date": "2026-06-26", "origine": "LYON (intramuros)", "destination": "MARSEILLE ST CHARLES", "heure_depart": "09:30", "heure_arrivee": "11:10", "train_no": "6722", "od_happy_card": "OUI", "axe": "SUD EST" }
 ]

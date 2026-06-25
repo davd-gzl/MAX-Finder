@@ -1,6 +1,7 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
 import type { StationGroup } from "../core/destinations";
 import type { BestTrip } from "../core/best";
+import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
@@ -273,6 +274,29 @@ export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
     text: t("rt_stay", { dur: formatDuration(rt.stayMinutes) }),
   });
   return el("article", { class: "roundtrip" }, [out, stay, back]);
+}
+
+/** A multi-city tour itinerary (tour mode). */
+export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
+  const first = tour.legs[0];
+  const stops = first ? [first.origin, ...tour.legs.map((l) => l.destination)] : [];
+  const head = el("div", { class: "tour-head" }, [
+    el("span", { class: "tour-route", text: stops.map((s) => ctx.label(s)).join(" → ") }),
+    el("span", { class: "journey-total" }, [
+      icon(I.clock),
+      el("span", { text: formatDuration(tour.totalDurationMin) }),
+    ]),
+  ]);
+  const legs = tour.legs.map((j, i) =>
+    el("div", { class: "tour-leg" }, [
+      el("span", {
+        class: "chip chip-soft",
+        text: t("tour_day", { n: i + 1, date: ctx.formatDate(j.date) }),
+      }),
+      journeyEl(j, ctx),
+    ]),
+  );
+  return el("article", { class: "tour" }, [head, ...legs]);
 }
 
 export function emptyEl(message: string): HTMLElement {

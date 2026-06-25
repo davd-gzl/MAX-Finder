@@ -678,6 +678,38 @@ a {
   color: var(--muted);
 }
 
+/* ---- tour itinerary ---- */
+.tour {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+}
+.tour-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+.tour-route {
+  font-weight: 620;
+  font-size: 0.98rem;
+}
+.tour-leg {
+  margin: 0.35rem 0;
+  padding-left: 0.55rem;
+  border-left: 2px solid var(--border-strong);
+}
+.tour-leg .journey {
+  border: 0;
+  padding: 0.2rem 0;
+}
+.tour-leg .journey:hover {
+  border: 0;
+}
+
 /* ---- map ---- */
 .map-section {
   margin-top: 0;

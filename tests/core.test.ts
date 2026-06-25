@@ -7,6 +7,7 @@ import { findJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, stationsOnDate } from "../src/core/best";
+import { planTours } from "../src/core/tour";
 import sample from "../data/tgvmax.sample.json";
 
 const trains = normalizeRecords(sample as RawRecord[]);
@@ -204,6 +205,26 @@ describe("findJourneys multi-hop (2 changes)", () => {
     expect(j.legs.map((l) => l.trainNo)).toEqual(["1", "2", "3"]);
     expect(j.hubs).toEqual(["PARIS (intramuros)", "LYON (intramuros)"]);
     expect(j.layovers).toEqual([30, 30]);
+  });
+});
+
+describe("planTours", () => {
+  const data = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+    { date: "2026-07-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("orders the cities so each day's hop has a free-MAX train", () => {
+    const tours = planTours(
+      data,
+      "PARIS (intramuros)",
+      ["MARSEILLE ST CHARLES", "LYON (intramuros)"],
+      "2026-07-01",
+      { maxConnections: 0 },
+    );
+    expect(tours).toHaveLength(1);
+    expect(tours[0]!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES"]);
+    expect(tours[0]!.legs).toHaveLength(2);
   });
 });
 
