@@ -2,10 +2,7 @@ import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
 import { reachableDestinations, reachableOrigins } from "./core/destinations";
-import { bestTrips, stationsOnDate } from "./core/best";
-import { topDestinations, topOrigins, topRoutes } from "./core/stats";
-import { cityPhoto } from "./data/cityImage";
-import { cityPopulation } from "./data/population";
+import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
@@ -39,7 +36,6 @@ interface Refs {
   maxDuration: HTMLInputElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
-  originField: HTMLElement;
   destinationField: HTMLElement;
   returnField: HTMLElement;
   region: HTMLSelectElement;
@@ -160,11 +156,6 @@ function ctx(): RenderCtx {
     formatDate,
     bookUrl: () => SNCF_CONNECT_URL,
     cityInfoUrl,
-    cityImage: (id) => cityPhoto(deps.registry.city(id)),
-    cityPopulation: (id) => {
-      const n = cityPopulation(deps.registry.city(id));
-      return n == null ? null : new Intl.NumberFormat(getLang()).format(n);
-    },
     onOpenRoute: (origin, destination) => {
       query = { ...query, mode: "od", origin, destination };
       syncFormFromQuery();
@@ -271,7 +262,6 @@ function runSearch(): void {
 
 function renderSearch(): void {
   const c = ctx();
-  const { trains, registry } = deps;
 
   // MAX SENIOR free tickets are weekday-only — flag a weekend date.
   if (query.card === "senior" && isWeekend(query.date)) {
@@ -279,84 +269,59 @@ function renderSearch(): void {
   }
 
   if (query.mode === "from") {
-    if (!query.origin) return showHint(refs.origin);
-    const groups = reachableDestinations(trains, query.origin, query.date, filterOpts());
-    refs.title.textContent = t("res_from_title", {
-      station: registry.label(query.origin),
-      date: formatDate(query.date),
-    });
-    if (groups.length === 0) {
-      refs.results.append(render.emptyEl(t("res_none")));
-    } else {
-      refs.results.append(
-        el("p", { class: "muted count", text: t("res_destinations", { n: groups.length }) }),
-      );
-      for (const g of groups) refs.results.append(render.groupCardEl(g, "from", query.origin, c));
-    }
-    showMap(query.origin, groups.map((g) => g.station));
+    runBrowse(c, "from");
   } else if (query.mode === "to") {
-    if (!query.destination) return showHint(refs.destination);
-    const groups = reachableOrigins(trains, query.destination, query.date, filterOpts());
-    refs.title.textContent = t("res_to_title", {
-      station: registry.label(query.destination),
-      date: formatDate(query.date),
-    });
-    if (groups.length === 0) {
-      refs.results.append(render.emptyEl(t("res_none")));
-    } else {
-      refs.results.append(
-        el("p", { class: "muted count", text: t("res_origins", { n: groups.length }) }),
-      );
-      for (const g of groups) refs.results.append(render.groupCardEl(g, "to", query.destination, c));
-    }
-    showMap(query.destination, groups.map((g) => g.station));
+    runBrowse(c, "to");
   } else if (query.mode === "best") {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
-  } else if (query.mode === "stats") {
-    runStatsSearch(c);
   } else {
     runOdSearch(c);
   }
 }
 
-function runStatsSearch(c: RenderCtx): void {
+/**
+ * "from"/"to" browse. Direct destinations keep their rich expandable cards;
+ * when changes are allowed, every extra place reachable only via a connection
+ * is appended as a compact "via" row, so raising the connections setting really
+ * does surface more destinations.
+ */
+function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   const { trains, registry } = deps;
-  refs.title.textContent = `${t("mode_stats")} — ${formatDate(query.date)}`;
-  const dests = topDestinations(trains, query.date);
-  if (dests.length === 0) {
+  const anchor = dir === "from" ? query.origin : query.destination;
+  if (!anchor) return showHint(dir === "from" ? refs.origin : refs.destination);
+  refs.title.textContent = t(dir === "from" ? "res_from_title" : "res_to_title", {
+    station: registry.label(anchor),
+    date: formatDate(query.date),
+  });
+  const countKey = dir === "from" ? "res_destinations" : "res_origins";
+
+  const groups =
+    dir === "from"
+      ? reachableDestinations(trains, anchor, query.date, filterOpts())
+      : reachableOrigins(trains, anchor, query.date, filterOpts());
+  const directStations = new Set(groups.map((g) => g.station));
+
+  // Destinations reachable only with a change (not already direct).
+  const connecting =
+    query.maxConnections > 0
+      ? reachableBest(trains, anchor, query.date, stationsOnDate(trains, query.date), {
+          ...filterOpts(),
+          maxConnections: query.maxConnections,
+        }, dir).filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
+      : [];
+
+  const total = groups.length + connecting.length;
+  if (total === 0) {
     refs.results.append(render.emptyEl(t("res_none")));
-    showMap("", []);
+    showMap(anchor, []);
     return;
   }
-  const withPop = (s: string): string | null => c.cityPopulation(s);
-  refs.results.append(
-    render.statListEl(
-      t("stats_top_dest"),
-      dests.map((d) => ({ label: registry.label(d.station), count: d.count, sub: withPop(d.station) })),
-    ),
-  );
-  refs.results.append(
-    render.statListEl(
-      t("stats_top_origin"),
-      topOrigins(trains, query.date).map((o) => ({
-        label: registry.label(o.station),
-        count: o.count,
-        sub: withPop(o.station),
-      })),
-    ),
-  );
-  refs.results.append(
-    render.statListEl(
-      t("stats_top_route"),
-      topRoutes(trains, query.date).map((r) => ({
-        label: `${registry.label(r.origin)} → ${registry.label(r.destination)}`,
-        count: r.count,
-      })),
-    ),
-  );
-  showMap("", dests.map((d) => d.station));
+  refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
+  for (const g of groups) refs.results.append(render.groupCardEl(g, dir, anchor, c));
+  for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
 }
 
 function runTourSearch(c: RenderCtx): void {
@@ -417,21 +382,21 @@ function runOdSearch(c: RenderCtx): void {
     destination: registry.label(query.destination),
     date: formatDate(query.date),
   });
-  refs.results.append(render.cityPhotoEl(c, query.destination));
   refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
+
+  // 30-day availability calendar first (connection-aware, matching the journeys)
+  const cal = availabilityCalendar(trains, query.origin, query.destination, dateRange(query.date, 30), {
+    ...filterOpts(),
+    maxConnections: query.maxConnections,
+  });
+  refs.results.append(render.calendarEl(cal, c));
+
   const journeys: Journey[] = findJourneys(trains, query.origin, query.destination, query.date, {
     ...filterOpts(),
     maxConnections: query.maxConnections,
   });
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
-
-  // 30-day availability calendar (connection-aware, matching the journeys above)
-  const cal = availabilityCalendar(trains, query.origin, query.destination, dateRange(query.date, 30), {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
-  refs.results.append(render.calendarEl(cal, c));
 
   // optional round trips
   const ret = refs.returnDate.value;
@@ -530,8 +495,6 @@ function setActiveTab(mode: SearchQuery["mode"]): void {
 }
 
 function updateFieldVisibility(): void {
-  const stats = query.mode === "stats";
-  refs.originField.style.display = stats ? "none" : "";
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
@@ -694,7 +657,7 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  for (const m of ["from", "to", "od", "best", "tour", "stats"] as const) {
+  for (const m of ["from", "to", "od", "best", "tour"] as const) {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
@@ -728,7 +691,7 @@ function buildForm(): FormBuild {
     optionEl("1", t("conn_1"), true),
     optionEl("2", t("conn_2"), false),
     optionEl("3", t("conn_3"), false),
-    optionEl("4", t("conn_max"), false),
+    optionEl("6", t("conn_max"), false),
   ]) as HTMLSelectElement;
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
@@ -818,7 +781,6 @@ function buildForm(): FormBuild {
       maxDuration,
       trainType,
       maxConnections,
-      originField,
       destinationField,
       returnField,
       region,

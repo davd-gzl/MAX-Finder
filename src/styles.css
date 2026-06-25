@@ -168,7 +168,7 @@ a {
   gap: 0.25rem;
 }
 .gh-link span {
-  color: var(--accent);
+  color: #f5b400; /* gold star */
 }
 .header-ctls {
   display: flex;
@@ -622,25 +622,6 @@ a {
 .dest-panel {
   padding: 0.05rem 0 0.4rem 2.15rem;
 }
-.dest-photo {
-  display: block;
-  width: 100%;
-  max-width: 360px;
-  height: 130px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  margin: 0.35rem 0 0.55rem;
-  background: var(--surface-2);
-}
-.dest-photo[hidden] {
-  display: none;
-}
-.results > .dest-photo {
-  max-width: 100%;
-  height: 200px;
-  margin: 0 0 0.5rem;
-}
 .dest-trains .train-row {
   padding: 0.28rem 0;
 }
@@ -871,61 +852,6 @@ a {
 }
 .tour-leg .journey:hover {
   border: 0;
-}
-
-/* ---- stats ---- */
-.stat-block {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.9rem 1.05rem;
-}
-.stat-block h3 {
-  font-size: 0.98rem;
-  font-weight: 600;
-  margin-bottom: 0.4rem;
-}
-.stat-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.32rem 0;
-  border-top: 1px solid var(--border);
-}
-.stat-row:first-of-type {
-  border-top: 0;
-}
-.stat-rank {
-  flex: none;
-  width: 1.4rem;
-  text-align: right;
-  color: var(--faint);
-  font-size: 0.82rem;
-  font-variant-numeric: tabular-nums;
-}
-.stat-label {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-.stat-name {
-  font-weight: 560;
-  font-size: 0.92rem;
-}
-.stat-sub {
-  color: var(--faint);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-.stat-count {
-  flex: none;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---- map ---- */

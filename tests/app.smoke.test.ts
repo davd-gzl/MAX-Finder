@@ -46,14 +46,21 @@ beforeEach(() => {
 });
 
 describe("app (jsdom smoke)", () => {
-  it("renders reachable destinations for a 'from' deep-link", () => {
-    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25`);
+  it("renders direct destinations for a 'from' deep-link (no changes)", () => {
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
     const text = root.textContent ?? "";
     expect(text).toContain("Lyon");
     expect(text).toContain("Marseille");
     expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
-    // Toulouse is NON-only direct that day -> must not be listed as a direct destination.
+    // Toulouse is reachable only via a change -> excluded when no changes are allowed.
     expect(text).not.toContain("Toulouse Matabiau");
+  });
+
+  it("surfaces connection-only destinations when changes are allowed", () => {
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`);
+    const text = root.textContent ?? "";
+    // Toulouse is reachable from Paris via Bordeaux that day.
+    expect(text).toContain("Toulouse");
   });
 
   it("shows a connecting journey + calendar for an exact-trip deep-link", () => {
