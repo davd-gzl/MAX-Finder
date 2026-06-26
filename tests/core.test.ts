@@ -269,11 +269,11 @@ describe("planTours", () => {
       { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
       { date: "2026-07-03", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
     ] as RawRecord[]);
-    const args = [spaced, "PARIS (intramuros)", ["LYON (intramuros)", "MARSEILLE ST CHARLES"], "2026-07-01", { maxConnections: 0 }, 10] as const;
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES"];
     // stayDays=1 (default): the second hop would need 2026-07-02 — no train.
-    expect(planTours(...args, 1)).toHaveLength(0);
+    expect(planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", { maxConnections: 0 }, 10, 1)).toHaveLength(0);
     // stayDays=2: second hop falls on 2026-07-03 and the tour is feasible.
-    const tours = planTours(...args, 2);
+    const tours = planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", { maxConnections: 0 }, 10, 2);
     expect(tours).toHaveLength(1);
     expect(tours[0]!.legs[1]!.date).toBe("2026-07-03");
   });
