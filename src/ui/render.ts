@@ -337,7 +337,13 @@ export function calendarEl(days: CalendarDay[], ctx: RenderCtx, selected?: strin
 }
 
 /** One flexible-date row: the fastest trip for a nearby day; click to select it. */
-export function flexDayEl(date: string, j: Journey, ctx: RenderCtx, selected: boolean): HTMLElement {
+export function flexDayEl(
+  date: string,
+  j: Journey,
+  ctx: RenderCtx,
+  selected: boolean,
+  destLabel?: string,
+): HTMLElement {
   const first = j.legs[0];
   const last = j.legs[j.legs.length - 1];
   const via = j.legs.length > 1;
@@ -351,6 +357,9 @@ export function flexDayEl(date: string, j: Journey, ctx: RenderCtx, selected: bo
     },
     [
       el("span", { class: "flex-date", text: ctx.formatDate(date) }),
+      // In "best" mode the destination differs each day, so name it; in "od" the
+      // route is fixed and shown in the page title, so this is omitted.
+      ...(destLabel ? [el("span", { class: "flex-dest", text: destLabel })] : []),
       el("span", { class: "flex-time" }, [
         el("strong", { text: first?.depart ?? "" }),
         icon(I.arrow),
