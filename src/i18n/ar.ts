@@ -101,6 +101,7 @@ export const ar: Dict = {
   stat_window: "{trains} قطار · {days} ي",
   stat_day_month: "{day} في اليوم · {month} في الشهر",
   act_surprise: "فاجئني",
+  surprise_none: "لا توجد مدينة يمكن إضافتها.",
   cities_add: "أضف مدينة…",
   field_stay_min: "أيام دنيا / مدينة",
   field_stay_max: "أيام قصوى / مدينة",

@@ -101,6 +101,7 @@ export const ja: Dict = {
   stat_window: "{trains} 本 · {days} 日",
   stat_day_month: "その日 {day} · 今月 {month}",
   act_surprise: "おまかせ",
+  surprise_none: "追加できる都市がありません。",
   cities_add: "都市を追加…",
   field_stay_min: "都市ごと最小日数",
   field_stay_max: "都市ごと最大日数",

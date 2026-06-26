@@ -114,6 +114,7 @@ export const en: Dict = {
   stat_window: "{trains} trains · {days} d",
   stat_day_month: "{day} this day · {month} this month",
   act_surprise: "Surprise me",
+  surprise_none: "No possible city to add.",
   cities_add: "Add a city…",
   field_stay_min: "Min days / city",
   field_stay_max: "Max days / city",

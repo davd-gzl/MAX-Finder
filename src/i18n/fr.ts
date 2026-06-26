@@ -112,6 +112,7 @@ export const fr = {
   stat_window: "{trains} trains · {days} j",
   stat_day_month: "{day} ce jour · {month} ce mois",
   act_surprise: "Au hasard",
+  surprise_none: "Aucune ville possible à ajouter.",
   cities_add: "Ajouter une ville…",
   field_stay_min: "Jours min. / ville",
   field_stay_max: "Jours max. / ville",
