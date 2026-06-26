@@ -138,6 +138,16 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
       goBack();
     }
   });
+
+  // Native browser Back/Forward: restore the page from the URL. The in-app drill
+  // stack is the URL's source of truth here, so clear it to keep the in-app
+  // "Retour" button in step with where the browser history now sits.
+  window.addEventListener("popstate", () => {
+    query = store.queryFromParams(new URLSearchParams(location.search), today);
+    navStack = [];
+    syncFormFromQuery();
+    runSearch();
+  });
 }
 
 function rebuild(): void {
@@ -282,7 +292,9 @@ function readQueryFromForm(): SearchQuery {
 }
 
 function applyAndRun(): void {
-  store.updateUrl(query);
+  // Push a browser history entry so the native Back button returns to the prior
+  // page. (Incidental updates — calendar day, live form edits — use replaceState.)
+  store.pushUrl(query);
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
   runSearch();
@@ -559,10 +571,17 @@ function runOdSearch(c: RenderCtx): void {
   showRoute(display ? [display.origin, ...display.hubs, display.destination] : [query.origin, query.destination]);
 }
 
+/** Coarse pointer ≈ touch/phone. */
+function isTouch(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+}
+
 function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
-  input.focus({ preventScroll: true });
+  // On phones, don't auto-focus the field: it pops the keyboard + the station
+  // suggestion dropdown over the whole UI on entry. Let the user tap it first.
+  if (!isTouch()) input.focus({ preventScroll: true });
 }
 
 function goBack(): void {
@@ -1092,7 +1111,7 @@ function buildForm(): FormBuild {
 function fillRoute(origin: string, destination: string): void {
   query = { ...query, mode: "od", origin, destination };
   syncFormFromQuery();
-  refs.origin.focus({ preventScroll: true });
+  if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

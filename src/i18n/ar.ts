@@ -99,6 +99,7 @@ export const ar: Dict = {
   field_overnight: "توقف ليلي",
   field_via: "عبر (اختياري)",
   stat_window: "{trains} قطار · {days} ي",
+  stat_day_month: "{day} في اليوم · {month} في الشهر",
   act_surprise: "فاجئني",
   cities_add: "أضف مدينة…",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",

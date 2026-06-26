@@ -99,6 +99,7 @@ export const ja: Dict = {
   field_overnight: "夜行乗り継ぎ",
   field_via: "経由（任意）",
   stat_window: "{trains} 本 · {days} 日",
+  stat_day_month: "その日 {day} · 今月 {month}",
   act_surprise: "おまかせ",
   cities_add: "都市を追加…",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
