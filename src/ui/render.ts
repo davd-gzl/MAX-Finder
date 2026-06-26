@@ -219,21 +219,25 @@ export function groupCardEl(
 
   const star = favStarEl(route, ctx);
 
+  // Two figures: trains on the selected day, and the total over the whole month
+  // (every reservable MAX train to this place, not just the chosen day).
+  const summary = stat
+    ? t("stat_day_month", { day: group.count, month: stat.trains })
+    : t("badge_trains", { n: group.count });
+
   const meta: HTMLElement[] = [];
   if (stat) {
     meta.push(
       el("span", {
         class: "stat-chip",
-        text: t("stat_window", { trains: stat.trains, days: stat.days }),
+        text: summary,
         attrs: { title: t("stat_window_hint", { trains: stat.trains, days: stat.days }) },
       }),
     );
+  } else {
+    meta.push(el("span", { text: t("badge_trains", { n: group.count }) }));
   }
   meta.push(el("bdi", { text: formatDuration(group.minDurationMin) }));
-
-  const summary = stat
-    ? t("stat_window", { trains: stat.trains, days: stat.days })
-    : t("badge_trains", { n: group.count });
 
   const main = el(
     "button",

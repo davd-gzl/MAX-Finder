@@ -142,6 +142,11 @@ export function updateUrl(q: SearchQuery): void {
   history.replaceState(null, "", `${location.pathname}?${queryToParams(q).toString()}`);
 }
 
+/** Push a new history entry, so the browser Back button returns to the prior page. */
+export function pushUrl(q: SearchQuery): void {
+  history.pushState(null, "", `${location.pathname}?${queryToParams(q).toString()}`);
+}
+
 export function urlHasQuery(): boolean {
   const p = new URLSearchParams(location.search);
   return p.has("from") || p.has("to") || p.has("mode");

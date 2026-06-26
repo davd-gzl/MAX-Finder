@@ -99,6 +99,7 @@ export const pt: Dict = {
   field_overnight: "Escala noturna",
   field_via: "Via (opcional)",
   stat_window: "{trains} trens · {days} d",
+  stat_day_month: "neste dia {day} · neste mês {month}",
   act_surprise: "Surpreenda-me",
   cities_add: "Adicionar uma cidade…",
   stat_window_hint: "{trains} trens MAX para este destino em {days} dias à frente. Abra a viagem exata para ver as datas.",

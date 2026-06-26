@@ -110,6 +110,7 @@ export const fr = {
   field_overnight: "Escale de nuit",
   field_via: "Via (optionnel)",
   stat_window: "{trains} trains · {days} j",
+  stat_day_month: "{day} ce jour · {month} ce mois",
   act_surprise: "Au hasard",
   cities_add: "Ajouter une ville…",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
