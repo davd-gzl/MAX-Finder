@@ -91,6 +91,8 @@ export const ja: Dict = {
   desc_tour: "無料の MAX 座席で複数都市をつなぐ旅。",
   act_guide: "旅行ガイド",
   act_install: "アプリをインストール",
+  act_close: "閉じる",
+  install_unavailable: "このブラウザでは自動インストールを利用できません。",
   install_help:
     "インストール方法：ブラウザのメニューを開き、「ホーム画面に追加」または「アプリをインストール」を選択してください。",
   data_why:
@@ -114,5 +116,6 @@ export const ja: Dict = {
   nearest_hint: "直線距離 · 到達可能な最寄り駅を追加",
   field_stay_min: "都市ごと最小日数",
   field_stay_max: "都市ごと最大日数",
+  field_maxKm: "合計距離の上限 (km)",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
 };

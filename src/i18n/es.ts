@@ -92,6 +92,8 @@ export const es: Dict = {
   desc_tour: "Un viaje por varias ciudades enlazando plazas MAX gratuitas entre paradas.",
   act_guide: "Guía de viaje",
   act_install: "Instalar la aplicación",
+  act_close: "Cerrar",
+  install_unavailable: "La instalación automática no está disponible en este navegador.",
   install_help:
     "Para instalar: abre el menú de tu navegador y elige «Añadir a la pantalla de inicio» o «Instalar aplicación».",
   data_why:
@@ -115,5 +117,6 @@ export const es: Dict = {
   nearest_hint: "Distancia en línea recta · añade la estación accesible más cercana",
   field_stay_min: "Días mín. / ciudad",
   field_stay_max: "Días máx. / ciudad",
+  field_maxKm: "Distancia total máx. (km)",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",
 };

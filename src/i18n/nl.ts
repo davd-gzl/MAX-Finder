@@ -91,6 +91,8 @@ export const nl: Dict = {
   desc_tour: "Een reis langs meerdere steden met gratis MAX-plaatsen tussen de stops.",
   act_guide: "Reisgids",
   act_install: "App installeren",
+  act_close: "Sluiten",
+  install_unavailable: "Automatisch installeren is niet beschikbaar in deze browser.",
   install_help:
     "Installeren: open het browsermenu en kies ‘Toevoegen aan beginscherm’ of ‘App installeren’.",
   data_why:
@@ -114,5 +116,6 @@ export const nl: Dict = {
   nearest_hint: "Hemelsbrede afstand · voegt het dichtstbijzijnde bereikbare station toe",
   field_stay_min: "Min. dagen / stad",
   field_stay_max: "Max. dagen / stad",
+  field_maxKm: "Max. totale afstand (km)",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
 };

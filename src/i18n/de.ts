@@ -92,6 +92,8 @@ export const de: Dict = {
   desc_tour: "Eine Reise durch mehrere Städte mit kostenlosen MAX-Plätzen zwischen den Stopps.",
   act_guide: "Reiseführer",
   act_install: "App installieren",
+  act_close: "Schließen",
+  install_unavailable: "Die automatische Installation ist in diesem Browser nicht verfügbar.",
   install_help:
     "Zum Installieren: Öffnen Sie das Browsermenü und wählen Sie „Zum Startbildschirm hinzufügen“ oder „App installieren“.",
   data_why:
@@ -115,5 +117,6 @@ export const de: Dict = {
   nearest_hint: "Luftlinie · fügt die nächste erreichbare Station hinzu",
   field_stay_min: "Min. Tage / Stadt",
   field_stay_max: "Max. Tage / Stadt",
+  field_maxKm: "Max. Gesamtdistanz (km)",
   stat_window_hint: "{trains} MAX-Züge zu diesem Ziel an {days} kommenden Tagen. Öffnen Sie die genaue Reise, um die Daten zu sehen.",
 };

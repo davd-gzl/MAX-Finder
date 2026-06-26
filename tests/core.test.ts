@@ -382,6 +382,19 @@ describe("planTourGreedy", () => {
     const tour = planTourGreedy(chain, "PARIS (intramuros)", ["LYON (intramuros)", "BORDEAUX ST JEAN"], "2026-07-01", opts, 1, 1);
     expect(tour).toBeNull();
   });
+
+  it("respects a total-distance (km) budget", () => {
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"];
+    // Distance stub: each successive hop is 200 km (600 km total for 3 hops).
+    const dist = (a: string, b: string): number => (a === b ? 0 : 200);
+    // Generous budget: full 3-city tour fits.
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, dist, 1000)!.legs).toHaveLength(3);
+    // Tight budget (250 km): only the first hop fits, the rest bust the budget.
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, dist, 250)).toBeNull();
+    // planTours (<=5, permuting) also drops over-budget tours.
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, 250)).toHaveLength(0);
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, 1000)).toHaveLength(1);
+  });
 });
 
 describe("haversineKm", () => {

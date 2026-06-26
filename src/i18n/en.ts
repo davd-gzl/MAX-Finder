@@ -104,6 +104,8 @@ export const en: Dict = {
   desc_tour: "A multi-city trip chaining free MAX seats between stops.",
   act_guide: "Travel guide",
   act_install: "Install the app",
+  act_close: "Close",
+  install_unavailable: "Automatic installation isn't available in this browser.",
   install_help:
     "To install: open your browser menu and choose “Add to Home Screen” or “Install app”.",
   data_why:
@@ -127,5 +129,6 @@ export const en: Dict = {
   nearest_hint: "Straight-line distance · adds the closest reachable station",
   field_stay_min: "Min days / city",
   field_stay_max: "Max days / city",
+  field_maxKm: "Max total distance (km)",
   stat_window_hint: "{trains} MAX trains to this destination across {days} upcoming days. Open the exact trip to see which dates.",
 };
