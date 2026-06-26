@@ -70,6 +70,8 @@ interface Refs {
   minDays: HTMLInputElement;
   maxDays: HTMLInputElement;
   stayField: HTMLElement;
+  maxKm: HTMLInputElement;
+  maxKmField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -171,7 +173,7 @@ function addNearestCity(): void {
   let chosen: string | undefined;
   for (let i = 0; i < candidates.length && i < 40; i++) {
     const c = candidates[i]!;
-    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi)) {
+    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm)) {
       chosen = c;
       break;
     }
@@ -195,17 +197,47 @@ function addNearestCity(): void {
   applyAndRun();
 }
 
+/** A simple accessible modal dialog: a title and one or more message lines. */
+function showInfoModal(title: string, lines: string[]): void {
+  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
+  const closeBtn = el("button", {
+    class: "btn btn-primary modal-close",
+    type: "button",
+    text: t("act_close"),
+    on: { click: () => dialog.close() },
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      el("h2", { class: "modal-title", text: title }),
+      ...lines.map((line) => el("p", { class: "modal-text", text: line })),
+      el("div", { class: "modal-actions" }, [closeBtn]),
+    ]),
+  );
+  // Remove from the DOM once dismissed; click on the backdrop closes it.
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 async function promptInstall(): Promise<void> {
   // Use the browser's native prompt when it offered one (Chromium/Android).
   if (installPrompt) {
-    await installPrompt.prompt();
-    await installPrompt.userChoice.catch(() => undefined);
-    installPrompt = null;
-    return;
+    try {
+      await installPrompt.prompt();
+      await installPrompt.userChoice.catch(() => undefined);
+      installPrompt = null;
+      return;
+    } catch {
+      // The native prompt threw (e.g. already consumed): fall through to the modal.
+      installPrompt = null;
+    }
   }
-  // Otherwise (iOS Safari, Firefox, already eligible elsewhere) the button is
-  // still there — explain how to install manually from the browser menu.
-  alert(t("install_help"));
+  // No usable native prompt (iOS Safari, Firefox, already installed elsewhere):
+  // show a modal explaining it couldn't auto-install and how to do it manually.
+  showInfoModal(t("act_install"), [t("install_unavailable"), t("install_help")]);
 }
 
 export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRegistry): void {
@@ -371,11 +403,13 @@ function syncFormFromQuery(): void {
   renderCityChips();
   refs.minDays.value = String(query.minDays ?? 1);
   refs.maxDays.value = String(query.maxDays ?? 3);
+  refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
   updateFieldVisibility();
 }
 
 function readQueryFromForm(): SearchQuery {
   const maxDur = Number(refs.maxDuration.value.trim());
+  const maxKm = Number(refs.maxKm.value.trim());
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -407,6 +441,7 @@ function readQueryFromForm(): SearchQuery {
         : query.cities,
     minDays: clampDays(refs.minDays.value, 1),
     maxDays: clampDays(refs.maxDays.value, 3),
+    maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
   };
 }
 
@@ -599,17 +634,18 @@ function runTourSearch(c: RenderCtx): void {
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
   const planOpts = { maxConnections: query.maxConnections };
+  const maxKm = query.maxKm; // optional cap on the tour's total straight-line km
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
   // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
@@ -849,7 +885,7 @@ function surpriseMe(): void {
     // "no city" when the few feasible ones land late in the shuffled order.
     let chosen: string | undefined;
     for (const c of pool) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi)) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm)) {
         chosen = c;
         break;
       }
@@ -1002,6 +1038,7 @@ function updateFieldVisibility(): void {
   refs.regionField.style.display = query.mode === "best" || query.mode === "tour" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
   refs.stayField.style.display = query.mode === "tour" ? "" : "none";
+  refs.maxKmField.style.display = query.mode === "tour" ? "" : "none";
   // "Nearest stop" sits beside "Surprise me" but only makes sense for a tour.
   nearestBtnEl?.toggleAttribute("hidden", query.mode !== "tour");
 }
@@ -1323,6 +1360,14 @@ function buildForm(): FormBuild {
     field(t("field_stay_min"), minDays),
     field(t("field_stay_max"), maxDays),
   ]);
+  // Optional cap on the tour's total straight-line distance (km), so a plan stays
+  // compact ("a tour, but no more than ~1500 km of travelling").
+  const maxKm = inputEl("number");
+  maxKm.min = "0";
+  maxKm.step = "50";
+  maxKm.placeholder = "1500";
+  maxKm.setAttribute("aria-label", t("field_maxKm"));
+  const maxKmField = field(t("field_maxKm"), maxKm);
 
   // Max journey duration. It's prominent (main form) only for a tour, where each
   // hop's length matters; in the other modes it's relocated into "Advanced
@@ -1390,6 +1435,7 @@ function buildForm(): FormBuild {
       regionField,
       citiesField,
       stayField,
+      maxKmField,
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
@@ -1440,6 +1486,8 @@ function buildForm(): FormBuild {
       minDays,
       maxDays,
       stayField,
+      maxKm,
+      maxKmField,
     },
   };
 }

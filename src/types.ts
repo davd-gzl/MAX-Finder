@@ -74,6 +74,8 @@ export interface SearchQuery {
   /** Min / max days spent in each city before the next hop ("tour" mode). */
   minDays?: number;
   maxDays?: number;
+  /** Cap on the tour's total straight-line distance, in km ("tour" mode). */
+  maxKm?: number;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */

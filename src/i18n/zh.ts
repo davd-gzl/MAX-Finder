@@ -92,6 +92,8 @@ export const zh: Dict = {
   desc_tour: "用免费 MAX 座位串联多座城市的行程。",
   act_guide: "旅行指南",
   act_install: "安装应用",
+  act_close: "关闭",
+  install_unavailable: "此浏览器不支持自动安装。",
   install_help: "安装方法：打开浏览器菜单，选择“添加到主屏幕”或“安装应用”。",
   data_why:
     "SNCF 开放数据（tgvmax）每天仅在中午前后发布一次。更频繁地刷新只会重复下载相同的数据。预订本身在 SNCF Connect 上实时进行。",
@@ -114,5 +116,6 @@ export const zh: Dict = {
   nearest_hint: "直线距离 · 添加最近的可达车站",
   field_stay_min: "每城最少天数",
   field_stay_max: "每城最多天数",
+  field_maxKm: "最大总距离（公里）",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
 };

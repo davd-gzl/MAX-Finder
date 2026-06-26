@@ -102,6 +102,8 @@ export const fr = {
   desc_tour: "Un voyage multi-villes enchaînant les places MAX gratuites entre les étapes.",
   act_guide: "Guide de voyage",
   act_install: "Installer l'application",
+  act_close: "Fermer",
+  install_unavailable: "L'installation automatique n'est pas disponible dans ce navigateur.",
   install_help:
     "Pour installer : ouvrez le menu de votre navigateur et choisissez « Ajouter à l'écran d'accueil » ou « Installer l'application ».",
   data_why:
@@ -125,6 +127,7 @@ export const fr = {
   nearest_hint: "Distance à vol d'oiseau · ajoute la gare accessible la plus proche",
   field_stay_min: "Jours min. / ville",
   field_stay_max: "Jours max. / ville",
+  field_maxKm: "Distance totale max. (km)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 };
 

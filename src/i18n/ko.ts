@@ -92,6 +92,8 @@ export const ko: Dict = {
   desc_tour: "여러 도시를 무료 MAX 좌석으로 이어 가는 여행.",
   act_guide: "여행 가이드",
   act_install: "앱 설치",
+  act_close: "닫기",
+  install_unavailable: "이 브라우저에서는 자동 설치를 사용할 수 없습니다.",
   install_help:
     "설치하려면: 브라우저 메뉴를 열고 '홈 화면에 추가' 또는 '앱 설치'를 선택하세요.",
   data_why:
@@ -115,5 +117,6 @@ export const ko: Dict = {
   nearest_hint: "직선 거리 · 도달 가능한 가장 가까운 역을 추가",
   field_stay_min: "도시당 최소 일수",
   field_stay_max: "도시당 최대 일수",
+  field_maxKm: "최대 총 거리 (km)",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
 };
