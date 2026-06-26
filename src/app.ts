@@ -60,6 +60,7 @@ interface Refs {
   viaField: HTMLElement;
   returnField: HTMLElement;
   maxDurationField: HTMLElement;
+  trainTypeField: HTMLElement;
   region: HTMLSelectElement;
   regionField: HTMLElement;
   cities: HTMLInputElement;
@@ -864,8 +865,16 @@ function updateFieldVisibility(): void {
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
   refs.flexField.style.display = query.mode === "od" ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
-  // Max journey duration applies everywhere, including tour (caps each hop's length).
+  // Max journey duration: prominent (main form) only for a tour, where each hop's
+  // length matters; everywhere else it's tucked into "Advanced filters" (inserted
+  // just before train type, which stays last). Move the single element rather than
+  // duplicate it.
   refs.maxDurationField.style.display = "";
+  if (query.mode === "tour") {
+    refs.regionField.parentElement?.insertBefore(refs.maxDurationField, refs.regionField);
+  } else {
+    refs.trainTypeField.parentElement?.insertBefore(refs.maxDurationField, refs.trainTypeField);
+  }
   // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
   refs.regionField.style.display = query.mode === "best" || query.mode === "tour" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
@@ -1174,9 +1183,12 @@ function buildForm(): FormBuild {
     field(t("field_stay_max"), maxDays),
   ]);
 
-  // Max journey duration is a common filter, so it lives in the main form (not
-  // tucked inside "Advanced filters").
+  // Max journey duration. It's prominent (main form) only for a tour, where each
+  // hop's length matters; in the other modes it's relocated into "Advanced
+  // filters" by updateFieldVisibility(). Train type is the least important filter,
+  // so it stays last in the advanced grid (max duration is inserted before it).
   const maxDurationField = field(t("field_maxDuration"), maxDuration);
+  const trainTypeField = field(t("field_trainType"), trainType);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
@@ -1185,8 +1197,7 @@ function buildForm(): FormBuild {
       field(t("field_departBefore"), departBefore),
       field(t("field_connections"), maxConnections),
       overnightField,
-      // Train type / axis is the least important filter — keep it last.
-      field(t("field_trainType"), trainType),
+      trainTypeField,
     ]),
   ]);
 
@@ -1279,6 +1290,7 @@ function buildForm(): FormBuild {
       viaField,
       returnField,
       maxDurationField,
+      trainTypeField,
       region,
       regionField,
       cities,
