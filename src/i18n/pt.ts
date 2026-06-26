@@ -103,6 +103,7 @@ export const pt: Dict = {
   act_surprise: "Surpreenda-me",
   surprise_none: "Nenhuma cidade possível para adicionar.",
   cities_add: "Adicionar uma cidade…",
+  cities_clear: "Limpar tudo",
   field_stay_min: "Dias mín. / cidade",
   field_stay_max: "Dias máx. / cidade",
   stat_window_hint: "{trains} trens MAX para este destino em {days} dias à frente. Abra a viagem exata para ver as datas.",

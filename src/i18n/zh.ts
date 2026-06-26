@@ -104,6 +104,7 @@ export const zh: Dict = {
   act_surprise: "随机一城",
   surprise_none: "没有可添加的城市。",
   cities_add: "添加城市…",
+  cities_clear: "全部清除",
   field_stay_min: "每城最少天数",
   field_stay_max: "每城最多天数",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
