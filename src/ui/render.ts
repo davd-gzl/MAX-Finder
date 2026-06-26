@@ -20,6 +20,8 @@ export interface RenderCtx {
   onShowJourney: (journey: Journey) => void;
   /** Draw a whole multi-city tour (every stop) on the map. */
   onShowTour: (tour: Tour) => void;
+  /** Straight-line km between two stations (Infinity if either is unplotted). */
+  distanceKm: (a: string, b: string) => number;
   onSelectDay: (date: string) => void;
   onIcs: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
@@ -393,10 +395,18 @@ export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
   return el("article", { class: "roundtrip" }, [out, stay, back]);
 }
 
+/** Straight-line km between a journey's endpoints, or null if unmeasurable. */
+function legKm(j: Journey, ctx: RenderCtx): number | null {
+  const d = ctx.distanceKm(j.origin, j.destination);
+  return Number.isFinite(d) ? Math.round(d) : null;
+}
+
 /** A multi-city tour itinerary (tour mode). */
 export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
   const first = tour.legs[0];
   const stops = first ? [first.origin, ...tour.legs.map((l) => l.destination)] : [];
+  // Total straight-line distance across every hop ("as the crow flies").
+  const totalKm = tour.legs.reduce((s, j) => s + (legKm(j, ctx) ?? 0), 0);
   // The header is a button: clicking it draws the whole tour (every stop) on the
   // map, so after inspecting a single leg you can get the overview back.
   const head = el("button", {
@@ -406,23 +416,34 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
     on: { click: () => ctx.onShowTour(tour) },
   }, [
     el("span", { class: "tour-route", text: stops.map((s) => ctx.label(s)).join(" → ") }),
-    el("span", { class: "journey-total" }, [
-      icon(I.clock),
-      el("span", { text: formatDuration(tour.totalDurationMin) }),
+    el("span", { class: "tour-totals" }, [
+      ...(totalKm > 0
+        ? [el("span", { class: "tour-km", attrs: { title: t("nearest_hint") }, text: `${totalKm} km` })]
+        : []),
+      el("span", { class: "journey-total" }, [
+        icon(I.clock),
+        el("span", { text: formatDuration(tour.totalDurationMin) }),
+      ]),
     ]),
   ]);
   // "Day N" is the actual trip day of each hop, so a multi-day stay shows real
   // gaps (Day 1, Day 4, …) rather than a misleading 1-per-row count.
   const base = first ? dayIndex(first.date) : 0;
-  const legs = tour.legs.map((j) =>
-    el("div", { class: "tour-leg" }, [
-      el("span", {
-        class: "chip chip-soft",
-        text: t("tour_day", { n: dayIndex(j.date) - base + 1, date: ctx.formatDate(j.date) }),
-      }),
+  const legs = tour.legs.map((j) => {
+    const km = legKm(j, ctx);
+    return el("div", { class: "tour-leg" }, [
+      el("div", { class: "tour-leg-head" }, [
+        el("span", {
+          class: "chip chip-soft",
+          text: t("tour_day", { n: dayIndex(j.date) - base + 1, date: ctx.formatDate(j.date) }),
+        }),
+        ...(km != null
+          ? [el("span", { class: "leg-km muted", attrs: { title: t("nearest_hint") }, text: `${km} km` })]
+          : []),
+      ]),
       journeyEl(j, ctx),
-    ]),
-  );
+    ]);
+  });
   return el("article", { class: "tour" }, [head, ...legs]);
 }
 

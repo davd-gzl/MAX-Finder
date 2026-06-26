@@ -110,6 +110,8 @@ export const ar: Dict = {
   surprise_none: "لا توجد مدينة يمكن إضافتها.",
   cities_add: "أضف مدينة…",
   cities_clear: "مسح الكل",
+  act_nearest: "أقرب محطة",
+  nearest_hint: "مسافة بخط مستقيم · يضيف أقرب محطة يمكن الوصول إليها",
   field_stay_min: "أيام دنيا / مدينة",
   field_stay_max: "أيام قصوى / مدينة",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",

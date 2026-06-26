@@ -7,7 +7,8 @@ import { findJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, stationsOnDate } from "../src/core/best";
-import { planTours } from "../src/core/tour";
+import { planTours, planTourInOrder } from "../src/core/tour";
+import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
 
 const trains = normalizeRecords(sample as RawRecord[]);
@@ -279,6 +280,75 @@ describe("planTours", () => {
     const tours = planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 3);
     expect(tours).toHaveLength(1);
     expect(tours[0]!.legs[1]!.date).toBe("2026-07-03");
+  });
+});
+
+describe("planTourInOrder", () => {
+  const chain = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+    { date: "2026-07-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    { date: "2026-07-03", origine: "MARSEILLE ST CHARLES", destination: "NICE VILLE", heure_depart: "09:00", heure_arrivee: "11:30", train_no: "12", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+  const opts = { maxConnections: 0 };
+
+  it("keeps the given visit order (no reshuffling) and chains every hop", () => {
+    const tour = planTourInOrder(
+      chain,
+      "PARIS (intramuros)",
+      ["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"],
+      "2026-07-01",
+      opts,
+      1,
+      1,
+    );
+    expect(tour).not.toBeNull();
+    expect(tour!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"]);
+    expect(tour!.legs).toHaveLength(3);
+    // A bad order (reversed) has no feasible first hop -> null, proving no reordering.
+    expect(
+      planTourInOrder(chain, "PARIS (intramuros)", ["NICE VILLE", "LYON (intramuros)"], "2026-07-01", opts, 1, 1),
+    ).toBeNull();
+  });
+
+  it("drops the start and duplicate cities (never loops back)", () => {
+    const tour = planTourInOrder(
+      chain,
+      "PARIS (intramuros)",
+      ["LYON (intramuros)", "LYON (intramuros)", "PARIS (intramuros)", "MARSEILLE ST CHARLES"],
+      "2026-07-01",
+      opts,
+      1,
+      1,
+    );
+    expect(tour!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES"]);
+  });
+
+  it("plans tours larger than the 5-city permutation cap", () => {
+    const seq = ["A", "B", "C", "D", "E", "F", "G"];
+    const rows = seq.map((to, i) => ({
+      date: `2026-07-0${i + 1}`,
+      origine: i === 0 ? "START" : seq[i - 1]!,
+      destination: to,
+      heure_depart: "08:00",
+      heure_arrivee: "10:00",
+      train_no: String(i),
+      od_happy_card: "OUI",
+    }));
+    const data = normalizeRecords(rows as RawRecord[]);
+    expect(planTours(data, "START", seq, "2026-07-01", { maxConnections: 0 }, 10, 1, 1)).toHaveLength(0); // >5: permuter bails
+    const tour = planTourInOrder(data, "START", seq, "2026-07-01", { maxConnections: 0 }, 1, 1);
+    expect(tour).not.toBeNull();
+    expect(tour!.legs).toHaveLength(7);
+  });
+});
+
+describe("haversineKm", () => {
+  it("matches known great-circle distances within ~1%", () => {
+    // Paris (Gare de Lyon) -> Lyon (Part-Dieu): ~392 km straight line.
+    const d = haversineKm([48.8443, 2.3743], [45.7605, 4.8595]);
+    expect(d).toBeGreaterThan(388);
+    expect(d).toBeLessThan(396);
+    expect(haversineKm([48.8443, 2.3743], [48.8443, 2.3743])).toBe(0);
   });
 });
 
