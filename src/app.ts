@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
-import { planTours, planTourInOrder, type Tour } from "./core/tour";
+import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
@@ -599,13 +599,16 @@ function runTourSearch(c: RenderCtx): void {
   const hi = Math.max(lo, query.maxDays ?? 3);
   const planOpts = { maxConnections: query.maxConnections };
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
-  // is factorial, so visit them in the order they were added (the greedy order a
-  // big Surprise / "nearest stop" run already produces).
+  // is factorial, so order them greedily (nearest reachable city each hop). If the
+  // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
+  // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
     tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi);
   } else {
-    const single = planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi);
+    const single =
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
