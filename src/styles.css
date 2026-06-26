@@ -1103,6 +1103,22 @@ a {
   gap: 0.4rem;
   flex-wrap: wrap;
   margin-bottom: 0.4rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0.15rem 0.2rem;
+  margin-left: -0.2rem;
+  margin-right: -0.2rem;
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+}
+.tour-head.is-clickable {
+  cursor: pointer;
+}
+.tour-head.is-clickable:hover {
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
 }
 .tour-route {
   font-weight: 620;

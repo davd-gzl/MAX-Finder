@@ -92,6 +92,8 @@ export const it: Dict = {
   desc_tour: "Un viaggio in più città concatenando posti MAX gratuiti tra le tappe.",
   act_guide: "Guida di viaggio",
   act_install: "Installa l'app",
+  install_help:
+    "Per installare: apri il menu del browser e scegli «Aggiungi alla schermata Home» o «Installa app».",
   data_why:
     "I dati aperti SNCF (tgvmax) sono pubblicati una sola volta al giorno, verso mezzogiorno. Aggiornare più spesso scaricherebbe dati identici. Le prenotazioni avvengono in tempo reale su SNCF Connect.",
   conn_3: "Max 3 cambi",

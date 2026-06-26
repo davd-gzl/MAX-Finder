@@ -18,6 +18,8 @@ export interface RenderCtx {
   onFocusStation: (id: string) => void;
   /** Draw a specific journey (origin → interchanges → destination) on the map. */
   onShowJourney: (journey: Journey) => void;
+  /** Draw a whole multi-city tour (every stop) on the map. */
+  onShowTour: (tour: Tour) => void;
   onSelectDay: (date: string) => void;
   onIcs: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
@@ -211,6 +213,7 @@ export function groupCardEl(
   mode: SearchMode,
   anchor: string,
   ctx: RenderCtx,
+  dayCount: number,
   stat?: WindowStat,
 ): HTMLElement {
   const origin = mode === "from" ? anchor : group.station;
@@ -219,11 +222,13 @@ export function groupCardEl(
 
   const star = favStarEl(route, ctx);
 
-  // Two figures: trains on the selected day, and the total over the whole month
-  // (every reservable MAX train to this place, not just the chosen day).
+  // Two figures: trains on the selected day (may be 0 if it runs only on other
+  // days), and the total over the whole month — every reservable MAX train to
+  // this place, so the list shows everywhere you can go, ranked by availability.
+  const month = stat?.trains ?? group.count;
   const summary = stat
-    ? t("stat_day_month", { day: group.count, month: stat.trains })
-    : t("badge_trains", { n: group.count });
+    ? t("stat_day_month", { day: dayCount, month })
+    : t("badge_trains", { n: dayCount });
 
   const meta: HTMLElement[] = [];
   if (stat) {
@@ -383,7 +388,14 @@ export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
 export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
   const first = tour.legs[0];
   const stops = first ? [first.origin, ...tour.legs.map((l) => l.destination)] : [];
-  const head = el("div", { class: "tour-head" }, [
+  // The header is a button: clicking it draws the whole tour (every stop) on the
+  // map, so after inspecting a single leg you can get the overview back.
+  const head = el("button", {
+    class: "tour-head is-clickable",
+    type: "button",
+    attrs: { title: t("act_map"), "aria-label": t("act_map") },
+    on: { click: () => ctx.onShowTour(tour) },
+  }, [
     el("span", { class: "tour-route", text: stops.map((s) => ctx.label(s)).join(" → ") }),
     el("span", { class: "journey-total" }, [
       icon(I.clock),

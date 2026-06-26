@@ -104,6 +104,8 @@ export const en: Dict = {
   desc_tour: "A multi-city trip chaining free MAX seats between stops.",
   act_guide: "Travel guide",
   act_install: "Install the app",
+  install_help:
+    "To install: open your browser menu and choose “Add to Home Screen” or “Install app”.",
   data_why:
     "SNCF open data (tgvmax) is published only once a day, around midday. Refreshing more often would re-download identical data. Bookings themselves happen in real time on SNCF Connect.",
   conn_3: "3 changes max",

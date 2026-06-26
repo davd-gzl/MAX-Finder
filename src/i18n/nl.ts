@@ -91,6 +91,8 @@ export const nl: Dict = {
   desc_tour: "Een reis langs meerdere steden met gratis MAX-plaatsen tussen de stops.",
   act_guide: "Reisgids",
   act_install: "App installeren",
+  install_help:
+    "Installeren: open het browsermenu en kies ‘Toevoegen aan beginscherm’ of ‘App installeren’.",
   data_why:
     "De open data van SNCF (tgvmax) worden maar één keer per dag gepubliceerd, rond het middaguur. Vaker verversen zou identieke gegevens opnieuw downloaden. Reserveringen zelf gebeuren in realtime op SNCF Connect.",
   conn_3: "Max. 3 overstappen",

@@ -92,6 +92,8 @@ export const de: Dict = {
   desc_tour: "Eine Reise durch mehrere Städte mit kostenlosen MAX-Plätzen zwischen den Stopps.",
   act_guide: "Reiseführer",
   act_install: "App installieren",
+  install_help:
+    "Zum Installieren: Öffnen Sie das Browsermenü und wählen Sie „Zum Startbildschirm hinzufügen“ oder „App installieren“.",
   data_why:
     "Die offenen SNCF-Daten (tgvmax) werden nur einmal täglich veröffentlicht, gegen Mittag. Häufigeres Aktualisieren würde identische Daten erneut laden. Buchungen erfolgen in Echtzeit auf SNCF Connect.",
   conn_3: "Max. 3 Umstiege",

@@ -92,6 +92,7 @@ export const zh: Dict = {
   desc_tour: "用免费 MAX 座位串联多座城市的行程。",
   act_guide: "旅行指南",
   act_install: "安装应用",
+  install_help: "安装方法：打开浏览器菜单，选择“添加到主屏幕”或“安装应用”。",
   data_why:
     "SNCF 开放数据（tgvmax）每天仅在中午前后发布一次。更频繁地刷新只会重复下载相同的数据。预订本身在 SNCF Connect 上实时进行。",
   conn_3: "最多换乘 3 次",
