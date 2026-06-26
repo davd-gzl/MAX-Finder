@@ -5,7 +5,10 @@ export function parseTimeToMinutes(t: string | undefined | null): number {
   if (!t) return NaN;
   const m = /^(\d{1,2}):(\d{2})/.exec(String(t).trim());
   if (!m) return NaN;
-  return Number(m[1]) * 60 + Number(m[2]);
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return NaN; // reject malformed times (24:00, 12:60, …)
+  return h * 60 + min;
 }
 
 /** Minutes from midnight -> "HH:MM" (wraps a day so 1490 -> "00:50"). */

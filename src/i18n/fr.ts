@@ -50,6 +50,8 @@ export const fr = {
   res_to_title: "Pour arriver à {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Aucune place MAX pour ces critères.",
+  res_none_hint: "Essayez plus de correspondances, une souplesse de dates plus large, les escales de nuit, ou retirez des filtres.",
+  tour_none_hint: "Essayez d'élargir les jours par ville, de retirer une ville, ou d'autoriser plus de correspondances.",
   res_destinations: "{n} destination(s)",
   res_origins: "{n} origine(s)",
   badge_trains: "{n} train(s)",

@@ -408,3 +408,8 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
 export function emptyEl(message: string): HTMLElement {
   return el("p", { class: "empty", text: message });
 }
+
+/** A muted "things to try" hint shown under a no-results message. */
+export function hintEl(text: string): HTMLElement {
+  return el("p", { class: "empty-hint muted", text });
+}
