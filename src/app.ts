@@ -103,6 +103,7 @@ interface InstallPromptEvent extends Event {
 let installPrompt: InstallPromptEvent | null = null;
 let surpriseMsgEl: HTMLElement | null = null;
 let cityClearBtnEl: HTMLElement | null = null;
+let nearestBtnEl: HTMLElement | null = null;
 
 /** Set (or clear with "") the inline status next to the "surprise" button. */
 function setSurpriseMsg(text: string): void {
@@ -1001,6 +1002,8 @@ function updateFieldVisibility(): void {
   refs.regionField.style.display = query.mode === "best" || query.mode === "tour" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
   refs.stayField.style.display = query.mode === "tour" ? "" : "none";
+  // "Nearest stop" sits beside "Surprise me" but only makes sense for a tour.
+  nearestBtnEl?.toggleAttribute("hidden", query.mode !== "tour");
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -1288,18 +1291,20 @@ function buildForm(): FormBuild {
   });
   cityClearBtnEl = clearCitiesBtn;
   // "Nearest stop": greedily extend the trip to the closest reachable new station.
+  // It lives next to "Surprise me" in the form actions and only shows for a tour.
   const nearestBtn = el("button", {
-    class: "linklike cities-nearest",
+    class: "btn btn-ghost nearest-btn",
     type: "button",
     text: t("act_nearest"),
-    attrs: { title: t("nearest_hint") },
+    attrs: { title: t("nearest_hint"), hidden: "" },
     on: { click: addNearestCity },
   });
+  nearestBtnEl = nearestBtn;
   const citiesField = field(
     t("field_cities"),
     el("div", { class: "cities-wrap" }, [
       citiesBox,
-      el("div", { class: "cities-actions" }, [nearestBtn, clearCitiesBtn]),
+      el("div", { class: "cities-actions" }, [clearCitiesBtn]),
     ]),
   );
   // How many days to spend in each city before the next hop — a range, so the
@@ -1387,7 +1392,7 @@ function buildForm(): FormBuild {
       stayField,
     ]),
     advanced,
-    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
+    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
     surpriseMsgEl,
     howto,
     stationList,
