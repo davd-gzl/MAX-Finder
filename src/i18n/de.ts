@@ -99,6 +99,8 @@ export const de: Dict = {
   act_map: "Auf der Karte zeigen",
   field_overnight: "Umstieg über Nacht",
   field_via: "Über (optional)",
+  field_flex: "Datumsflexibilität",
+  flex_exact: "Genaues Datum",
   stat_window: "{trains} Züge · {days} T",
   stat_day_month: "{day} an dem Tag · {month} im Monat",
   act_surprise: "Überrasch mich",

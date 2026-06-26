@@ -98,6 +98,8 @@ export const pt: Dict = {
   act_map: "Ver no mapa",
   field_overnight: "Escala noturna",
   field_via: "Via (opcional)",
+  field_flex: "Flexibilidade de datas",
+  flex_exact: "Data exata",
   stat_window: "{trains} trens · {days} d",
   stat_day_month: "neste dia {day} · neste mês {month}",
   act_surprise: "Surpreenda-me",

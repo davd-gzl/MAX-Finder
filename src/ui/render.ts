@@ -331,6 +331,37 @@ export function calendarEl(days: CalendarDay[], ctx: RenderCtx, selected?: strin
   ]);
 }
 
+/** One flexible-date row: the fastest trip for a nearby day; click to select it. */
+export function flexDayEl(date: string, j: Journey, ctx: RenderCtx, selected: boolean): HTMLElement {
+  const first = j.legs[0];
+  const last = j.legs[j.legs.length - 1];
+  const via = j.legs.length > 1;
+  return el(
+    "button",
+    {
+      class: `flex-day${selected ? " is-sel" : ""}`,
+      type: "button",
+      attrs: { "aria-pressed": String(selected) },
+      on: { click: () => ctx.onSelectDay(date) },
+    },
+    [
+      el("span", { class: "flex-date", text: ctx.formatDate(date) }),
+      el("span", { class: "flex-time" }, [
+        el("strong", { text: first?.depart ?? "" }),
+        icon(I.arrow),
+        el("strong", { text: last?.arrive ?? "" }),
+      ]),
+      el("span", { class: "flex-meta" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+      via
+        ? el("span", {
+            class: "chip chip-via",
+            text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
+          })
+        : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
+    ],
+  );
+}
+
 /** A round-trip card. */
 export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
   const out = el("div", { class: "rt-leg" }, [

@@ -98,6 +98,8 @@ export const ja: Dict = {
   act_map: "地図で表示",
   field_overnight: "夜行乗り継ぎ",
   field_via: "経由（任意）",
+  field_flex: "日付の柔軟性",
+  flex_exact: "正確な日付",
   stat_window: "{trains} 本 · {days} 日",
   stat_day_month: "その日 {day} · 今月 {month}",
   act_surprise: "おまかせ",

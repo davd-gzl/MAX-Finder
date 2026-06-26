@@ -98,6 +98,8 @@ export const nl: Dict = {
   act_map: "Op de kaart tonen",
   field_overnight: "Nachtoverstap",
   field_via: "Via (optioneel)",
+  field_flex: "Datumflexibiliteit",
+  flex_exact: "Exacte datum",
   stat_window: "{trains} treinen · {days} d",
   stat_day_month: "die dag {day} · deze maand {month}",
   act_surprise: "Verras me",

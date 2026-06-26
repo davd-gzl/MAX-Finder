@@ -109,6 +109,8 @@ export const fr = {
   act_map: "Voir sur la carte",
   field_overnight: "Escale de nuit",
   field_via: "Via (optionnel)",
+  field_flex: "Souplesse des dates",
+  flex_exact: "Date exacte",
   stat_window: "{trains} trains · {days} j",
   stat_day_month: "{day} ce jour · {month} ce mois",
   act_surprise: "Au hasard",
