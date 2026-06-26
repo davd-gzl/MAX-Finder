@@ -92,6 +92,8 @@ export const ko: Dict = {
   desc_tour: "여러 도시를 무료 MAX 좌석으로 이어 가는 여행.",
   act_guide: "여행 가이드",
   act_install: "앱 설치",
+  install_help:
+    "설치하려면: 브라우저 메뉴를 열고 '홈 화면에 추가' 또는 '앱 설치'를 선택하세요.",
   data_why:
     "SNCF 공개 데이터(tgvmax)는 하루에 한 번, 정오 무렵에만 갱신됩니다. 더 자주 새로고침해도 동일한 데이터를 다시 받을 뿐입니다. 예약 자체는 SNCF Connect에서 실시간으로 이뤄집니다.",
   conn_3: "최대 3회 환승",

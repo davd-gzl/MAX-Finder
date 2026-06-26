@@ -1,7 +1,12 @@
 import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
-import { reachableDestinations, reachableOrigins, windowStats } from "./core/destinations";
+import {
+  reachableDestinations,
+  reachableOrigins,
+  reachableGroups,
+  windowStats,
+} from "./core/destinations";
 import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours } from "./core/tour";
@@ -54,6 +59,7 @@ interface Refs {
   destinationField: HTMLElement;
   viaField: HTMLElement;
   returnField: HTMLElement;
+  maxDurationField: HTMLElement;
   region: HTMLSelectElement;
   regionField: HTMLElement;
   cities: HTMLInputElement;
@@ -93,7 +99,6 @@ interface InstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: string }>;
 }
 let installPrompt: InstallPromptEvent | null = null;
-let installBtnEl: HTMLElement | null = null;
 let surpriseMsgEl: HTMLElement | null = null;
 let cityClearBtnEl: HTMLElement | null = null;
 
@@ -112,16 +117,17 @@ function clearTourCities(): void {
   applyAndRun();
 }
 
-function refreshInstallBtn(): void {
-  installBtnEl?.toggleAttribute("hidden", !installPrompt);
-}
-
 async function promptInstall(): Promise<void> {
-  if (!installPrompt) return;
-  await installPrompt.prompt();
-  await installPrompt.userChoice.catch(() => undefined);
-  installPrompt = null;
-  refreshInstallBtn();
+  // Use the browser's native prompt when it offered one (Chromium/Android).
+  if (installPrompt) {
+    await installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => undefined);
+    installPrompt = null;
+    return;
+  }
+  // Otherwise (iOS Safari, Firefox, already eligible elsewhere) the button is
+  // still there — explain how to install manually from the browser menu.
+  alert(t("install_help"));
 }
 
 export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRegistry): void {
@@ -146,11 +152,9 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     installPrompt = e as InstallPromptEvent;
-    refreshInstallBtn();
   });
   window.addEventListener("appinstalled", () => {
     installPrompt = null;
-    refreshInstallBtn();
   });
 
   // Escape goes back to the previous page (same as the "Retour" button), when
@@ -235,6 +239,12 @@ function ctx(): RenderCtx {
     onFocusStation: (id) => map?.focus(id),
     onShowJourney: (j) => {
       showRoute([j.origin, ...j.hubs, j.destination]);
+      refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    },
+    onShowTour: (tour) => {
+      const first = tour.legs[0];
+      const stops = first ? [first.origin, ...tour.legs.map((l) => l.destination)] : [];
+      showRoute(stops);
       refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     },
     // Picking a calendar day only changes the date: refresh in place (no spinner,
@@ -445,11 +455,18 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   });
   const countKey = dir === "from" ? "res_destinations" : "res_origins";
 
-  const groups =
+  // The browse list spans the WHOLE booking window: every place a free-MAX train
+  // reaches on any bookable day appears, not only the selected date. Each card
+  // still shows how many run on the chosen day (the `dayCount` below).
+  const groups = reachableGroups(trains, anchor, dir, filterOpts());
+  const directStations = new Set(groups.map((g) => g.station));
+
+  // Trains that run on the *selected* day, per station, for the "X this day" figure.
+  const dayGroups =
     dir === "from"
       ? reachableDestinations(trains, anchor, query.date, filterOpts())
       : reachableOrigins(trains, anchor, query.date, filterOpts());
-  const directStations = new Set(groups.map((g) => g.station));
+  const dayCount = new Map(dayGroups.map((g) => [g.station, g.count]));
 
   // Total MAX availability over the whole booking window, per destination, so each
   // card shows how many tickets exist before drilling into the exact-trip calendar.
@@ -480,7 +497,10 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
     return;
   }
   refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
-  for (const g of groups) refs.results.append(render.groupCardEl(g, dir, anchor, c, stats.get(g.station)));
+  for (const g of groups)
+    refs.results.append(
+      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station)),
+    );
   for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
   showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
 }
@@ -704,6 +724,8 @@ function surpriseMe(): void {
     const used = new Set([origin, ...tourCities]);
     const pool = [...new Set(avail.filter((t) => used.has(t.origin)).map((t) => t.destination))]
       .filter((d) => !used.has(d))
+      // "Focus on a region" (e.g. visit Bretagne): only add cities from it.
+      .filter((d) => !query.region || deps.registry.get(d)?.region === query.region)
       .sort(() => Math.random() - 0.5);
     const lo = query.minDays ?? 1;
     const hi = Math.max(lo, query.maxDays ?? 3);
@@ -842,7 +864,10 @@ function updateFieldVisibility(): void {
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
   refs.flexField.style.display = query.mode === "od" ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
-  refs.regionField.style.display = query.mode === "best" ? "" : "none";
+  // Max journey duration applies everywhere, including tour (caps each hop's length).
+  refs.maxDurationField.style.display = "";
+  // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
+  refs.regionField.style.display = query.mode === "best" || query.mode === "tour" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
   refs.stayField.style.display = query.mode === "tour" ? "" : "none";
 }
@@ -905,15 +930,14 @@ function buildLayout(root: HTMLElement): void {
     runSearch(); // refresh the MAX SENIOR weekend notice
   });
 
-  // Install (Add to home screen) — revealed only when the browser offers it.
+  // Install (Add to home screen) — always present. Uses the native prompt when
+  // the browser offers one, otherwise shows manual instructions.
   const installBtn = el("button", {
     class: "ctl install-btn",
     type: "button",
     text: t("act_install"),
-    attrs: { hidden: "" },
     on: { click: () => void promptInstall() },
   });
-  installBtnEl = installBtn;
 
   // GitHub link with a star, to invite stars on the repo.
   const ghLink = el("a", {
@@ -1002,7 +1026,6 @@ function buildLayout(root: HTMLElement): void {
   };
   map = null;
   renderFavorites();
-  refreshInstallBtn();
 }
 
 interface FormBuild {
@@ -1255,6 +1278,7 @@ function buildForm(): FormBuild {
       destinationField,
       viaField,
       returnField,
+      maxDurationField,
       region,
       regionField,
       cities,

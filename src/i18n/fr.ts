@@ -102,6 +102,8 @@ export const fr = {
   desc_tour: "Un voyage multi-villes enchaînant les places MAX gratuites entre les étapes.",
   act_guide: "Guide de voyage",
   act_install: "Installer l'application",
+  install_help:
+    "Pour installer : ouvrez le menu de votre navigateur et choisissez « Ajouter à l'écran d'accueil » ou « Installer l'application ».",
   data_why:
     "Les données ouvertes SNCF (tgvmax) ne sont publiées qu'une fois par jour, vers midi. Actualiser plus souvent téléchargerait des données identiques. Les réservations, elles, se font en temps réel sur SNCF Connect.",
   conn_3: "3 correspondances max",

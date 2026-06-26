@@ -51,6 +51,26 @@ export function reachableOrigins(
   return group(matches, (t) => t.origin);
 }
 
+/**
+ * Every station reachable from `anchor` over the WHOLE loaded window (any date),
+ * grouped with its total count and fastest direct time. `dir` "from" groups by
+ * destination (places you can go), "to" groups by origin (places you can come
+ * from). This is the browse list so an idea appears whenever a MAX train runs to
+ * it on *any* bookable day, not only the one currently selected.
+ */
+export function reachableGroups(
+  trains: MaxTrain[],
+  anchor: string,
+  dir: "from" | "to",
+  opts: FilterOptions = {},
+): StationGroup[] {
+  const matches =
+    dir === "from"
+      ? filterTrains(trains, { ...opts, origin: anchor })
+      : filterTrains(trains, { ...opts, destination: anchor });
+  return group(matches, (t) => (dir === "from" ? t.destination : t.origin));
+}
+
 /** Total direct free-MAX trains and the distinct days they run on, per station. */
 export interface WindowStat {
   trains: number;

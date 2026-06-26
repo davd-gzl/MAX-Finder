@@ -91,6 +91,8 @@ export const pt: Dict = {
   desc_tour: "Uma viagem por várias cidades encadeando lugares MAX gratuitos entre as paradas.",
   act_guide: "Guia de viagem",
   act_install: "Instalar o aplicativo",
+  install_help:
+    "Para instalar: abra o menu do navegador e escolha “Adicionar à tela inicial” ou “Instalar aplicativo”.",
   data_why:
     "Os dados abertos da SNCF (tgvmax) são publicados apenas uma vez por dia, por volta do meio-dia. Atualizar com mais frequência baixaria dados idênticos. As reservas são feitas em tempo real no SNCF Connect.",
   conn_3: "Máx 3 conexões",
