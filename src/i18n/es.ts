@@ -48,6 +48,8 @@ export const es: Dict = {
   res_to_title: "Llegando a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Ninguna plaza MAX para estos criterios.",
+  res_none_hint: "Prueba con más conexiones, mayor flexibilidad de fechas, escalas nocturnas o quita filtros.",
+  tour_none_hint: "Prueba a ampliar los días por ciudad, quitar una ciudad o permitir más conexiones.",
   res_destinations: "{n} destino(s)",
   res_origins: "{n} origen(es)",
   badge_trains: "{n} tren(es)",

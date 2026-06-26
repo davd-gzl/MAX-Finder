@@ -48,6 +48,8 @@ export const de: Dict = {
   res_to_title: "Ankunft in {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Keine MAX-Plätze für diese Kriterien.",
+  res_none_hint: "Versuchen Sie mehr Umstiege, mehr Datumsflexibilität, Übernachtstopps oder weniger Filter.",
+  tour_none_hint: "Versuchen Sie mehr Tage pro Stadt, eine Stadt zu entfernen oder mehr Umstiege zu erlauben.",
   res_destinations: "{n} Ziel(e)",
   res_origins: "{n} Ausgangsort(e)",
   badge_trains: "{n} Zug/Züge",

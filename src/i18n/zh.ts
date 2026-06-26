@@ -48,6 +48,8 @@ export const zh: Dict = {
   res_to_title: "到达 {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "没有符合条件的 MAX 座位。",
+  res_none_hint: "试试增加换乘、放宽日期弹性、开启过夜中转，或减少筛选条件。",
+  tour_none_hint: "试试放宽每城天数、减少一个城市，或允许更多换乘。",
   res_destinations: "{n} 个目的地",
   res_origins: "{n} 个出发地",
   badge_trains: "{n} 趟列车",

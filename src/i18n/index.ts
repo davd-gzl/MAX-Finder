@@ -59,7 +59,7 @@ export function t(key: keyof Dict, params?: Record<string, string | number>): st
   let s: string = dicts[current][key] ?? fr[key] ?? String(key);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      s = s.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      s = s.split(`{${k}}`).join(String(v)); // literal replace — no RegExp escaping needed
     }
   }
   return s;

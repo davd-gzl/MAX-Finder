@@ -6,6 +6,7 @@ import sampleData from "../../data/tgvmax.sample.json";
 /** Normalize one raw SNCF record into a `MaxTrain`. Returns null if invalid. */
 export function normalizeRecord(r: RawRecord): MaxTrain | null {
   if (!r || !r.origine || !r.destination || !r.date) return null;
+  if (r.origine.trim() === r.destination.trim()) return null; // skip self-loops (X → X)
   const departMin = parseTimeToMinutes(r.heure_depart);
   let arriveMin = parseTimeToMinutes(r.heure_arrivee);
   if (Number.isNaN(departMin) || Number.isNaN(arriveMin)) return null;

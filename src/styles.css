@@ -566,7 +566,7 @@ a {
 .iconbtn {
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--faint);
+  color: var(--muted); /* WCAG AA contrast for the glyph (was --faint, ~2.8:1) */
   border-radius: 8px;
   width: 34px;
   height: 34px;
@@ -635,6 +635,11 @@ a {
   padding: 1.6rem;
   text-align: center;
   color: var(--muted);
+}
+.empty-hint {
+  margin: 0.55rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
 }
 .loading {
   display: flex;

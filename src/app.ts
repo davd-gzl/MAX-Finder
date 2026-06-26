@@ -475,7 +475,7 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
 
   const total = groups.length + connecting.length;
   if (total === 0) {
-    refs.results.append(render.emptyEl(t("res_none")));
+    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
     showMap(anchor, []);
     return;
   }
@@ -510,7 +510,7 @@ function runTourSearch(c: RenderCtx): void {
     hi,
   );
   if (tours.length === 0) {
-    refs.results.append(render.emptyEl(t("tour_none")));
+    refs.results.append(render.emptyEl(t("tour_none")), render.hintEl(t("tour_none_hint")));
     return;
   }
   for (const tour of tours) refs.results.append(render.tourEl(tour, c));
@@ -535,7 +535,7 @@ function runBestSearch(c: RenderCtx): void {
     trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
   }
   if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("res_none")));
+    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
     return;
   }
   refs.results.append(
@@ -616,7 +616,8 @@ function runOdSearch(c: RenderCtx): void {
   )
     .filter(passesVia)
     .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
-  if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
+  if (journeys.length === 0)
+    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
   // optional round trips
@@ -1104,9 +1105,11 @@ function buildForm(): FormBuild {
       e.preventDefault();
       commitCities(cities.value);
       cities.value = "";
+      liveUpdate(); // keydown fires no `change`, so sync query/URL/results explicitly
     } else if (e.key === "Backspace" && cities.value === "" && tourCities.length) {
       tourCities.pop();
       renderCityChips();
+      liveUpdate();
     }
   });
   cities.addEventListener("change", () => {
@@ -1157,9 +1160,10 @@ function buildForm(): FormBuild {
     el("div", { class: "advanced-grid" }, [
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
-      field(t("field_trainType"), trainType),
       field(t("field_connections"), maxConnections),
       overnightField,
+      // Train type / axis is the least important filter — keep it last.
+      field(t("field_trainType"), trainType),
     ]),
   ]);
 
@@ -1271,6 +1275,7 @@ function buildForm(): FormBuild {
 function fillRoute(origin: string, destination: string): void {
   query = { ...query, mode: "od", origin, destination };
   syncFormFromQuery();
+  store.updateUrl(query); // keep the URL in step with the prefilled route
   if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1290,6 +1295,7 @@ function renderCityChips(): void {
           click: () => {
             tourCities.splice(i, 1);
             renderCityChips();
+            liveUpdate(); // keep query/URL/results in sync with the removal
           },
         },
       }),
