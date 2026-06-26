@@ -121,6 +121,8 @@ export const fr = {
   surprise_none: "Aucune ville possible à ajouter.",
   cities_add: "Ajouter une ville…",
   cities_clear: "Tout effacer",
+  act_nearest: "Étape la plus proche",
+  nearest_hint: "Distance à vol d'oiseau · ajoute la gare accessible la plus proche",
   field_stay_min: "Jours min. / ville",
   field_stay_max: "Jours max. / ville",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",

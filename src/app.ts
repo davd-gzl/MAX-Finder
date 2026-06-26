@@ -9,10 +9,11 @@ import {
 } from "./core/destinations";
 import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
-import { planTours } from "./core/tour";
+import { planTours, planTourInOrder, type Tour } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
+import { haversineKm } from "./util/geo";
 import { findRoundTrips } from "./core/roundtrip";
 import { el, clear } from "./ui/dom";
 import { RouteMap } from "./ui/map";
@@ -113,6 +114,74 @@ function clearTourCities(): void {
   if (tourCities.length === 0) return;
   tourCities = [];
   query = { ...query, cities: [] };
+  navStack = [];
+  syncFormFromQuery();
+  applyAndRun();
+}
+
+/** Straight-line km between two stations; Infinity if either lacks coordinates. */
+function stationDistanceKm(a: string, b: string): number {
+  const ca = deps.registry.coords(a);
+  const cb = deps.registry.coords(b);
+  return ca && cb ? haversineKm(ca, cb) : Infinity;
+}
+
+/**
+ * Tour "nearest stop": extend the trip to the geographically closest station you
+ * can still reach by free MAX from the current frontier (the last stop, or the
+ * departure when the list is empty) and that keeps the whole tour feasible.
+ * Already-visited stations are excluded, so the route never loops back.
+ */
+function addNearestCity(): void {
+  setSurpriseMsg("");
+  const avail = deps.trains.filter((tr) => tr.available);
+  const inRegion = (id: string): boolean =>
+    !query.region || deps.registry.get(id)?.region === query.region;
+
+  // Need a departure to extend from — fill one (region-aware) if missing.
+  let origin = query.origin;
+  if (!origin) {
+    const pool = [...new Set(avail.map((tr) => tr.origin))].filter(inRegion);
+    origin = pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
+  }
+  if (!origin) {
+    setSurpriseMsg(t("surprise_none"));
+    return;
+  }
+
+  const frontier = tourCities[tourCities.length - 1] ?? origin;
+  const used = new Set([origin, ...tourCities]);
+  // Candidates: stations with a direct free-MAX train from the frontier, not yet
+  // visited, in-region, and locatable — ordered by straight-line distance.
+  const candidates = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))]
+    .filter((d) => !used.has(d) && inRegion(d) && deps.registry.coords(d))
+    .sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
+
+  const lo = query.minDays ?? 1;
+  const hi = Math.max(lo, query.maxDays ?? 3);
+  const planOpts = { maxConnections: query.maxConnections };
+  let chosen: string | undefined;
+  for (let i = 0; i < candidates.length && i < 40; i++) {
+    const c = candidates[i]!;
+    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi)) {
+      chosen = c;
+      break;
+    }
+  }
+  if (!chosen) {
+    // Nothing reachable nearby keeps the tour feasible: reflect a freshly-filled
+    // departure if any, but add no city.
+    if (origin !== query.origin) {
+      query = { ...query, origin };
+      navStack = [];
+      syncFormFromQuery();
+      applyAndRun();
+    }
+    setSurpriseMsg(t("surprise_none"));
+    return;
+  }
+  tourCities.push(chosen);
+  query = { ...query, origin, cities: [...tourCities] };
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
@@ -248,6 +317,7 @@ function ctx(): RenderCtx {
       showRoute(stops);
       refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     },
+    distanceKm: (a, b) => stationDistanceKm(a, b),
     // Picking a calendar day only changes the date: refresh in place (no spinner,
     // no teardown flash) and keep the scroll position so the calendar appears to
     // just move its highlight instead of vanishing and rebuilding.
@@ -520,16 +590,17 @@ function runTourSearch(c: RenderCtx): void {
   }
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
-  const tours = planTours(
-    trains,
-    query.origin,
-    cities,
-    query.date,
-    { maxConnections: query.maxConnections },
-    10,
-    lo,
-    hi,
-  );
+  const planOpts = { maxConnections: query.maxConnections };
+  // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
+  // is factorial, so visit them in the order they were added (the greedy order a
+  // big Surprise / "nearest stop" run already produces).
+  let tours: Tour[];
+  if (cities.length <= 5) {
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi);
+  } else {
+    const single = planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi);
+    tours = single ? [single] : [];
+  }
   if (tours.length === 0) {
     refs.results.append(render.emptyEl(t("tour_none")), render.hintEl(t("tour_none_hint")));
     return;
@@ -739,13 +810,10 @@ function surpriseMe(): void {
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
   if (query.mode === "tour") {
-    // Tour: fill the departure if empty, then add ONE city that keeps the WHOLE
-    // tour feasible on the chosen date (validated with the planner). If nothing
-    // can be added, say so and add nothing — never a dead-end random city.
-    if (tourCities.length >= 5) {
-      setSurpriseMsg(t("surprise_none"));
-      return;
-    }
+    // Tour: fill the departure if empty, then add ONE more random city that keeps
+    // the WHOLE tour feasible on the chosen date (validated with the planner). No
+    // city cap — keep clicking to see how far a free-MAX trip can sprawl. If
+    // nothing can be added, say so and add nothing — never a dead-end city.
     // Fill a missing departure — from the chosen region when one is set.
     const origin = query.origin || pickFrom(regionOrigins());
     if (!origin) {
@@ -764,7 +832,7 @@ function surpriseMe(): void {
     let chosen: string | undefined;
     for (let i = 0; i < pool.length && i < 40; i++) {
       const c = pool[i]!;
-      if (planTours(deps.trains, origin, [...tourCities, c], query.date, planOpts, 1, lo, hi).length > 0) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi)) {
         chosen = c;
         break;
       }
@@ -1203,7 +1271,21 @@ function buildForm(): FormBuild {
     on: { click: clearTourCities },
   });
   cityClearBtnEl = clearCitiesBtn;
-  const citiesField = field(t("field_cities"), el("div", { class: "cities-wrap" }, [citiesBox, clearCitiesBtn]));
+  // "Nearest stop": greedily extend the trip to the closest reachable new station.
+  const nearestBtn = el("button", {
+    class: "linklike cities-nearest",
+    type: "button",
+    text: t("act_nearest"),
+    attrs: { title: t("nearest_hint") },
+    on: { click: addNearestCity },
+  });
+  const citiesField = field(
+    t("field_cities"),
+    el("div", { class: "cities-wrap" }, [
+      citiesBox,
+      el("div", { class: "cities-actions" }, [nearestBtn, clearCitiesBtn]),
+    ]),
+  );
   // How many days to spend in each city before the next hop — a range, so the
   // planner can find a feasible schedule (a free-MAX, multi-day vacation plan).
   const minDays = inputEl("number");

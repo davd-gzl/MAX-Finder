@@ -111,6 +111,8 @@ export const es: Dict = {
   surprise_none: "Ninguna ciudad posible para añadir.",
   cities_add: "Añadir una ciudad…",
   cities_clear: "Borrar todo",
+  act_nearest: "Parada más cercana",
+  nearest_hint: "Distancia en línea recta · añade la estación accesible más cercana",
   field_stay_min: "Días mín. / ciudad",
   field_stay_max: "Días máx. / ciudad",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",

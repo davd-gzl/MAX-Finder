@@ -110,6 +110,8 @@ export const nl: Dict = {
   surprise_none: "Geen stad om toe te voegen.",
   cities_add: "Stad toevoegen…",
   cities_clear: "Alles wissen",
+  act_nearest: "Dichtstbijzijnde stop",
+  nearest_hint: "Hemelsbrede afstand · voegt het dichtstbijzijnde bereikbare station toe",
   field_stay_min: "Min. dagen / stad",
   field_stay_max: "Max. dagen / stad",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",

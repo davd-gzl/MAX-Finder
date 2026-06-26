@@ -110,6 +110,8 @@ export const pt: Dict = {
   surprise_none: "Nenhuma cidade possível para adicionar.",
   cities_add: "Adicionar uma cidade…",
   cities_clear: "Limpar tudo",
+  act_nearest: "Parada mais próxima",
+  nearest_hint: "Distância em linha reta · adiciona a estação acessível mais próxima",
   field_stay_min: "Dias mín. / cidade",
   field_stay_max: "Dias máx. / cidade",
   stat_window_hint: "{trains} trens MAX para este destino em {days} dias à frente. Abra a viagem exata para ver as datas.",
