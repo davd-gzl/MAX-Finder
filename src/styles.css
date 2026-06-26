@@ -1015,6 +1015,55 @@ a {
   font-size: 0.78rem;
 }
 
+/* ---- flexible dates ---- */
+.flex-dates {
+  margin: 0.5rem 0 0.2rem;
+}
+.flex-day {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 9px;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.1s;
+}
+.flex-day:hover {
+  border-color: var(--text);
+}
+.flex-day.is-sel {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.flex-date {
+  font-weight: 620;
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+.flex-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.flex-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.flex-day .chip {
+  flex: none;
+}
+
 /* ---- roundtrips ---- */
 .roundtrips {
   display: flex;
@@ -1169,7 +1218,8 @@ a {
    (.dest-meta, .train-meta) must NOT — they isolate just the number via <bdi>. */
 [dir="rtl"] .train-time,
 [dir="rtl"] .leg-route,
-[dir="rtl"] .journey-total {
+[dir="rtl"] .journey-total,
+[dir="rtl"] .flex-time {
   direction: ltr;
 }
 /* Mirror the forward/drill-in chevron so it points the reading direction. */

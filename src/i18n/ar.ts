@@ -98,6 +98,8 @@ export const ar: Dict = {
   act_map: "إظهار على الخريطة",
   field_overnight: "توقف ليلي",
   field_via: "عبر (اختياري)",
+  field_flex: "مرونة التواريخ",
+  flex_exact: "تاريخ محدد",
   stat_window: "{trains} قطار · {days} ي",
   stat_day_month: "{day} في اليوم · {month} في الشهر",
   act_surprise: "فاجئني",

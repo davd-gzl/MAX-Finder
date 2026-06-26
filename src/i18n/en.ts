@@ -111,6 +111,8 @@ export const en: Dict = {
   act_map: "Show on map",
   field_overnight: "Overnight stopover",
   field_via: "Via (optional)",
+  field_flex: "Date flexibility",
+  flex_exact: "Exact date",
   stat_window: "{trains} trains · {days} d",
   stat_day_month: "{day} this day · {month} this month",
   act_surprise: "Surprise me",

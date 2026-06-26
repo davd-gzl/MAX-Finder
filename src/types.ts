@@ -65,6 +65,8 @@ export interface SearchQuery {
   overnight?: boolean;
   /** Force the journey to pass through this station ("exact trip" mode only). */
   via?: string;
+  /** Flexible dates: also search ±N days around `date` ("exact trip" mode). */
+  flexDays?: number;
   /** Region filter, used by "best" mode. */
   region?: string;
   /** Cities to visit, used by "tour" mode. */

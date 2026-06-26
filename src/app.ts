@@ -7,6 +7,7 @@ import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours } from "./core/tour";
 import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
+import { addDays } from "./util/time";
 import { findRoundTrips } from "./core/roundtrip";
 import { el, clear } from "./ui/dom";
 import { RouteMap } from "./ui/map";
@@ -47,6 +48,8 @@ interface Refs {
   maxConnections: HTMLSelectElement;
   overnight: HTMLInputElement;
   via: HTMLInputElement;
+  flex: HTMLSelectElement;
+  flexField: HTMLElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
   viaField: HTMLElement;
@@ -264,6 +267,7 @@ function syncFormFromQuery(): void {
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
+  refs.flex.value = String(query.flexDays ?? 0);
   refs.date.value = query.date;
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
@@ -288,6 +292,7 @@ function readQueryFromForm(): SearchQuery {
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
     via: resolveStation(refs.via.value),
+    flexDays: Number(refs.flex.value) || undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -581,6 +586,25 @@ function runOdSearch(c: RenderCtx): void {
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 
+  // Flexible dates: the fastest free-MAX trip for each day within ±flexDays of the
+  // chosen date (clamped to the bookable window). Pick a day to see its full list.
+  if (query.flexDays && query.flexDays > 0) {
+    const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+    const section = el("section", { class: "flex-dates" }, [el("h3", { text: t("field_flex") })]);
+    let any = false;
+    for (let i = -query.flexDays; i <= query.flexDays; i++) {
+      const d = addDays(query.date, i);
+      if (d < today || d > lastBookable) continue;
+      const fastest = findJourneys(trains, query.origin, query.destination, d, connOpts)
+        .filter(passesVia)
+        .reduce<Journey | null>((a, b) => (!a || b.totalDurationMin < a.totalDurationMin ? b : a), null);
+      if (!fastest) continue;
+      section.append(render.flexDayEl(d, fastest, c, d === query.date));
+      any = true;
+    }
+    if (any) refs.results.append(section);
+  }
+
   // Sort by total travel time, fastest first (then earliest departure as a
   // tiebreak) so the best option is at the top of the list and the slowest last.
   const journeys: Journey[] = findJourneys(
@@ -815,6 +839,7 @@ function updateFieldVisibility(): void {
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
+  refs.flexField.style.display = query.mode === "od" ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
   refs.regionField.style.display = query.mode === "best" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
@@ -1039,6 +1064,16 @@ function buildForm(): FormBuild {
     overnight,
     el("span", { class: "field-label", text: t("field_overnight") }),
   ]);
+  // Flexible dates ("± N days") for the exact-trip search — find a MAX seat around
+  // the chosen date, not only on it.
+  const flex = el("select", { class: "input" }, [
+    optionEl("0", t("flex_exact"), true),
+    optionEl("1", "± 1", false),
+    optionEl("2", "± 2", false),
+    optionEl("3", "± 3", false),
+    optionEl("7", "± 7", false),
+  ]) as HTMLSelectElement;
+  const flexField = field(t("field_flex"), flex);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
   ].sort();
@@ -1170,6 +1205,7 @@ function buildForm(): FormBuild {
       destinationField,
       viaField,
       field(t("field_date"), date),
+      flexField,
       returnField,
       maxDurationField,
       regionField,
@@ -1209,6 +1245,8 @@ function buildForm(): FormBuild {
       maxConnections,
       overnight,
       via,
+      flex,
+      flexField,
       originField,
       destinationField,
       viaField,

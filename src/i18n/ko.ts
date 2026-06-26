@@ -99,6 +99,8 @@ export const ko: Dict = {
   act_map: "지도에서 보기",
   field_overnight: "야간 경유",
   field_via: "경유 (선택)",
+  field_flex: "날짜 유연성",
+  flex_exact: "정확한 날짜",
   stat_window: "열차 {trains}편 · {days}일",
   stat_day_month: "그날 {day} · 이달 {month}",
   act_surprise: "랜덤 여행",
