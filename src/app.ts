@@ -152,10 +152,17 @@ function addNearestCity(): void {
   const frontier = tourCities[tourCities.length - 1] ?? origin;
   const used = new Set([origin, ...tourCities]);
   // Candidates: stations with a direct free-MAX train from the frontier, not yet
-  // visited, in-region, and locatable — ordered by straight-line distance.
+  // visited, in-region, and locatable.
   const candidates = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))]
-    .filter((d) => !used.has(d) && inRegion(d) && deps.registry.coords(d))
-    .sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
+    .filter((d) => !used.has(d) && inRegion(d) && deps.registry.coords(d));
+  // Order by straight-line distance from the frontier (nearest first). If the
+  // frontier itself is unplotted every distance is Infinity (NaN comparator), so
+  // fall back to a stable label order instead of an arbitrary one.
+  if (deps.registry.coords(frontier)) {
+    candidates.sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
+  } else {
+    candidates.sort((a, b) => deps.registry.label(a).localeCompare(deps.registry.label(b)));
+  }
 
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
@@ -821,7 +828,11 @@ function surpriseMe(): void {
       return;
     }
     const used = new Set([origin, ...tourCities]);
-    const pool = [...new Set(avail.filter((t) => used.has(t.origin)).map((t) => t.destination))]
+    // The next hop leaves from the frontier (last city, or the departure when the
+    // list is empty), so draw candidates from there — not from every visited
+    // station, which would waste tries on cities the final hop can't reach.
+    const frontier = tourCities[tourCities.length - 1] ?? origin;
+    const pool = [...new Set(avail.filter((t) => t.origin === frontier).map((t) => t.destination))]
       .filter((d) => !used.has(d))
       // "Focus on a region" (e.g. visit Bretagne): only add cities from it.
       .filter((d) => !query.region || deps.registry.get(d)?.region === query.region)
@@ -829,9 +840,11 @@ function surpriseMe(): void {
     const lo = query.minDays ?? 1;
     const hi = Math.max(lo, query.maxDays ?? 3);
     const planOpts = { maxConnections: query.maxConnections };
+    // No cap: the planner is memoised (journey cache persists across calls), so
+    // scanning the whole frontier pool is cheap and avoids falsely reporting
+    // "no city" when the few feasible ones land late in the shuffled order.
     let chosen: string | undefined;
-    for (let i = 0; i < pool.length && i < 40; i++) {
-      const c = pool[i]!;
+    for (const c of pool) {
       if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi)) {
         chosen = c;
         break;
