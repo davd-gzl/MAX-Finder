@@ -44,10 +44,11 @@ const browser = await puppeteer.launch({
 
 const P = encodeURIComponent("PARIS (intramuros)");
 const T = encodeURIComponent("TOULOUSE MATABIAU");
+const DATE = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
 const pages = [
   { name: "home", url: BASE },
-  { name: "exact-trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=2026-06-25` },
-  { name: "tour", url: `${BASE}?mode=tour&from=${P}&cities=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=2` },
+  { name: "exact-trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=${DATE}` },
+  { name: "tour", url: `${BASE}?mode=tour&from=${P}&cities=${encodeURIComponent("LYON (intramuros)")}&date=${DATE}&dmin=1&dmax=3` },
 ];
 
 const failures = [];

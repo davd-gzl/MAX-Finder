@@ -102,6 +102,7 @@ export const ar: Dict = {
   stat_day_month: "{day} في اليوم · {month} في الشهر",
   act_surprise: "فاجئني",
   cities_add: "أضف مدينة…",
-  field_stay: "أيام لكل مدينة",
+  field_stay_min: "أيام دنيا / مدينة",
+  field_stay_max: "أيام قصوى / مدينة",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",
 };

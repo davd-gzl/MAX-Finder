@@ -335,6 +335,17 @@ a {
 .input::placeholder {
   color: var(--faint);
 }
+/* ---- tour min/max days ---- */
+.stay-fields {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.6rem;
+}
+.stay-fields .field {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ---- tour cities chip input ---- */
 .cities-input {
   display: flex;

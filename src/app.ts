@@ -56,7 +56,8 @@ interface Refs {
   cities: HTMLInputElement;
   citiesField: HTMLElement;
   cityChips: HTMLElement;
-  stayDays: HTMLInputElement;
+  minDays: HTMLInputElement;
+  maxDays: HTMLInputElement;
   stayField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
@@ -257,7 +258,8 @@ function syncFormFromQuery(): void {
   tourCities = [...(query.cities ?? [])];
   refs.cities.value = "";
   renderCityChips();
-  refs.stayDays.value = query.stayDays != null ? String(query.stayDays) : "";
+  refs.minDays.value = String(query.minDays ?? 1);
+  refs.maxDays.value = String(query.maxDays ?? 3);
   updateFieldVisibility();
 }
 
@@ -291,11 +293,15 @@ function readQueryFromForm(): SearchQuery {
             ]),
           ]
         : query.cities,
-    stayDays: (() => {
-      const n = Number(refs.stayDays.value.trim());
-      return Number.isFinite(n) && n > 1 ? Math.min(14, Math.floor(n)) : undefined;
-    })(),
+    minDays: clampDays(refs.minDays.value, 1),
+    maxDays: clampDays(refs.maxDays.value, 3),
   };
+}
+
+/** Parse a day-count input into 1..14, falling back to `fallback`. */
+function clampDays(raw: string, fallback: number): number {
+  const n = Math.floor(Number(raw.trim()));
+  return Number.isFinite(n) && n >= 1 ? Math.min(14, n) : fallback;
 }
 
 function applyAndRun(): void {
@@ -468,6 +474,8 @@ function runTourSearch(c: RenderCtx): void {
     refs.results.append(render.emptyEl(t("tour_hint")));
     return;
   }
+  const lo = query.minDays ?? 1;
+  const hi = Math.max(lo, query.maxDays ?? 3);
   const tours = planTours(
     trains,
     query.origin,
@@ -475,7 +483,8 @@ function runTourSearch(c: RenderCtx): void {
     query.date,
     { maxConnections: query.maxConnections },
     10,
-    query.stayDays ?? 1,
+    lo,
+    hi,
   );
   if (tours.length === 0) {
     refs.results.append(render.emptyEl(t("tour_none")));
@@ -632,12 +641,32 @@ function surpriseMe(): void {
   const destinations = (): string[] => [...new Set(avail.map((t) => t.destination))];
 
   if (query.mode === "tour") {
-    // Tour: add a random city to visit — never touch the departure city.
-    const used = new Set([query.origin, ...tourCities].filter((x): x is string => Boolean(x)));
-    const city = pickFrom(destinations().filter((d) => !used.has(d)));
-    if (!city) return;
-    tourCities.push(city);
-    query = { ...query, cities: [...tourCities] };
+    // Tour: fill the departure if empty, then add ONE random city. Candidates are
+    // cities reachable as a direct MAX hop from somewhere in the trip; we prefer
+    // one that keeps the WHOLE tour feasible on the chosen date (validated with the
+    // planner), so a click always yields a plannable trip. Capped at 5 cities.
+    if (tourCities.length >= 5) return;
+    const origin = query.origin || pickFrom(origins());
+    if (!origin) return;
+    const used = new Set([origin, ...tourCities]);
+    const pool = [...new Set(avail.filter((t) => used.has(t.origin)).map((t) => t.destination))]
+      .filter((d) => !used.has(d))
+      .sort(() => Math.random() - 0.5);
+    const lo = query.minDays ?? 1;
+    const hi = Math.max(lo, query.maxDays ?? 3);
+    const planOpts = { maxConnections: query.maxConnections };
+    let chosen: string | undefined;
+    for (let i = 0; i < pool.length && i < 16; i++) {
+      const c = pool[i]!;
+      if (planTours(deps.trains, origin, [...tourCities, c], query.date, planOpts, 1, lo, hi).length > 0) {
+        chosen = c;
+        break;
+      }
+    }
+    chosen ??= pool[0]; // fallback: still a reachable hop even if the full tour is tight
+    if (!chosen) return;
+    tourCities.push(chosen);
+    query = { ...query, origin, cities: [...tourCities] };
   } else if (query.mode === "to") {
     const dest = pickFrom(destinations(), query.destination);
     if (!dest) return;
@@ -1022,13 +1051,22 @@ function buildForm(): FormBuild {
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
   const citiesField = field(t("field_cities"), citiesBox);
-  // Minimum days spent in each city before the next hop — turns a tour into a
-  // multi-day, free-MAX vacation plan. Default 1 (a hop a day).
-  const stayDays = inputEl("number");
-  stayDays.min = "1";
-  stayDays.max = "14";
-  stayDays.placeholder = "1";
-  const stayField = field(t("field_stay"), stayDays);
+  // How many days to spend in each city before the next hop — a range, so the
+  // planner can find a feasible schedule (a free-MAX, multi-day vacation plan).
+  const minDays = inputEl("number");
+  minDays.min = "1";
+  minDays.max = "14";
+  minDays.value = "1";
+  minDays.setAttribute("aria-label", t("field_stay_min"));
+  const maxDays = inputEl("number");
+  maxDays.min = "1";
+  maxDays.max = "14";
+  maxDays.value = "3";
+  maxDays.setAttribute("aria-label", t("field_stay_max"));
+  const stayField = el("div", { class: "stay-fields" }, [
+    field(t("field_stay_min"), minDays),
+    field(t("field_stay_max"), maxDays),
+  ]);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
@@ -1128,7 +1166,8 @@ function buildForm(): FormBuild {
       cities,
       citiesField,
       cityChips,
-      stayDays,
+      minDays,
+      maxDays,
       stayField,
     },
   };

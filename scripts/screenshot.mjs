@@ -36,13 +36,16 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const BASE = `http://127.0.0.1:${server.address().port}/MAX-Finder/`;
 const P = encodeURIComponent("PARIS (intramuros)");
 const T = encodeURIComponent("TOULOUSE MATABIAU");
+// A few days out so the snapshot always has live data (the dataset is a rolling
+// ~30-day window from the fetch date).
+const DATE = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
 const shots = [
-  { name: "from", url: `${BASE}?mode=from&from=${P}&date=2026-06-25` },
-  { name: "trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=2026-06-25` },
-  { name: "best", url: `${BASE}?mode=best&from=${P}&date=2026-06-25&conn=2` },
-  { name: "tour", url: `${BASE}?mode=tour&from=${P}&date=2026-06-25&cities=${encodeURIComponent("LYON (intramuros)")}~${encodeURIComponent("MARSEILLE ST CHARLES")}` },
-  { name: "mobile", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, mobile: true },
-  { name: "arabic", url: `${BASE}?mode=from&from=${P}&date=2026-06-25`, lang: "ar" },
+  { name: "from", url: `${BASE}?mode=from&from=${P}&date=${DATE}` },
+  { name: "trip", url: `${BASE}?mode=od&from=${P}&to=${T}&date=${DATE}` },
+  { name: "best", url: `${BASE}?mode=best&from=${P}&date=${DATE}&conn=2` },
+  { name: "tour", url: `${BASE}?mode=tour&from=${P}&date=${DATE}&cities=${encodeURIComponent("LYON (intramuros)")}~${encodeURIComponent("MARSEILLE ST CHARLES")}` },
+  { name: "mobile", url: `${BASE}?mode=from&from=${P}&date=${DATE}`, mobile: true },
+  { name: "arabic", url: `${BASE}?mode=from&from=${P}&date=${DATE}`, lang: "ar" },
 ];
 
 const args = chromium.args.filter((a) => !a.startsWith("--user-data-dir") && !a.startsWith("--proxy"));
