@@ -47,6 +47,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Gate: prove the built app actually mounts (home + exact-trip + tour) in a
+      # headless browser. A build that would render a blank page fails here and
+      # never deploys.
+      - name: Verify render (no blank page)
+        run: npm run verify
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
