@@ -116,6 +116,7 @@ export const en: Dict = {
   act_surprise: "Surprise me",
   surprise_none: "No possible city to add.",
   cities_add: "Add a city…",
+  cities_clear: "Clear all",
   field_stay_min: "Min days / city",
   field_stay_max: "Max days / city",
   stat_window_hint: "{trains} MAX trains to this destination across {days} upcoming days. Open the exact trip to see which dates.",

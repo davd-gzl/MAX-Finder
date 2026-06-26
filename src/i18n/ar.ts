@@ -103,6 +103,7 @@ export const ar: Dict = {
   act_surprise: "فاجئني",
   surprise_none: "لا توجد مدينة يمكن إضافتها.",
   cities_add: "أضف مدينة…",
+  cities_clear: "مسح الكل",
   field_stay_min: "أيام دنيا / مدينة",
   field_stay_max: "أيام قصوى / مدينة",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",

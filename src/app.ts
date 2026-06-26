@@ -92,10 +92,21 @@ interface InstallPromptEvent extends Event {
 let installPrompt: InstallPromptEvent | null = null;
 let installBtnEl: HTMLElement | null = null;
 let surpriseMsgEl: HTMLElement | null = null;
+let cityClearBtnEl: HTMLElement | null = null;
 
 /** Set (or clear with "") the inline status next to the "surprise" button. */
 function setSurpriseMsg(text: string): void {
   if (surpriseMsgEl) surpriseMsgEl.textContent = text;
+}
+
+/** Remove every tour "city to visit" at once. */
+function clearTourCities(): void {
+  if (tourCities.length === 0) return;
+  tourCities = [];
+  query = { ...query, cities: [] };
+  navStack = [];
+  syncFormFromQuery();
+  applyAndRun();
 }
 
 function refreshInstallBtn(): void {
@@ -1073,7 +1084,15 @@ function buildForm(): FormBuild {
   const viaField = field(t("field_via"), via);
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
-  const citiesField = field(t("field_cities"), citiesBox);
+  const clearCitiesBtn = el("button", {
+    class: "linklike cities-clear",
+    type: "button",
+    text: t("cities_clear"),
+    attrs: { hidden: "" },
+    on: { click: clearTourCities },
+  });
+  cityClearBtnEl = clearCitiesBtn;
+  const citiesField = field(t("field_cities"), el("div", { class: "cities-wrap" }, [citiesBox, clearCitiesBtn]));
   // How many days to spend in each city before the next hop — a range, so the
   // planner can find a feasible schedule (a free-MAX, multi-day vacation plan).
   const minDays = inputEl("number");
@@ -1091,12 +1110,15 @@ function buildForm(): FormBuild {
     field(t("field_stay_max"), maxDays),
   ]);
 
+  // Max journey duration is a common filter, so it lives in the main form (not
+  // tucked inside "Advanced filters").
+  const maxDurationField = field(t("field_maxDuration"), maxDuration);
+
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
     el("div", { class: "advanced-grid" }, [
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
-      field(t("field_maxDuration"), maxDuration),
       field(t("field_trainType"), trainType),
       field(t("field_connections"), maxConnections),
       overnightField,
@@ -1146,6 +1168,7 @@ function buildForm(): FormBuild {
       viaField,
       field(t("field_date"), date),
       returnField,
+      maxDurationField,
       regionField,
       citiesField,
       stayField,
@@ -1232,6 +1255,7 @@ function renderCityChips(): void {
     ]);
     refs.cityChips.append(chip);
   });
+  cityClearBtnEl?.toggleAttribute("hidden", tourCities.length === 0);
 }
 
 function renderFavorites(): void {

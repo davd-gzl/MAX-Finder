@@ -104,6 +104,7 @@ export const ko: Dict = {
   act_surprise: "랜덤 여행",
   surprise_none: "추가할 수 있는 도시가 없습니다.",
   cities_add: "도시 추가…",
+  cities_clear: "모두 지우기",
   field_stay_min: "도시당 최소 일수",
   field_stay_max: "도시당 최대 일수",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",

@@ -104,6 +104,7 @@ export const es: Dict = {
   act_surprise: "Al azar",
   surprise_none: "Ninguna ciudad posible para añadir.",
   cities_add: "Añadir una ciudad…",
+  cities_clear: "Borrar todo",
   field_stay_min: "Días mín. / ciudad",
   field_stay_max: "Días máx. / ciudad",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",

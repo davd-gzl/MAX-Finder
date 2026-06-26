@@ -347,6 +347,15 @@ a {
 }
 
 /* ---- tour cities chip input ---- */
+.cities-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cities-clear {
+  align-self: flex-start;
+  font-size: 0.8rem;
+}
 .cities-input {
   display: flex;
   flex-wrap: wrap;

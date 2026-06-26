@@ -103,6 +103,7 @@ export const nl: Dict = {
   act_surprise: "Verras me",
   surprise_none: "Geen stad om toe te voegen.",
   cities_add: "Stad toevoegen…",
+  cities_clear: "Alles wissen",
   field_stay_min: "Min. dagen / stad",
   field_stay_max: "Max. dagen / stad",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",

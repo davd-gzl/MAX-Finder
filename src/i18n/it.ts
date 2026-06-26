@@ -104,6 +104,7 @@ export const it: Dict = {
   act_surprise: "A caso",
   surprise_none: "Nessuna città disponibile da aggiungere.",
   cities_add: "Aggiungi una città…",
+  cities_clear: "Cancella tutto",
   field_stay_min: "Giorni min. / città",
   field_stay_max: "Giorni max / città",
   stat_window_hint: "{trains} treni MAX verso questa destinazione in {days} giorni a venire. Apri il viaggio esatto per vedere le date.",

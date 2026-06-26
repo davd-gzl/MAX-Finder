@@ -103,6 +103,7 @@ export const ja: Dict = {
   act_surprise: "おまかせ",
   surprise_none: "追加できる都市がありません。",
   cities_add: "都市を追加…",
+  cities_clear: "すべて消去",
   field_stay_min: "都市ごと最小日数",
   field_stay_max: "都市ごと最大日数",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
