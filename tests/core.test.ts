@@ -7,7 +7,7 @@ import { findJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, stationsOnDate } from "../src/core/best";
-import { planTours, planTourInOrder } from "../src/core/tour";
+import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
 
@@ -339,6 +339,48 @@ describe("planTourInOrder", () => {
     const tour = planTourInOrder(data, "START", seq, "2026-07-01", { maxConnections: 0 }, 1, 1);
     expect(tour).not.toBeNull();
     expect(tour!.legs).toHaveLength(7);
+  });
+});
+
+describe("planTourGreedy", () => {
+  const chain = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+    { date: "2026-07-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    { date: "2026-07-03", origine: "MARSEILLE ST CHARLES", destination: "NICE VILLE", heure_depart: "09:00", heure_arrivee: "11:30", train_no: "12", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+  const opts = { maxConnections: 0 };
+
+  it("reorders an infeasible typed order into a feasible visiting order", () => {
+    // Typed back-to-front: in-order planning fails, greedy finds the real chain.
+    const cities = ["NICE VILLE", "MARSEILLE ST CHARLES", "LYON (intramuros)"];
+    expect(planTourInOrder(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1)).toBeNull();
+    const tour = planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1);
+    expect(tour).not.toBeNull();
+    expect(tour!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"]);
+    expect(tour!.legs).toHaveLength(3);
+  });
+
+  it("handles more than 5 cities", () => {
+    const seq = ["A", "B", "C", "D", "E", "F", "G"];
+    const rows = seq.map((to, i) => ({
+      date: `2026-07-0${i + 1}`,
+      origine: i === 0 ? "START" : seq[i - 1]!,
+      destination: to,
+      heure_depart: "08:00",
+      heure_arrivee: "10:00",
+      train_no: String(i),
+      od_happy_card: "OUI",
+    }));
+    const data = normalizeRecords(rows as RawRecord[]);
+    const tour = planTourGreedy(data, "START", [...seq].reverse(), "2026-07-01", opts, 1, 1);
+    expect(tour).not.toBeNull();
+    expect(tour!.order).toEqual(seq);
+    expect(tour!.legs).toHaveLength(7);
+  });
+
+  it("returns null when a city can never be reached in sequence", () => {
+    const tour = planTourGreedy(chain, "PARIS (intramuros)", ["LYON (intramuros)", "BORDEAUX ST JEAN"], "2026-07-01", opts, 1, 1);
+    expect(tour).toBeNull();
   });
 });
 

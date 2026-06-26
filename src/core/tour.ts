@@ -151,3 +151,73 @@ export function planTourInOrder(
   if (!legs) return null;
   return { order, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
 }
+
+/**
+ * Plan a tour over an arbitrary set of `cities` (no size limit) by greedy
+ * nearest-neighbour: from each stop, hop to the closest still-unvisited city that
+ * has a feasible free-MAX journey in its day window. `distance(a, b)` ranks the
+ * reachable candidates (straight-line km); ties (or missing coords) fall back to
+ * the earliest, then shortest, journey. Returns null only if some city can never
+ * be reached in sequence — used for big tours where permuting every order (O(n!))
+ * is infeasible. The visiting order is chosen here, so the typed order doesn't
+ * have to already be a feasible chain.
+ */
+export function planTourGreedy(
+  trains: MaxTrain[],
+  start: string,
+  cities: string[],
+  startDate: string,
+  opts: ConnectionOptions = {},
+  minDays = 1,
+  maxDays = minDays,
+  distance?: (a: string, b: string) => number,
+): Tour | null {
+  const remaining = [...new Set(cities.filter((c) => c && c !== start))];
+  if (remaining.length === 0) return null;
+  const lo = Math.max(1, Math.floor(minDays));
+  const hi = Math.max(lo, Math.floor(maxDays));
+  const firstFeasible = makeFirstFeasible(trains, opts);
+
+  const order: string[] = [];
+  const legs: Journey[] = [];
+  let current = start;
+  let depFrom = startDate;
+  let depTo = startDate;
+
+  while (remaining.length > 0) {
+    let pick = -1;
+    let pickJourney: Journey | null = null;
+    let pickDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const city = remaining[i];
+      if (!city) continue;
+      const j = firstFeasible(current, city, depFrom, depTo);
+      if (!j) continue;
+      const d = distance ? distance(current, city) : 0;
+      const better =
+        pickJourney === null ||
+        d < pickDist ||
+        // Tie on distance (or no coords): prefer the earlier arrival, then the
+        // shorter ride, so the remaining window stays as open as possible.
+        (d === pickDist &&
+          (arrivalDate(j) < arrivalDate(pickJourney) ||
+            (arrivalDate(j) === arrivalDate(pickJourney) &&
+              j.totalDurationMin < pickJourney.totalDurationMin)));
+      if (better) {
+        pick = i;
+        pickJourney = j;
+        pickDist = Number.isFinite(d) ? d : Infinity;
+      }
+    }
+    if (pick < 0 || !pickJourney) return null; // a remaining city is unreachable in sequence
+    const city = remaining[pick]!;
+    order.push(city);
+    legs.push(pickJourney);
+    remaining.splice(pick, 1);
+    current = city;
+    const arr = arrivalDate(pickJourney);
+    depFrom = addDays(arr, lo);
+    depTo = addDays(arr, hi);
+  }
+  return { order, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
+}
