@@ -10,7 +10,7 @@
  *  - Cross-origin / POST  → passthrough, never cached
  */
 
-const CACHE_NAME = "maxjeune-v4";
+const CACHE_NAME = "maxjeune-v5";
 
 // Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.
@@ -24,26 +24,39 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.add(SHELL_URL))
+      // cache:"reload" → precache a FRESH shell, never a stale HTTP-cached one.
+      .then((cache) => cache.add(new Request(SHELL_URL, { cache: "reload" })))
       .then(() => self.skipWaiting())
   );
 });
 
 // ---------------------------------------------------------------------------
-// Activate — delete stale caches, claim clients
+// Activate — delete stale caches, claim clients, and heal stuck clients.
 // ---------------------------------------------------------------------------
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== CACHE_NAME)
-            .map((k) => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      // If an older cache exists, this is an UPGRADE: a client may be stranded on
+      // a stale shell pointing at a deleted bundle (the blank-page failure mode).
+      const wasUpgrade = keys.some((k) => k !== CACHE_NAME);
+      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      await self.clients.claim();
+      if (wasUpgrade) {
+        // Force any open window onto the fresh shell. The page's own JS can't
+        // self-heal when its bundle 404s, but the SW runs independently — so it
+        // navigates the client itself. (No loop: the reloaded page is controlled
+        // by this SW, so no further activate fires.)
+        const clients = await self.clients.matchAll({ type: "window" });
+        for (const client of clients) {
+          try {
+            await client.navigate(client.url);
+          } catch {
+            /* some browsers disallow navigate(); the network-first nav still heals on reload */
+          }
+        }
+      }
+    })()
   );
 });
 
