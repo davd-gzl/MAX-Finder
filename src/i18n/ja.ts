@@ -102,5 +102,6 @@ export const ja: Dict = {
   stat_day_month: "その日 {day} · 今月 {month}",
   act_surprise: "おまかせ",
   cities_add: "都市を追加…",
+  field_stay: "都市ごとの日数",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
 };

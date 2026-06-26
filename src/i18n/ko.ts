@@ -103,5 +103,6 @@ export const ko: Dict = {
   stat_day_month: "그날 {day} · 이달 {month}",
   act_surprise: "랜덤 여행",
   cities_add: "도시 추가…",
+  field_stay: "도시당 일수",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
 };

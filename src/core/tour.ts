@@ -4,7 +4,7 @@ import { bestJourney, type ConnectionOptions } from "./connections";
 export interface Tour {
   /** Cities in visit order (after the start). */
   order: string[];
-  /** One journey per hop; leg i departs on startDate + i days. */
+  /** One journey per hop; leg i departs on startDate + i * stayDays days. */
   legs: Journey[];
   totalDurationMin: number;
 }
@@ -26,9 +26,10 @@ function permutations<T>(arr: T[]): T[][] {
 }
 
 /**
- * Plan multi-city tours: visit every city in `cities`, one hop per day starting at
- * `startDate`, where each hop has a free-MAX journey. Tries every visiting order
- * (capped at 5 cities) and returns the feasible ones ranked by total travel time.
+ * Plan multi-city tours: visit every city in `cities` starting at `startDate`,
+ * spending `stayDays` days in each city before the next hop (default 1), where
+ * each hop has a free-MAX journey. Tries every visiting order (capped at 5
+ * cities) and returns the feasible ones ranked by total travel time.
  */
 export function planTours(
   trains: MaxTrain[],
@@ -37,9 +38,11 @@ export function planTours(
   startDate: string,
   opts: ConnectionOptions = {},
   limit = 10,
+  stayDays = 1,
 ): Tour[] {
   const unique = [...new Set(cities.filter((c) => c && c !== start))];
   if (unique.length === 0 || unique.length > 5) return [];
+  const gap = Math.max(1, Math.floor(stayDays));
 
   const memo = new Map<string, Journey | null>();
   const hop = (from: string, to: string, date: string): Journey | null => {
@@ -63,7 +66,7 @@ export function planTours(
         ok = false;
         break;
       }
-      const j = hop(from, to, addDays(startDate, i));
+      const j = hop(from, to, addDays(startDate, i * gap));
       if (!j) {
         ok = false;
         break;

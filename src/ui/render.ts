@@ -359,11 +359,14 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
       el("span", { text: formatDuration(tour.totalDurationMin) }),
     ]),
   ]);
-  const legs = tour.legs.map((j, i) =>
+  // "Day N" is the actual trip day of each hop, so a multi-day stay shows real
+  // gaps (Day 1, Day 4, …) rather than a misleading 1-per-row count.
+  const base = first ? dayIndex(first.date) : 0;
+  const legs = tour.legs.map((j) =>
     el("div", { class: "tour-leg" }, [
       el("span", {
         class: "chip chip-soft",
-        text: t("tour_day", { n: i + 1, date: ctx.formatDate(j.date) }),
+        text: t("tour_day", { n: dayIndex(j.date) - base + 1, date: ctx.formatDate(j.date) }),
       }),
       journeyEl(j, ctx),
     ]),
