@@ -509,7 +509,10 @@ function runTourSearch(c: RenderCtx): void {
     return;
   }
   for (const tour of tours) refs.results.append(render.tourEl(tour, c));
-  showMap(query.origin, cities);
+  // Draw the best tour as a single chained path (origin → city1 → city2 → …),
+  // not a star of separate lines from the origin to each city.
+  const best = tours[0];
+  showRoute(best ? [query.origin, ...best.order] : [query.origin, ...cities]);
 }
 
 function runBestSearch(c: RenderCtx): void {
