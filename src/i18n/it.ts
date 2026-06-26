@@ -103,6 +103,7 @@ export const it: Dict = {
   stat_day_month: "{day} quel giorno · {month} nel mese",
   act_surprise: "A caso",
   cities_add: "Aggiungi una città…",
-  field_stay: "Giorni per città",
+  field_stay_min: "Giorni min. / città",
+  field_stay_max: "Giorni max / città",
   stat_window_hint: "{trains} treni MAX verso questa destinazione in {days} giorni a venire. Apri il viaggio esatto per vedere le date.",
 };

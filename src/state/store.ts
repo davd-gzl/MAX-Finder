@@ -110,7 +110,8 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.overnight) p.set("night", "1");
   if (q.region) p.set("rg", q.region);
   if (q.cities && q.cities.length > 0) p.set("cities", q.cities.join("~"));
-  if (q.stayDays != null && q.stayDays > 1) p.set("stay", String(q.stayDays));
+  if (q.minDays != null && q.minDays !== 1) p.set("dmin", String(q.minDays));
+  if (q.maxDays != null && q.maxDays !== 3) p.set("dmax", String(q.maxDays));
   return p;
 }
 
@@ -121,7 +122,10 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const connRaw = p.get("conn");
   const conn = connRaw == null ? 1 : Number(connRaw);
   const cities = p.get("cities");
-  const stay = Number(p.get("stay"));
+  const dmin = Number(p.get("dmin"));
+  const dmax = Number(p.get("dmax"));
+  const clampDay = (n: number, fallback: number): number =>
+    Number.isFinite(n) && n >= 1 ? Math.min(14, Math.floor(n)) : fallback;
   return {
     mode,
     origin: p.get("from") ?? undefined,
@@ -137,7 +141,8 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     overnight: p.get("night") === "1" || undefined,
     region: p.get("rg") ?? undefined,
     cities: cities ? cities.split("~").filter(Boolean) : undefined,
-    stayDays: Number.isFinite(stay) && stay > 1 ? Math.min(14, Math.floor(stay)) : undefined,
+    minDays: p.has("dmin") ? clampDay(dmin, 1) : undefined,
+    maxDays: p.has("dmax") ? clampDay(dmax, 3) : undefined,
   };
 }
 

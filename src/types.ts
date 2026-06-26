@@ -69,8 +69,9 @@ export interface SearchQuery {
   region?: string;
   /** Cities to visit, used by "tour" mode. */
   cities?: string[];
-  /** Minimum days spent in each city before the next hop ("tour" mode). Default 1. */
-  stayDays?: number;
+  /** Min / max days spent in each city before the next hop ("tour" mode). */
+  minDays?: number;
+  maxDays?: number;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */

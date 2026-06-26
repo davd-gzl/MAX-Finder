@@ -263,17 +263,20 @@ describe("planTours", () => {
     expect(tours[0]!.legs).toHaveLength(2);
   });
 
-  it("spaces hops by stayDays (multi-day vacation plan)", () => {
-    // Second hop runs 2 days after the start, not the next day.
+  it("searches the min/max day window for each hop (multi-day plan)", () => {
+    // Second hop only runs 2 days after arriving in Lyon.
     const spaced = normalizeRecords([
       { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
       { date: "2026-07-03", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
     ] as RawRecord[]);
     const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES"];
-    // stayDays=1 (default): the second hop would need 2026-07-02 — no train.
-    expect(planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", { maxConnections: 0 }, 10, 1)).toHaveLength(0);
-    // stayDays=2: second hop falls on 2026-07-03 and the tour is feasible.
-    const tours = planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", { maxConnections: 0 }, 10, 2);
+    const opts = { maxConnections: 0 };
+    // min=max=1: the second hop would need 2026-07-02 — no train, infeasible.
+    expect(planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1)).toHaveLength(0);
+    // min=2,max=2: exactly 2026-07-03 — feasible.
+    expect(planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 2, 2)).toHaveLength(1);
+    // min=1,max=3: the window [07-02..07-04] includes 07-03 — feasible.
+    const tours = planTours(spaced, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 3);
     expect(tours).toHaveLength(1);
     expect(tours[0]!.legs[1]!.date).toBe("2026-07-03");
   });

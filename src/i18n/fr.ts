@@ -113,7 +113,8 @@ export const fr = {
   stat_day_month: "{day} ce jour · {month} ce mois",
   act_surprise: "Au hasard",
   cities_add: "Ajouter une ville…",
-  field_stay: "Jours par ville",
+  field_stay_min: "Jours min. / ville",
+  field_stay_max: "Jours max. / ville",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 };
 

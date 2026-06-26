@@ -102,6 +102,7 @@ export const nl: Dict = {
   stat_day_month: "die dag {day} · deze maand {month}",
   act_surprise: "Verras me",
   cities_add: "Stad toevoegen…",
-  field_stay: "Dagen per stad",
+  field_stay_min: "Min. dagen / stad",
+  field_stay_max: "Max. dagen / stad",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
 };
