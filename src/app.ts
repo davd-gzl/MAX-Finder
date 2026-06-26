@@ -9,10 +9,11 @@ import { findJourneys } from "./core/connections";
 import { availabilityCalendar, dateRange } from "./core/calendar";
 import { findRoundTrips } from "./core/roundtrip";
 import { el, clear } from "./ui/dom";
-import { RouteMap } from "./ui/map";
+import { RouteMap, type MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
+import { relativeTime, formatDuration } from "./util/time";
 import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
 import {
@@ -59,6 +60,10 @@ interface Refs {
   stayDays: HTMLInputElement;
   stayField: HTMLElement;
   title: HTMLElement;
+  resultsTools: HTMLElement;
+  searchBox: HTMLInputElement;
+  sortSel: HTMLSelectElement;
+  viewToggle: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
   favList: HTMLElement;
@@ -82,6 +87,32 @@ let navStack: SearchQuery[] = [];
 
 // Ordered list of station ids for the tour "cities to visit" chip input.
 let tourCities: string[] = [];
+
+// --- results toolbar (filter box + sort + show-more) ------------------------
+type SortKey = "relevance" | "fast" | "name" | "depart";
+// Render the destination list in pages; "Show more" reveals the next page. Keeps
+// the DOM light on long lists while preserving a single scannable list.
+const RESULTS_PAGE = 40;
+let resultsQuery = ""; // place filter text (browse/best lists only)
+let resultsSort: SortKey = "relevance";
+let resultsShown = RESULTS_PAGE;
+// Signature of the last "real" search; when it changes we reset the toolbar.
+let lastMainKey = "";
+
+/** A sortable/filterable destination row in a browse/best list. */
+interface DestItem {
+  station: string;
+  name: string; // lowercased label, for the filter box
+  trains: number; // window availability — drives "relevance"/most-trains in browse
+  duration: number; // minutes — drives "fastest"
+  connections: number; // changes to reach it — tints the map pin green→red
+  meta: string; // concise summary for the map pin card, e.g. "3 trains · 1 h 50"
+  open: () => void; // open the exact-trip view for this destination
+  build: () => HTMLElement;
+}
+// Computed once per search and reused while the user filters/sorts/pages, so
+// typing in the filter box doesn't recompute the heavy reachability search.
+let listCache: { anchor: string; items: DestItem[] } | null = null;
 
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
@@ -121,6 +152,10 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 
   rebuild();
   checkWatchedRoutes();
+
+  // The bars above the map row can reflow (wrapping controls, mode change); keep
+  // the map's available height in sync.
+  window.addEventListener("resize", updateRailMetrics);
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -354,14 +389,10 @@ function filterOpts() {
 
 function runSearch(): void {
   clear(refs.results);
-  // Delayed spinner: CSS keeps it invisible for 150ms, so instant searches never
+  // Delayed skeleton: CSS keeps it invisible for 150ms, so instant searches never
   // flash it, while heavy modes (best/tour on large data) show it. The compute is
-  // deferred a frame so the spinner can paint first.
-  refs.results.append(
-    el("div", { class: "loading", attrs: { role: "status", "aria-label": t("loading") } }, [
-      el("span", { class: "spinner", attrs: { "aria-hidden": "true" } }),
-    ]),
-  );
+  // deferred a frame so the skeleton can paint first.
+  refs.results.append(render.skeletonEl());
   // Two frames so the spinner actually paints before a heavy (connection-aware)
   // compute blocks the main thread — otherwise long searches show no feedback.
   requestAnimationFrame(() => {
@@ -387,6 +418,19 @@ function renderSearch(): void {
     refs.results.append(el("p", { class: "notice", text: t("senior_weekend_warn") }));
   }
 
+  // Reset the results toolbar (filter/sort/page) on a genuinely new search; a
+  // toolbar-driven repaint keeps the same query signature and is left untouched.
+  const mainKey = JSON.stringify(query);
+  const isNewSearch = mainKey !== lastMainKey;
+  if (isNewSearch) {
+    lastMainKey = mainKey;
+    resultsQuery = "";
+    resultsSort = defaultSort(query.mode);
+    resultsShown = RESULTS_PAGE;
+    listCache = null;
+  }
+  configureToolbar(query.mode, isNewSearch);
+
   if (query.mode === "from") {
     runBrowse(c, "from");
   } else if (query.mode === "to") {
@@ -398,6 +442,110 @@ function renderSearch(): void {
   } else {
     runOdSearch(c);
   }
+
+  // Keep the sticky map sized to the viewport minus the bars above it.
+  updateRailMetrics();
+}
+
+/** Default sort for a mode: browse ranks by availability, others by speed. */
+function defaultSort(mode: SearchQuery["mode"]): SortKey {
+  return mode === "from" || mode === "to" ? "relevance" : "fast";
+}
+
+/** Per-mode visibility + sort options for the results toolbar. */
+function configureToolbar(mode: SearchQuery["mode"], resetFilterValue: boolean): void {
+  const listMode = mode === "from" || mode === "to" || mode === "best" || mode === "od";
+  const hasAnchor =
+    mode === "to"
+      ? Boolean(query.destination)
+      : mode === "od"
+        ? Boolean(query.origin && query.destination)
+        : Boolean(query.origin);
+  refs.resultsTools.hidden = !(listMode && hasAnchor);
+  if (refs.resultsTools.hidden) return;
+
+  // The place filter only makes sense for lists of different places, not the
+  // single-route exact-trip view. Hide the whole input wrap (keep sort).
+  (refs.searchBox.parentElement as HTMLElement | null)?.toggleAttribute("hidden", mode === "od");
+
+  const opts: Array<[SortKey, "sort_relevance" | "sort_fast" | "sort_name" | "sort_depart"]> =
+    mode === "od"
+      ? [["fast", "sort_fast"], ["depart", "sort_depart"]]
+      : mode === "best"
+        ? [["fast", "sort_fast"], ["name", "sort_name"]]
+        : [["relevance", "sort_relevance"], ["fast", "sort_fast"], ["name", "sort_name"]];
+  if (!opts.some(([v]) => v === resultsSort)) resultsSort = opts[0]![0];
+  clear(refs.sortSel);
+  for (const [val, key] of opts) refs.sortSel.append(optionEl(val, t(key), val === resultsSort));
+  refs.sortSel.value = resultsSort;
+  if (resetFilterValue) refs.searchBox.value = resultsQuery;
+}
+
+/**
+ * Filter + sort + page a cached destination list into the results area, and plot
+ * the (filtered) stations on the map. Used by browse and "best" modes.
+ */
+function paintDestList(countKey: "res_destinations" | "res_origins"): void {
+  if (!listCache) return;
+  const { anchor, items } = listCache;
+  const q = resultsQuery.trim().toLowerCase();
+  const filtered = (q ? items.filter((it) => it.name.includes(q)) : items.slice()).sort(
+    sortComparator(resultsSort, query.mode),
+  );
+
+  if (filtered.length === 0) {
+    refs.results.append(render.emptyEl(t("res_none")));
+    showMap(anchor, []);
+    return;
+  }
+  refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: filtered.length }) }));
+  const visible = filtered.slice(0, resultsShown);
+  for (const it of visible) refs.results.append(it.build());
+  const hidden = filtered.length - visible.length;
+  if (hidden > 0) {
+    refs.results.append(
+      el("button", {
+        class: "btn btn-ghost show-more",
+        type: "button",
+        text: `${t("results_more")} (${hidden})`,
+        on: {
+          click: () => {
+            resultsShown += RESULTS_PAGE;
+            repaintResults();
+          },
+        },
+      }),
+    );
+  }
+  // Map pins carry a hover/click card with the trip summary + "open exact trip".
+  const info = new Map<string, MarkerInfo>();
+  for (const it of filtered) {
+    info.set(it.station, {
+      title: deps.registry.label(it.station),
+      meta: it.meta,
+      connections: it.connections,
+      action: { label: t("mode_od"), run: it.open },
+    });
+  }
+  showMap(anchor, filtered.map((it) => it.station), info);
+}
+
+/** Comparator for the chosen sort key. Relevance differs by mode. */
+function sortComparator(sort: SortKey, mode: SearchQuery["mode"]): (a: DestItem, b: DestItem) => number {
+  const byName = (a: DestItem, b: DestItem): number => a.name.localeCompare(b.name);
+  const byFast = (a: DestItem, b: DestItem): number => a.duration - b.duration || byName(a, b);
+  const byTrains = (a: DestItem, b: DestItem): number => b.trains - a.trains || byName(a, b);
+  if (sort === "name") return byName;
+  if (sort === "fast") return byFast;
+  return mode === "best" ? byFast : byTrains; // relevance
+}
+
+/** Re-render the results in place (filter/sort/page change) keeping scroll. */
+function repaintResults(): void {
+  const y = window.scrollY;
+  clear(refs.results);
+  renderSearch();
+  window.scrollTo({ top: y });
 }
 
 /**
@@ -416,44 +564,62 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   });
   const countKey = dir === "from" ? "res_destinations" : "res_origins";
 
-  const groups =
-    dir === "from"
-      ? reachableDestinations(trains, anchor, query.date, filterOpts())
-      : reachableOrigins(trains, anchor, query.date, filterOpts());
-  const directStations = new Set(groups.map((g) => g.station));
+  // Compute the destination list once per search; filter/sort/page reuse the cache.
+  if (!listCache) {
+    const groups =
+      dir === "from"
+        ? reachableDestinations(trains, anchor, query.date, filterOpts())
+        : reachableOrigins(trains, anchor, query.date, filterOpts());
+    const directStations = new Set(groups.map((g) => g.station));
+    // Total MAX availability over the whole booking window, per place — the figure
+    // shown on each card and the basis for the "relevance" (most-served) ranking.
+    const stats = windowStats(trains, anchor, dir, filterOpts());
 
-  // Total MAX availability over the whole booking window, per destination, so each
-  // card shows how many tickets exist before drilling into the exact-trip calendar.
-  // Rank the list by that total (most-served first) — the "statistic" view.
-  const stats = windowStats(trains, anchor, dir, filterOpts());
-  groups.sort(
-    (a, b) =>
-      (stats.get(b.station)?.trains ?? 0) - (stats.get(a.station)?.trains ?? 0) ||
-      a.station.localeCompare(b.station),
-  );
+    const items: DestItem[] = groups.map((g) => {
+      const origin = dir === "from" ? anchor : g.station;
+      const destination = dir === "from" ? g.station : anchor;
+      const windowTrains = stats.get(g.station)?.trains ?? g.count;
+      return {
+        station: g.station,
+        name: registry.label(g.station).toLowerCase(),
+        trains: windowTrains,
+        duration: g.minDurationMin,
+        connections: 0, // direct destinations
+        meta: `${t("badge_trains", { n: windowTrains })} · ${formatDuration(g.minDurationMin)}`,
+        open: () => c.onOpenRoute(origin, destination),
+        build: () => render.groupCardEl(g, dir, anchor, c, stats.get(g.station)),
+      };
+    });
 
-  // Destinations reachable only with a change (not already direct), capped so the
-  // "via" list stays compact like the direct list (reachableBest is duration-sorted).
-  const connecting =
-    query.maxConnections > 0
-      ? reachableBest(trains, anchor, query.date, stationsOnDate(trains, query.date), {
-          ...filterOpts(),
-          maxConnections: query.maxConnections,
-        }, dir)
-          .filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
-          .slice(0, MAX_VIA_RESULTS)
-      : [];
-
-  const total = groups.length + connecting.length;
-  if (total === 0) {
-    refs.results.append(render.emptyEl(t("res_none")));
-    showMap(anchor, []);
-    return;
+    // Connection-only destinations (not already direct), capped for compactness.
+    if (query.maxConnections > 0) {
+      const connecting = reachableBest(
+        trains,
+        anchor,
+        query.date,
+        stationsOnDate(trains, query.date),
+        { ...filterOpts(), maxConnections: query.maxConnections },
+        dir,
+      )
+        .filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
+        .slice(0, MAX_VIA_RESULTS);
+      for (const tr of connecting) {
+        const j = tr.journey;
+        items.push({
+          station: tr.station,
+          name: registry.label(tr.station).toLowerCase(),
+          trains: 0,
+          duration: j.totalDurationMin,
+          connections: j.legs.length - 1,
+          meta: `${t("lbl_via", { hub: j.hubs.map((h) => registry.label(h)).join(", ") })} · ${formatDuration(j.totalDurationMin)}`,
+          open: () => c.onOpenRoute(j.origin, j.destination),
+          build: () => render.reachTripRowEl(tr.station, j, c),
+        });
+      }
+    }
+    listCache = { anchor, items };
   }
-  refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
-  for (const g of groups) refs.results.append(render.groupCardEl(g, dir, anchor, c, stats.get(g.station)));
-  for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
-  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
+  paintDestList(countKey);
 }
 
 function runTourSearch(c: RenderCtx): void {
@@ -492,22 +658,34 @@ function runBestSearch(c: RenderCtx): void {
     station: registry.label(query.origin),
     date: formatDate(query.date),
   });
-  let trips = bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
-  if (query.region) {
-    trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
+  if (!listCache) {
+    let trips = bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), {
+      ...filterOpts(),
+      maxConnections: query.maxConnections,
+    });
+    if (query.region) {
+      trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
+    }
+    const items: DestItem[] = trips.map((tr) => {
+      const j = tr.journey;
+      const via =
+        j.legs.length > 1
+          ? t("lbl_via", { hub: j.hubs.map((h) => registry.label(h)).join(", ") })
+          : t("lbl_direct");
+      return {
+        station: tr.destination,
+        name: registry.label(tr.destination).toLowerCase(),
+        trains: 0,
+        duration: j.totalDurationMin,
+        connections: j.legs.length - 1,
+        meta: `${via} · ${formatDuration(j.totalDurationMin)}`,
+        open: () => c.onOpenRoute(j.origin, j.destination),
+        build: () => render.bestTripRowEl(tr, c),
+      };
+    });
+    listCache = { anchor: query.origin, items };
   }
-  if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("res_none")));
-    return;
-  }
-  refs.results.append(
-    el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
-  );
-  for (const tr of trips) refs.results.append(render.bestTripRowEl(tr, c));
-  showMap(query.origin, trips.map((tr) => tr.destination));
+  paintDestList("res_destinations");
 }
 
 function runOdSearch(c: RenderCtx): void {
@@ -551,8 +729,8 @@ function runOdSearch(c: RenderCtx): void {
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 
-  // Sort by total travel time, fastest first (then earliest departure as a
-  // tiebreak) so the best option is at the top of the list and the slowest last.
+  // Sort by the chosen key: fastest (default, earliest departure as tiebreak) or
+  // earliest departure. The toolbar sort dropdown drives this for exact trips.
   const journeys: Journey[] = findJourneys(
     trains,
     query.origin,
@@ -561,7 +739,11 @@ function runOdSearch(c: RenderCtx): void {
     connOpts,
   )
     .filter(passesVia)
-    .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
+    .sort((a, b) =>
+      resultsSort === "depart"
+        ? a.departMin - b.departMin || a.totalDurationMin - b.totalDurationMin
+        : a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin,
+    );
   if (journeys.length === 0) refs.results.append(render.emptyEl(t("res_none")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
@@ -590,8 +772,9 @@ function isTouch(): boolean {
 }
 
 function showHint(input: HTMLInputElement): void {
-  // Empty state: no nagging prompt — just a blank heading and a ready cursor.
+  // A clean "get started" empty state instead of a blank area.
   refs.title.textContent = "";
+  refs.results.append(render.emptyEl(t("prompt_pick"), t("tagline")));
   // On phones, don't auto-focus the field: it pops the keyboard + the station
   // suggestion dropdown over the whole UI on entry. Let the user tap it first.
   if (!isTouch()) input.focus({ preventScroll: true });
@@ -682,14 +865,16 @@ function ensureMap(): RouteMap {
   return map;
 }
 
-function showMap(hub: string, others: string[]): void {
+function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>): void {
   const m = ensureMap();
+  m.setInfo(info ?? new Map());
   m.show(hub, [...new Set(others)]);
   requestAnimationFrame(() => m.invalidate());
 }
 
 function showRoute(stations: string[]): void {
   const m = ensureMap();
+  m.setInfo(new Map());
   m.route(stations);
   requestAnimationFrame(() => m.invalidate());
 }
@@ -733,6 +918,22 @@ function applyTheme(theme: store.Theme): void {
   document.documentElement.dataset.theme = theme;
 }
 
+// --- rail metrics -----------------------------------------------------------
+
+// Distance from the document top to the results/map row (= navbar + search bar +
+// margins). Published as a CSS var so the sticky map can size to the viewport
+// minus that height, instead of a full 100vh that overflows under the bars.
+let lastAboveH = -1;
+function updateRailMetrics(): void {
+  const layoutEl = rootRef.querySelector<HTMLElement>(".layout");
+  if (!layoutEl) return;
+  const top = Math.round(layoutEl.getBoundingClientRect().top + window.scrollY);
+  if (top === lastAboveH) return;
+  lastAboveH = top;
+  rootRef.style.setProperty("--above-h", `${top}px`);
+  requestAnimationFrame(() => map?.invalidate());
+}
+
 // --- layout -----------------------------------------------------------------
 
 function setActiveTab(mode: SearchQuery["mode"]): void {
@@ -759,6 +960,10 @@ function buildLayout(root: HTMLElement): void {
   clear(root);
 
   const meta = deps.meta;
+
+  // header — "data updated" is now a compact relative-time pill on the right.
+  // Real data → "il y a 3 h" (localized, relative); sample data → "données d'exemple".
+  const hasReal = Boolean(meta.updatedAt) && !meta.isSample;
   const when = meta.updatedAt
     ? new Date(meta.updatedAt).toLocaleString(getLang(), {
         dateStyle: "medium",
@@ -766,14 +971,30 @@ function buildLayout(root: HTMLElement): void {
         hourCycle: "h23", // 24-hour clock — no AM/PM, the convention in France/Europe
       })
     : "";
-  const updated = when
-    ? t("foot_updated", { date: when }) + (meta.isSample ? ` (${t("foot_sample")})` : "")
-    : t("foot_sample");
+  const pillText = hasReal ? relativeTime(meta.updatedAt, getLang()) : t("foot_sample");
+  const pillLabel = when ? t("foot_updated", { date: when }) : t("foot_sample");
+  const updatedPill = el(
+    "div",
+    {
+      class: "updated-pill",
+      attrs: { tabindex: "0", role: "note", title: `${pillLabel} — ${t("data_why")}`, "aria-label": pillLabel },
+    },
+    [
+      el("span", {
+        class: "icon",
+        attrs: { "aria-hidden": "true" },
+        html: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+      }),
+      el("span", { text: pillText }),
+      el("span", { class: "sr-only", text: t("data_why") }),
+    ],
+  );
 
-  // header
+  // Language selector — wrapped in a pill with a globe glyph (native <select> kept
+  // for accessibility/keyboard, just dressed up).
   const langSel = el(
     "select",
-    { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
+    { class: "lang-select", attrs: { "aria-label": t("ctl_lang") } },
     LANGS.map((l) => optionEl(l.code, l.label, settings.lang === l.code)),
   ) as HTMLSelectElement;
   langSel.addEventListener("change", () => {
@@ -799,20 +1020,6 @@ function buildLayout(root: HTMLElement): void {
     themeBtn.innerHTML = themeSvg(next);
   });
 
-  // Card (pass) is a global preference, kept at the top and persisted at once.
-  const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
-    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
-    optionEl("senior", t("card_senior"), settings.card === "senior"),
-  ]) as HTMLSelectElement;
-  cardSel.addEventListener("change", () => {
-    const card: store.Settings["card"] = cardSel.value === "senior" ? "senior" : "jeune";
-    settings = { ...settings, card };
-    store.saveSettings(settings);
-    query = { ...query, card };
-    store.updateUrl(query);
-    runSearch(); // refresh the MAX SENIOR weekend notice
-  });
-
   // Install (Add to home screen) — revealed only when the browser offers it.
   const installBtn = el("button", {
     class: "ctl install-btn",
@@ -831,6 +1038,15 @@ function buildLayout(root: HTMLElement): void {
     attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub" },
   });
 
+  const langCtl = el("div", { class: "lang-ctl" }, [
+    el("span", {
+      class: "lang-globe icon",
+      attrs: { "aria-hidden": "true" },
+      html: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.9 2.6 15.1 0 18M12 3c-2.6 2.9-2.6 15.1 0 18"/></svg>`,
+    }),
+    langSel,
+  ]);
+
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
       el("button", {
@@ -840,16 +1056,9 @@ function buildLayout(root: HTMLElement): void {
         on: { click: goHome },
         html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
       }),
-      el("div", {}, [
-        el("h1", { text: t("appName") }),
-        el("p", { class: "tagline", text: t("tagline") }),
-        el("p", { class: "updated", attrs: { title: t("data_why"), tabindex: "0" } }, [
-          el("span", { text: updated }),
-          el("span", { class: "sr-only", text: t("data_why") }),
-        ]),
-      ]),
+      el("h1", { text: t("appName") }),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, themeBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [updatedPill, langCtl, themeBtn, ghLink, installBtn]),
   ]);
 
   // form
@@ -861,6 +1070,52 @@ function buildLayout(root: HTMLElement): void {
     text: t("tagline"),
     attrs: { tabindex: "-1" },
   });
+  // Results toolbar: a place filter + a sort dropdown. Persistent across result
+  // repaints (so the filter box keeps focus while typing). Visibility/options are
+  // configured per mode in configureToolbar().
+  const searchBox = el("input", {
+    class: "input results-search",
+    type: "search",
+    attrs: { "aria-label": t("results_filter"), placeholder: t("results_filter"), autocomplete: "off" },
+  }) as HTMLInputElement;
+  searchBox.addEventListener("input", () => {
+    resultsQuery = searchBox.value;
+    resultsShown = RESULTS_PAGE;
+    repaintResults();
+  });
+  const sortSel = el("select", { class: "input results-sort", attrs: { "aria-label": t("results_sort") } }) as HTMLSelectElement;
+  sortSel.addEventListener("change", () => {
+    resultsSort = sortSel.value as SortKey;
+    resultsShown = RESULTS_PAGE;
+    repaintResults();
+  });
+  // List ⇄ Map view switch.
+  const viewToggle = el("div", { class: "view-toggle", attrs: { role: "group", "aria-label": t("view_label") } }, [
+    viewBtn(
+      "list",
+      t("view_list"),
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
+    ),
+    viewBtn(
+      "map",
+      t("view_map"),
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3.5 6v14l5.5-2 6 2 5.5-2V4l-5.5 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>`,
+    ),
+  ]);
+
+  const resultsTools = el("div", { class: "results-tools" }, [
+    el("div", { class: "results-search-wrap" }, [
+      el("span", {
+        class: "icon",
+        attrs: { "aria-hidden": "true" },
+        html: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
+      }),
+      searchBox,
+    ]),
+    sortSel,
+    viewToggle,
+  ]);
+
   const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
   const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
 
@@ -890,32 +1145,77 @@ function buildLayout(root: HTMLElement): void {
   ]);
 
   const mapSection = el("section", { class: "map-section" }, [
-    el("h3", { text: t("map_title") }),
+    el("h3", { class: "sr-only", text: t("map_title") }),
     mapEl,
   ]);
+  // Search bar spans the full row on top; below it, results (left) sit beside a
+  // sticky panel (map on top, favourites under it) that stays in view while the
+  // list scrolls.
   const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [built.form, title, results]),
-    el("div", { class: "side-col" }, [aside, mapSection]),
+    el("div", { class: "main-col" }, [title, resultsTools, results]),
+    el("div", { class: "side-col" }, [mapSection, aside]),
   ]);
 
-  root.append(header, layout, footer);
+  root.append(header, built.form, layout, footer);
+  root.dataset.view = settings.view;
 
   refs = {
     ...built.refs,
     title,
+    resultsTools,
+    searchBox,
+    sortSel,
+    viewToggle,
     results,
     mapEl,
     favList,
-    card: cardSel,
   };
   map = null;
+  updateViewToggle();
   renderFavorites();
   refreshInstallBtn();
 }
 
+/** A single segment of the List ⇄ Map view switch. */
+function viewBtn(view: store.ViewMode, label: string, iconHtml: string): HTMLElement {
+  const btn = el("button", {
+    class: "view-btn",
+    type: "button",
+    dataset: { view },
+    attrs: { "aria-label": label, title: label },
+    html: iconHtml,
+    on: { click: () => setView(view) },
+  });
+  return btn;
+}
+
+/** Reflect the current view on the toggle's pressed state. */
+function updateViewToggle(): void {
+  for (const btn of Array.from(refs.viewToggle.children)) {
+    const active = (btn as HTMLElement).dataset.view === settings.view;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  }
+}
+
+/** Switch between the list layout and the map-first canvas (persisted). */
+function setView(view: store.ViewMode): void {
+  if (settings.view === view) return;
+  settings = { ...settings, view };
+  store.saveSettings(settings);
+  rootRef.dataset.view = view;
+  updateViewToggle();
+  // The map container changed size — let Leaflet recompute over two frames so the
+  // new layout has settled before invalidateSize/refit.
+  requestAnimationFrame(() => requestAnimationFrame(() => map?.invalidate()));
+}
+
 interface FormBuild {
   form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "card">;
+  refs: Omit<
+    Refs,
+    "title" | "resultsTools" | "searchBox" | "sortSel" | "viewToggle" | "results" | "mapEl" | "favList"
+  >;
 }
 
 function buildForm(): FormBuild {
@@ -980,6 +1280,13 @@ function buildForm(): FormBuild {
     optionEl("", t("region_any"), true),
     ...regionList.map((r) => optionEl(r, r, false)),
   ]) as HTMLSelectElement;
+  // MAX subscription type — now a segment in the search bar (no longer in the
+  // header). Still a global preference: the form's live `change` handler persists
+  // it and refreshes the MAX SENIOR weekend notice.
+  const card = el("select", { class: "input", attrs: { "aria-label": t("field_card") } }, [
+    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
+    optionEl("senior", t("card_senior"), settings.card === "senior"),
+  ]) as HTMLSelectElement;
   // Tour "cities to visit": a chip/tag input. Typing a city and pressing Enter
   // (or comma) turns it into a removable chip; Backspace on an empty field drops
   // the last one. Much clearer than a comma-separated string when adding several.
@@ -1022,6 +1329,8 @@ function buildForm(): FormBuild {
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
   const citiesField = field(t("field_cities"), citiesBox);
+  const dateField = field(t("field_date"), date);
+  const cardField = field(t("field_card"), card);
   // Minimum days spent in each city before the next hop — turns a tour into a
   // multi-day, free-MAX vacation plan. Default 1 (a hop a day).
   const stayDays = inputEl("number");
@@ -1030,17 +1339,51 @@ function buildForm(): FormBuild {
   stayDays.placeholder = "1";
   const stayField = field(t("field_stay"), stayDays);
 
-  const advanced = el("details", { class: "advanced" }, [
-    el("summary", { text: t("field_advanced") }),
-    el("div", { class: "advanced-grid" }, [
-      field(t("field_departAfter"), departAfter),
-      field(t("field_departBefore"), departBefore),
-      field(t("field_maxDuration"), maxDuration),
-      field(t("field_trainType"), trainType),
-      field(t("field_connections"), maxConnections),
-      overnightField,
-    ]),
-  ]);
+  // Advanced filters + the less-common per-mode fields (via / return / days-per-
+  // city) live in a popover anchored under the "Filtres" button, so the search bar
+  // stays a single thin row. Native HTML popover: top-layer, Esc/outside dismiss.
+  const filtersPop = el(
+    "div",
+    { class: "filters-pop", id: "mf-filters-pop", attrs: { popover: "auto" } },
+    [
+      el("div", { class: "advanced-grid" }, [
+        field(t("field_departAfter"), departAfter),
+        field(t("field_departBefore"), departBefore),
+        field(t("field_maxDuration"), maxDuration),
+        field(t("field_trainType"), trainType),
+        field(t("field_connections"), maxConnections),
+        overnightField,
+        viaField,
+        returnField,
+        stayField,
+      ]),
+    ],
+  );
+  const filtersBtn = el("button", {
+    class: "btn btn-ghost filters-btn",
+    type: "button",
+    attrs: { "aria-haspopup": "dialog", popovertarget: "mf-filters-pop" },
+    html: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M5 17h14"/><circle cx="9" cy="7" r="2.3" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="2.3" fill="currentColor" stroke="none"/></svg>`,
+  });
+  filtersBtn.append(el("span", { class: "filters-btn-label", text: t("field_advanced") }));
+  // Place the (top-layer) popover directly under its button with JS — CSS anchor
+  // positioning isn't reliable across browsers (it was landing on the far left).
+  // Pin it on scroll/resize while open and tear those listeners down on close.
+  let repositionFilters: (() => void) | null = null;
+  filtersPop.addEventListener("toggle", (e) => {
+    const open = (e as { newState?: string }).newState === "open";
+    if (open) {
+      const place = (): void => placePopover(filtersBtn, filtersPop);
+      place();
+      repositionFilters = place;
+      window.addEventListener("resize", place);
+      window.addEventListener("scroll", place, true);
+    } else if (repositionFilters) {
+      window.removeEventListener("resize", repositionFilters);
+      window.removeEventListener("scroll", repositionFilters, true);
+      repositionFilters = null;
+    }
+  });
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
   // A discreet, playful shortcut to a random city.
@@ -1051,8 +1394,21 @@ function buildForm(): FormBuild {
     on: { click: surpriseMe },
   });
 
-  const howto = el("details", { class: "howto" }, [
-    el("summary", { text: t("how_title") }),
+  // The Airbnb-style search pill: mode-relevant fields as inline segments, with
+  // the filters button + search + surprise grouped on the right.
+  const searchBar = el("div", { class: "search-bar" }, [
+    originField,
+    destinationField,
+    regionField,
+    citiesField,
+    dateField,
+    cardField,
+    el("div", { class: "search-bar-actions" }, [filtersBtn, searchBtn, surpriseBtn]),
+  ]);
+
+  // "How does it work?" — a large hover/focus card on the right of the tabs row
+  // (replaces the old click-to-expand section that sat under the form).
+  const howCard = el("div", { class: "how-card", attrs: { role: "note" } }, [
     el("ul", { class: "howto-list" }, [
       el("li", { text: t("how_jeune") }),
       el("li", { text: t("how_senior") }),
@@ -1073,23 +1429,26 @@ function buildForm(): FormBuild {
     ]),
     el("p", { class: "muted small", text: t("how_note") }),
   ]);
+  const howTrigger = el("button", {
+    class: "how-trigger",
+    type: "button",
+    attrs: { "aria-expanded": "false" },
+    html: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+  });
+  howTrigger.append(el("span", { class: "how-trigger-label", text: t("how_title") }));
+  const howWrap = el("div", { class: "how-card-wrap" }, [howTrigger, howCard]);
+  // Touch has no hover — tapping the trigger toggles the card open.
+  howTrigger.addEventListener("click", () => {
+    const open = howWrap.classList.toggle("open");
+    howTrigger.setAttribute("aria-expanded", String(open));
+  });
+  const tabsRow = el("div", { class: "tabs-row" }, [modeTabs, howWrap]);
 
   const form = el("form", { class: "search-form" }, [
-    modeTabs,
+    tabsRow,
+    searchBar,
     modeDesc,
-    el("div", { class: "fields" }, [
-      originField,
-      destinationField,
-      viaField,
-      field(t("field_date"), date),
-      returnField,
-      regionField,
-      citiesField,
-      stayField,
-    ]),
-    advanced,
-    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
-    howto,
+    filtersPop,
     stationList,
   ]);
   form.addEventListener("submit", (e) => {
@@ -1110,6 +1469,7 @@ function buildForm(): FormBuild {
       modeDesc,
       origin,
       destination,
+      card,
       date,
       returnDate,
       departAfter,
@@ -1218,6 +1578,25 @@ function optionEl(value: string, label: string, selected: boolean): HTMLElement 
   const o = el("option", { value, text: label }) as HTMLOptionElement;
   o.selected = selected;
   return o;
+}
+
+/** Pin a top-layer popover directly under (right-aligned to) an anchor button. */
+function placePopover(anchor: HTMLElement, pop: HTMLElement): void {
+  const r = anchor.getBoundingClientRect();
+  const gap = 6;
+  const margin = 8;
+  pop.style.position = "fixed";
+  pop.style.margin = "0";
+  pop.style.right = "auto";
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  // Right-align to the button, clamped into the viewport.
+  const left = Math.max(margin, Math.min(r.right - w, window.innerWidth - w - margin));
+  // Below the button; flip above if there isn't room below.
+  let top = r.bottom + gap;
+  if (top + h > window.innerHeight - margin) top = Math.max(margin, r.top - gap - h);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
 }
 
 /** Monochrome theme glyph (sun / moon / half-disc) drawn in currentColor. */

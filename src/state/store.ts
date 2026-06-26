@@ -8,10 +8,14 @@ export interface RoutePair {
   destination: string;
 }
 
+/** Results layout: the standard list (map in the rail) or a map-first canvas. */
+export type ViewMode = "list" | "map";
+
 export interface Settings {
   lang: Lang;
   theme: Theme;
   card: CardType;
+  view: ViewMode;
 }
 
 const KEY = {
@@ -45,6 +49,7 @@ export function loadSettings(): Settings {
     lang: isLang(s.lang) ? s.lang : detectLang(),
     theme: s.theme === "light" || s.theme === "dark" ? s.theme : "auto",
     card: s.card === "senior" ? "senior" : "jeune",
+    view: s.view === "map" ? "map" : "list",
   };
 }
 

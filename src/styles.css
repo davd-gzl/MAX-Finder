@@ -14,7 +14,11 @@
   --radius: 12px;
   --radius-sm: 9px;
   --shadow: 0 1px 1px rgba(10, 10, 11, 0.03), 0 4px 16px rgba(10, 10, 11, 0.05);
-  --maxw: 1080px;
+  --maxw: 1200px;
+  /* Map aspect ratio — tweak in dev to try 16/9, 3/2, 1/1, etc. */
+  --map-aspect: 4 / 3;
+  /* Custom chevron for select inputs (theme-aware stroke colour). */
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   font-synthesis: none;
 }
 
@@ -37,6 +41,7 @@
     --btn: #fafafa;
     --btn-ink: #09090b;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
+    --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   }
 }
 :root[data-theme="dark"] {
@@ -53,6 +58,7 @@
   --btn: #fafafa;
   --btn-ink: #09090b;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 * {
@@ -112,13 +118,13 @@ a {
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  padding: 1.15rem 0 1.25rem;
-  margin-bottom: 1.6rem;
+  padding: 0.7rem 0 0.75rem;
+  margin-bottom: 1.25rem;
   border-bottom: 1px solid var(--border);
 }
 .brand {
   display: flex;
-  gap: 0.7rem;
+  gap: 0.6rem;
   align-items: center;
 }
 .logo {
@@ -149,23 +155,66 @@ a {
   font-weight: 680;
   letter-spacing: -0.02em;
 }
-.tagline {
-  margin: 0.1rem 0 0;
+
+/* "data updated" relative-time pill, right side of the navbar */
+.updated-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem 0.28rem 0.6rem;
   color: var(--muted);
-  font-size: 0.88rem;
-  max-width: 44ch;
-}
-.updated {
-  margin: 0.25rem 0 0;
-  color: var(--faint);
-  font-size: 0.76rem;
-}
-.updated[title] {
+  font-size: 0.78rem;
+  font-weight: 560;
+  white-space: nowrap;
   cursor: help;
 }
-.updated[title]:hover {
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
+.updated-pill .icon {
+  color: var(--accent);
+}
+.updated-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* Language selector — globe pill wrapping the native <select> */
+.lang-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.3rem 0 0.6rem;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.lang-ctl:hover {
+  border-color: var(--border-strong);
+}
+.lang-ctl:focus-within {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
+}
+.lang-globe {
+  color: var(--muted);
+  flex: none;
+}
+.lang-select {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 560;
+  padding: 0.4rem 0.2rem;
+  cursor: pointer;
+  appearance: none;
+  text-align: center;
+  text-align-last: center;
+}
+.lang-select:focus-visible {
+  outline: none;
 }
 .install-btn {
   font-weight: 620;
@@ -186,6 +235,8 @@ a {
 }
 .header-ctls {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 .ctl {
@@ -214,7 +265,7 @@ a {
 /* ---- layout ---- */
 .layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr);
   gap: 1.6rem;
   align-items: start;
 }
@@ -245,20 +296,171 @@ a {
 
 /* ---- search form ---- */
 .search-form {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.15rem 1.2rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.6rem;
+}
+/* Tabs on the left, the "how it works" hover-card trigger on the right. */
+.tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.8rem;
 }
 .mode-tabs {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-bottom: 1.1rem;
-  border-bottom: 1px solid var(--border);
-  width: 100%;
   padding-bottom: 0;
+}
+
+/* ---- "how does it work?" hover card ---- */
+.how-card-wrap {
+  position: relative;
+}
+.how-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 560;
+  cursor: pointer;
+  padding: 0.3rem 0.1rem;
+}
+.how-trigger:hover,
+.how-card-wrap:focus-within .how-trigger {
+  color: var(--accent);
+}
+.how-trigger .icon {
+  color: var(--accent);
+}
+.how-card {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  width: min(360px, calc(100vw - 2rem));
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1.05rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
+}
+.how-card-wrap:hover .how-card,
+.how-card-wrap:focus-within .how-card,
+.how-card-wrap.open .how-card {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.how-card .howto-list {
+  margin-top: 0;
+}
+
+/* ---- Airbnb-style search bar (one thin pill) ---- */
+.search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 0.3rem;
+}
+/* Each field becomes a rounded, hoverable segment with a thin divider. */
+.search-bar > .field {
+  flex: 1 1 0;
+  min-width: 9ch;
+  justify-content: center;
+  gap: 0.05rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 12px;
+  transition: background 0.12s;
+}
+.search-bar > .field:hover,
+.search-bar > .field:focus-within {
+  background: var(--surface-2);
+}
+/* Thin divider between adjacent segments; suppressed on hover/focus. */
+.search-bar > .field + .field {
+  box-shadow: -1px 0 0 var(--border);
+}
+.search-bar > .field:hover,
+.search-bar > .field:focus-within,
+.search-bar > .field:hover + .field,
+.search-bar > .field:focus-within + .field {
+  box-shadow: none;
+}
+.search-bar .field-label {
+  font-size: 0.66rem;
+}
+/* Inputs inside the bar are borderless — the pill provides the frame. */
+.search-bar .input,
+.search-bar select.input {
+  border: 0;
+  background-color: transparent;
+  padding: 0.1rem 0;
+  font-size: 0.92rem;
+  font-weight: 560;
+}
+/* Keep the chevron on the (borderless) select segments, with room for it. */
+.search-bar select.input {
+  padding-right: 1.4rem;
+  background-position: right 0.1rem center;
+}
+.search-bar .input:focus,
+.search-bar select.input:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+.search-bar .cities-input {
+  border: 0;
+  background: transparent;
+  padding: 0.1rem 0;
+}
+.search-bar .cities-input:focus-within {
+  border: 0;
+  box-shadow: none;
+}
+.search-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  padding-left: 0.3rem;
+}
+.search-bar-actions .btn {
+  border-radius: 11px;
+}
+.filters-btn {
+  background: transparent;
+  border-color: var(--border);
+}
+.filters-btn .filters-btn-label {
+  white-space: nowrap;
+}
+
+/* ---- filters popover (JS-positioned under the Filters button) ---- */
+.filters-pop {
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem;
+  width: min(560px, calc(100vw - 1.6rem));
 }
 .mode-tab {
   border: 0;
@@ -335,6 +537,23 @@ a {
 .input::placeholder {
   color: var(--faint);
 }
+/* Custom-styled select: drop the native arrow, add a clean chevron. */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  background-image: var(--chev);
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 13px;
+  cursor: pointer;
+}
+select.input:hover {
+  border-color: var(--border-strong);
+}
+select.input::-ms-expand {
+  display: none;
+}
 /* ---- tour cities chip input ---- */
 .cities-input {
   display: flex;
@@ -407,28 +626,10 @@ a {
   border-color: var(--text);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
 }
-.advanced {
-  margin-top: 0.95rem;
-}
-.advanced summary {
-  cursor: pointer;
-  font-weight: 560;
-  color: var(--muted);
-  font-size: 0.88rem;
-  list-style: none;
-}
-.advanced summary::before {
-  content: "+ ";
-  color: var(--faint);
-}
-.advanced[open] summary::before {
-  content: "− ";
-}
 .advanced-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
   gap: 0.85rem;
-  margin-top: 0.7rem;
 }
 .day-badge {
   font-size: 0.68rem;
@@ -438,13 +639,6 @@ a {
   border-radius: 5px;
   padding: 0 0.3rem;
 }
-.form-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 1.15rem;
-  flex-wrap: wrap;
-}
 /* Discreet: a quiet ghost link beside the primary search button. */
 .surprise-btn {
   font-size: 0.82rem;
@@ -453,21 +647,6 @@ a {
 }
 .surprise-btn:hover {
   color: var(--accent);
-}
-.howto {
-  margin-top: 0.95rem;
-  border-top: 1px solid var(--border);
-  padding-top: 0.7rem;
-}
-.howto > summary {
-  cursor: pointer;
-  list-style: none;
-  font-weight: 560;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-.howto > summary::before {
-  content: "ⓘ ";
 }
 .howto-list {
   margin: 0.55rem 0;
@@ -567,6 +746,169 @@ a {
 .results-title:focus {
   outline: none;
 }
+
+/* ---- results toolbar (filter + sort) ---- */
+.results-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.7rem 0 0.2rem;
+}
+.results-tools[hidden] {
+  display: none;
+}
+.results-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 0.6rem;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.results-search-wrap[hidden] {
+  display: none;
+}
+.results-search-wrap:focus-within {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
+}
+.results-search-wrap .icon {
+  color: var(--faint);
+  flex: none;
+}
+.results-search {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.results-search:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+.results-sort {
+  flex: none;
+  width: auto;
+  cursor: pointer;
+  padding: 0.5rem 1.9rem 0.5rem 0.65rem;
+}
+.show-more {
+  align-self: center;
+  margin-top: 0.4rem;
+}
+
+/* ---- List ⇄ Map view toggle ---- */
+.view-toggle {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.view-btn:hover {
+  color: var(--text);
+}
+.view-btn.active {
+  background: var(--btn);
+  color: var(--btn-ink);
+}
+
+/* ---- map pin hover/click cards (Leaflet) ---- */
+.leaflet-tooltip.map-tooltip {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  white-space: normal;
+  min-width: 190px;
+  max-width: 340px;
+}
+.leaflet-tooltip.map-tooltip::before {
+  display: none; /* drop the default arrow — the card reads cleaner without it */
+}
+.map-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.map-tip strong {
+  font-size: 0.9rem;
+  font-weight: 620;
+}
+.map-tip-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap; /* keep the trip summary on one line; the card widens to fit */
+}
+.leaflet-popup.map-popup .leaflet-popup-content-wrapper {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.leaflet-popup.map-popup .leaflet-popup-content {
+  margin: 0.7rem 0.85rem;
+  font: inherit;
+}
+.leaflet-popup.map-popup .leaflet-popup-tip {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+.map-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 150px;
+}
+.map-pop-title {
+  font-size: 0.92rem;
+  font-weight: 640;
+}
+.map-pop-meta {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.map-pop-btn {
+  align-self: flex-start;
+  margin-top: 0.1rem;
+  background: var(--btn);
+  color: var(--btn-ink);
+  border: 0;
+  border-radius: 7px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 560;
+  cursor: pointer;
+}
+.map-pop-btn:hover {
+  opacity: 0.9;
+}
+
 .results {
   display: flex;
   flex-direction: column;
@@ -600,29 +942,55 @@ a {
 .od-guide {
   margin: 0 0 0.3rem;
 }
+/* ---- empty state ---- */
 .empty {
-  background: var(--surface);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
-  padding: 1.6rem;
-  text-align: center;
-  color: var(--muted);
-}
-.loading {
   display: flex;
-  justify-content: center;
-  padding: 2.5rem 1rem;
-  opacity: 0;
-  animation: mf-fade 0.2s ease 0.15s forwards;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.4rem 1.6rem;
+  text-align: center;
 }
+.empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--faint);
+  margin-bottom: 0.15rem;
+}
+.empty-msg {
+  margin: 0;
+  color: var(--text);
+  font-weight: 580;
+  font-size: 0.96rem;
+}
+.empty-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  max-width: 38ch;
+}
+
+/* ---- loading: app boot + per-search skeleton ---- */
 .app-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.8rem;
+  gap: 0.85rem;
   min-height: 60vh;
   color: var(--muted);
+}
+.app-loading-label {
+  margin: 0;
+  font-size: 0.9rem;
 }
 .spinner {
   width: 22px;
@@ -632,6 +1000,73 @@ a {
   border-radius: 50%;
   animation: mf-spin 0.7s linear infinite;
 }
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  opacity: 0;
+  animation: mf-fade 0.2s ease 0.15s forwards;
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+}
+.sk {
+  background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: mf-shimmer 1.3s linear infinite;
+}
+.sk-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex: none;
+}
+.sk-line {
+  height: 12px;
+  flex: 1 1 auto;
+}
+.sk-chip {
+  width: 64px;
+  height: 18px;
+  flex: none;
+}
+
+/* ---- error state ---- */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  min-height: 60vh;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #ef4444;
+}
+.error-title {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1.05rem;
+  max-width: 38ch;
+}
+
 @keyframes mf-spin {
   to {
     transform: rotate(360deg);
@@ -640,6 +1075,14 @@ a {
 @keyframes mf-fade {
   to {
     opacity: 1;
+  }
+}
+@keyframes mf-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 
@@ -1049,12 +1492,78 @@ a {
   margin-bottom: 0.5rem;
 }
 .map {
-  height: 520px;
+  aspect-ratio: var(--map-aspect);
+  width: 100%;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   overflow: hidden;
   z-index: 0;
 }
+
+/* Desktop: the sticky rail fills the viewport so the map gets the most vertical
+   space (the fixed aspect ratio is dropped here on purpose). */
+@media (min-width: 861px) {
+  .side-col {
+    /* Fit within the viewport below the navbar + search bar (--above-h is the
+       distance from the page top to this row, set in JS), not a full 100vh. */
+    height: calc(100vh - var(--above-h, 150px) - 1rem);
+  }
+  .map-section {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .map {
+    flex: 1 1 auto;
+    height: auto;
+    aspect-ratio: auto;
+    min-height: 300px;
+  }
+  .favorites {
+    flex: none;
+  }
+
+  /* ---- map-first canvas: map fills the row, results float over it ---- */
+  [data-view="map"] .layout {
+    display: block;
+    position: relative;
+  }
+  [data-view="map"] .side-col {
+    gap: 0;
+  }
+  [data-view="map"] .main-col {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 5;
+    width: min(380px, calc(100% - 2rem));
+    max-height: calc(100vh - var(--above-h, 150px) - 2rem);
+    overflow: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0.9rem 0.9rem;
+  }
+  /* In the narrow floating panel, give the destination name its own line so it
+     isn't truncated; the stat chip + duration wrap onto the next line. */
+  [data-view="map"] .main-col .dest-main {
+    flex-wrap: wrap;
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
+  }
+  [data-view="map"] .main-col .dest-name {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  [data-view="map"] .favorites {
+    display: none;
+  }
+}
+
 .leaflet-container {
   background: var(--surface-2);
   font: inherit;
@@ -1152,7 +1661,11 @@ a {
 /* ---- responsive ---- */
 @media (max-width: 860px) {
   .map {
-    height: 380px;
+    max-height: 70vh;
+  }
+  /* Map-first canvas is a desktop layout; on mobile keep the list view. */
+  .view-toggle {
+    display: none;
   }
 }
 @media (max-width: 520px) {
@@ -1173,8 +1686,29 @@ a {
   .header-ctls .icon-ctl {
     flex: 0 0 auto; /* keep the theme toggle icon-width, don't stretch it */
   }
+  /* On phones the search pill stacks its segments into a compact two-up grid
+     instead of one cramped row. */
+  .search-bar {
+    gap: 0.2rem;
+  }
+  .search-bar > .field {
+    flex: 1 1 40%;
+  }
+  .search-bar > .field + .field {
+    box-shadow: none;
+  }
+  .search-bar-actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+    padding-left: 0;
+    margin-top: 0.2rem;
+  }
+  .search-bar-actions .btn-primary {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
   .map {
-    height: 320px;
+    max-height: 65vh;
   }
   /* Keep every mode visible on phones: wrap onto a second row instead of a
      horizontal scroll with a hidden scrollbar, which left the last tab (Tour)

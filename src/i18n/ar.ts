@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const ar: Dict = {
   appName: "MAX Finder",
+  err_load: "تعذّر تحميل البيانات.",
+  act_retry: "إعادة المحاولة",
+  view_label: "العرض",
+  view_list: "قائمة",
+  view_map: "خريطة",
+  results_filter: "تصفية حسب المدينة…",
+  results_sort: "ترتيب",
+  results_more: "عرض المزيد",
+  sort_relevance: "الصلة",
+  sort_fast: "الأسرع",
+  sort_name: "الاسم (أ–ي)",
+  sort_depart: "الأبكر مغادرة",
   tagline: "مقاعد MAX JEUNE / SENIOR المتاحة للحجز.",
   prompt_pick: "اختر محطة المغادرة.",
   mode_best: "أفكار",

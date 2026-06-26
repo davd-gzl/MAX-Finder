@@ -4,10 +4,34 @@ import type { StationRegistry } from "../data/stations";
 
 const EMERALD = "#0f7a52";
 
+/**
+ * Reachability tint: direct (0 changes) reads green, and each extra connection
+ * pushes the hue toward red (capped at 3) — so the map doubles as a heat map of
+ * how easy each destination is to reach.
+ */
+function reachColor(connections: number): string {
+  // Direct = green, 1 change = orange, 2+ changes = red. Capped at 2 so the
+  // gradient stays legible for realistic data (which rarely needs >2 changes).
+  const tNorm = Math.min(Math.max(connections, 0), 2) / 2;
+  const hue = 150 - 150 * tNorm; // 150° green → 0° red
+  return `hsl(${Math.round(hue)}, 70%, 45%)`;
+}
+
+/** Optional rich detail for a station marker (hover tooltip + click popup). */
+export interface MarkerInfo {
+  title: string;
+  meta?: string;
+  /** Number of changes to reach this station — drives the pin's red-ness. */
+  connections?: number;
+  /** A primary action surfaced as a button in the click popup. */
+  action?: { label: string; run: () => void };
+}
+
 /** Small Leaflet wrapper that draws routes between stations on a map of France. */
 export class RouteMap {
   private map: L.Map | null = null;
   private layer: L.LayerGroup | null = null;
+  private info: Map<string, MarkerInfo> = new Map();
   /** Called with a station id when its marker is clicked. */
   onSelect: ((id: string) => void) | null = null;
 
@@ -15,6 +39,11 @@ export class RouteMap {
     private container: HTMLElement,
     private registry: StationRegistry,
   ) {}
+
+  /** Supply per-station detail used for marker hover tooltips and click popups. */
+  setInfo(info: Map<string, MarkerInfo>): void {
+    this.info = info;
+  }
 
   private ensure(): { map: L.Map; layer: L.LayerGroup } {
     if (!this.map) {
@@ -44,15 +73,63 @@ export class RouteMap {
   //  dest   — a destination/endpoint (solid)
   //  via    — an interchange (smaller, hollow)
   private marker(id: string, c: [number, number], role: "anchor" | "dest" | "via"): L.CircleMarker {
+    const inf = this.info.get(id);
+    // Destinations are tinted by how many changes they take; origin/interchange
+    // keep the brand emerald.
+    const tint = role === "dest" && inf?.connections != null ? reachColor(inf.connections) : EMERALD;
     const style =
       role === "anchor"
         ? { radius: 8, color: "#ffffff", fillColor: EMERALD, weight: 2.5 }
         : role === "via"
           ? { radius: 5, color: EMERALD, fillColor: "#ffffff", weight: 2 }
-          : { radius: 6, color: EMERALD, fillColor: EMERALD, weight: 1.5 };
-    const m = L.circleMarker(c, { ...style, fillOpacity: 1 }).bindTooltip(this.registry.label(id), {
-      direction: "top",
-    });
+          : { radius: 6, color: tint, fillColor: tint, weight: 1.5 };
+    const m = L.circleMarker(c, { ...style, fillOpacity: 1 });
+    const title = inf?.title ?? this.registry.label(id);
+
+    // Hover card: title + a concise trip summary (built with textContent — never
+    // innerHTML — so station labels can't inject markup).
+    const tip = document.createElement("div");
+    tip.className = "map-tip";
+    const tipTitle = document.createElement("strong");
+    tipTitle.textContent = title;
+    tip.append(tipTitle);
+    if (inf?.meta) {
+      const meta = document.createElement("span");
+      meta.className = "map-tip-meta";
+      meta.textContent = inf.meta;
+      tip.append(meta);
+    }
+    m.bindTooltip(tip, { direction: "top", offset: [0, -6], className: "map-tooltip", opacity: 1 });
+
+    // Click card: same detail plus a primary action (e.g. open the exact trip).
+    if (inf?.meta || inf?.action) {
+      const pop = document.createElement("div");
+      pop.className = "map-pop";
+      const popTitle = document.createElement("strong");
+      popTitle.className = "map-pop-title";
+      popTitle.textContent = title;
+      pop.append(popTitle);
+      if (inf?.meta) {
+        const meta = document.createElement("div");
+        meta.className = "map-pop-meta";
+        meta.textContent = inf.meta;
+        pop.append(meta);
+      }
+      if (inf?.action) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "map-pop-btn";
+        btn.textContent = inf.action.label;
+        const action = inf.action;
+        btn.addEventListener("click", () => {
+          m.closePopup();
+          action.run();
+        });
+        pop.append(btn);
+      }
+      m.bindPopup(pop, { closeButton: false, className: "map-popup", offset: [0, -4] });
+    }
+
     if (this.onSelect) m.on("click", () => this.onSelect?.(id));
     return m;
   }
@@ -70,7 +147,9 @@ export class RouteMap {
       if (!c) continue;
       pts.push(c);
       if (hubC) {
-        L.polyline([hubC, c], { color: EMERALD, weight: 1.5, opacity: 0.45 }).addTo(layer);
+        const conn = this.info.get(o)?.connections;
+        const spoke = conn != null ? reachColor(conn) : EMERALD;
+        L.polyline([hubC, c], { color: spoke, weight: 1.5, opacity: 0.5 }).addTo(layer);
       }
       this.marker(o, c, "dest").addTo(layer);
     }

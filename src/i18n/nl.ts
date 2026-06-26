@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const nl: Dict = {
   appName: "MAX Finder",
+  err_load: "Kan de gegevens niet laden.",
+  act_retry: "Opnieuw proberen",
+  view_label: "Weergave",
+  view_list: "Lijst",
+  view_map: "Kaart",
+  results_filter: "Filter op stad…",
+  results_sort: "Sorteren",
+  results_more: "Meer tonen",
+  sort_relevance: "Relevantie",
+  sort_fast: "Snelste",
+  sort_name: "Naam (A–Z)",
+  sort_depart: "Vroegste vertrek",
   tagline: "MAX JEUNE / SENIOR-plaatsen die te reserveren zijn.",
   prompt_pick: "Kies een vertrekstation.",
   mode_best: "Ideeën",

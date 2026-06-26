@@ -36,3 +36,29 @@ export function addDays(date: string, n: number): string {
 export function absoluteMinute(date: string, minutesFromMidnight: number): number {
   return dayIndex(date) * 1440 + minutesFromMidnight;
 }
+
+const RELATIVE_UNITS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
+  ["year", 31_536_000],
+  ["month", 2_592_000],
+  ["week", 604_800],
+  ["day", 86_400],
+  ["hour", 3_600],
+  ["minute", 60],
+  ["second", 1],
+];
+
+/**
+ * Localized "x ago" / "in x" for an ISO timestamp, e.g. "il y a 3 h" / "3 hr ago".
+ * Picks the largest sensible unit. Returns "" for an empty/unparseable timestamp.
+ */
+export function relativeTime(iso: string, lang: string, now: Date = new Date()): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return "";
+  const diffSec = Math.round((then - now.getTime()) / 1000); // <0 = past
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+  const abs = Math.abs(diffSec);
+  for (const [unit, secs] of RELATIVE_UNITS) {
+    if (abs >= secs || unit === "second") return rtf.format(Math.round(diffSec / secs), unit);
+  }
+  return rtf.format(0, "second");
+}

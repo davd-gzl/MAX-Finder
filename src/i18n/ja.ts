@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const ja: Dict = {
   appName: "MAX Finder",
+  err_load: "データを読み込めませんでした。",
+  act_retry: "再試行",
+  view_label: "表示",
+  view_list: "リスト",
+  view_map: "地図",
+  results_filter: "都市で絞り込み…",
+  results_sort: "並び替え",
+  results_more: "もっと見る",
+  sort_relevance: "関連度",
+  sort_fast: "最速",
+  sort_name: "名前 (A–Z)",
+  sort_depart: "出発が早い順",
   tagline: "予約できる MAX JEUNE / SENIOR の座席。",
   prompt_pick: "出発駅を選んでください。",
   mode_best: "おすすめ",

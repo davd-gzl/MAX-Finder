@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const zh: Dict = {
   appName: "MAX Finder",
+  err_load: "无法加载数据。",
+  act_retry: "重试",
+  view_label: "视图",
+  view_list: "列表",
+  view_map: "地图",
+  results_filter: "按城市筛选…",
+  results_sort: "排序",
+  results_more: "显示更多",
+  sort_relevance: "相关度",
+  sort_fast: "最快",
+  sort_name: "名称 (A–Z)",
+  sort_depart: "最早出发",
   tagline: "可预订的 MAX JEUNE / SENIOR 座位。",
   prompt_pick: "请选择出发车站。",
   mode_best: "推荐",

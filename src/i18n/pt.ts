@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const pt: Dict = {
   appName: "MAX Finder",
+  err_load: "Não foi possível carregar os dados.",
+  act_retry: "Tentar novamente",
+  view_label: "Visualização",
+  view_list: "Lista",
+  view_map: "Mapa",
+  results_filter: "Filtrar por cidade…",
+  results_sort: "Ordenar",
+  results_more: "Ver mais",
+  sort_relevance: "Relevância",
+  sort_fast: "Mais rápido",
+  sort_name: "Nome (A–Z)",
+  sort_depart: "Partida mais cedo",
   tagline: "Lugares MAX JEUNE / SENIOR abertos para reserva.",
   prompt_pick: "Escolha uma estação de partida.",
   mode_best: "Ideias",

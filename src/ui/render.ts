@@ -374,6 +374,31 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
   return el("article", { class: "tour" }, [head, ...legs]);
 }
 
-export function emptyEl(message: string): HTMLElement {
-  return el("p", { class: "empty", text: message });
+/** A clean empty state: a soft icon, the message, and an optional hint line. */
+export function emptyEl(message: string, hint?: string): HTMLElement {
+  const children: (Node | string)[] = [
+    el("span", {
+      class: "empty-icon",
+      attrs: { "aria-hidden": "true" },
+      html: `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.2-4.2"/></svg>`,
+    }),
+    el("p", { class: "empty-msg", text: message }),
+  ];
+  if (hint) children.push(el("p", { class: "empty-hint", text: hint }));
+  return el("div", { class: "empty", attrs: { role: "status" } }, children);
+}
+
+/** Shimmer placeholder rows shown while a search computes (clean loading state). */
+export function skeletonEl(rows = 5): HTMLElement {
+  const wrap = el("div", { class: "skeleton", attrs: { role: "status", "aria-label": t("loading") } });
+  for (let i = 0; i < rows; i++) {
+    wrap.append(
+      el("div", { class: "skeleton-row" }, [
+        el("span", { class: "sk sk-dot" }),
+        el("span", { class: "sk sk-line" }),
+        el("span", { class: "sk sk-chip" }),
+      ]),
+    );
+  }
+  return wrap;
 }

@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../src/ui/map", () => ({
   RouteMap: class {
     onSelect: ((id: string) => void) | null = null;
+    setInfo(): void {}
     show(): void {}
     route(): void {}
     invalidate(): void {}

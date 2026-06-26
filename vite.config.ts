@@ -12,5 +12,8 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     globals: true,
     include: ["tests/**/*.test.ts"],
+    // jsdom 25 doesn't expose a usable Storage here, leaving `localStorage` as a
+    // bare object without methods. Polyfill it for tests that read/clear it.
+    setupFiles: ["tests/setup.ts"],
   },
 }));

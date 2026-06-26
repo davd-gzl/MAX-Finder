@@ -2,6 +2,18 @@ import type { Dict } from "./fr";
 
 export const ko: Dict = {
   appName: "MAX Finder",
+  err_load: "데이터를 불러올 수 없습니다.",
+  act_retry: "다시 시도",
+  view_label: "보기",
+  view_list: "목록",
+  view_map: "지도",
+  results_filter: "도시로 필터…",
+  results_sort: "정렬",
+  results_more: "더 보기",
+  sort_relevance: "관련성",
+  sort_fast: "가장 빠름",
+  sort_name: "이름 (A–Z)",
+  sort_depart: "가장 이른 출발",
   tagline: "예약 가능한 MAX JEUNE / SENIOR 좌석.",
   prompt_pick: "출발역을 선택하세요.",
   mode_best: "추천",
