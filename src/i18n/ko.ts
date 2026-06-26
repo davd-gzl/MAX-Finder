@@ -102,6 +102,7 @@ export const ko: Dict = {
   stat_window: "열차 {trains}편 · {days}일",
   stat_day_month: "그날 {day} · 이달 {month}",
   act_surprise: "랜덤 여행",
+  surprise_none: "추가할 수 있는 도시가 없습니다.",
   cities_add: "도시 추가…",
   field_stay_min: "도시당 최소 일수",
   field_stay_max: "도시당 최대 일수",

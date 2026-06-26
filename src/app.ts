@@ -91,6 +91,12 @@ interface InstallPromptEvent extends Event {
 }
 let installPrompt: InstallPromptEvent | null = null;
 let installBtnEl: HTMLElement | null = null;
+let surpriseMsgEl: HTMLElement | null = null;
+
+/** Set (or clear with "") the inline status next to the "surprise" button. */
+function setSurpriseMsg(text: string): void {
+  if (surpriseMsgEl) surpriseMsgEl.textContent = text;
+}
 
 function refreshInstallBtn(): void {
   installBtnEl?.toggleAttribute("hidden", !installPrompt);
@@ -241,6 +247,7 @@ function ctx(): RenderCtx {
 // --- query <-> form ---------------------------------------------------------
 
 function syncFormFromQuery(): void {
+  setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
   setActiveTab(query.mode);
   refs.modeDesc.textContent = t(`desc_${query.mode}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
@@ -640,14 +647,21 @@ function surpriseMe(): void {
   const origins = (): string[] => [...new Set(avail.map((t) => t.origin))];
   const destinations = (): string[] => [...new Set(avail.map((t) => t.destination))];
 
+  setSurpriseMsg(""); // clear any prior "nothing to add" notice
+
   if (query.mode === "tour") {
-    // Tour: fill the departure if empty, then add ONE random city. Candidates are
-    // cities reachable as a direct MAX hop from somewhere in the trip; we prefer
-    // one that keeps the WHOLE tour feasible on the chosen date (validated with the
-    // planner), so a click always yields a plannable trip. Capped at 5 cities.
-    if (tourCities.length >= 5) return;
+    // Tour: fill the departure if empty, then add ONE city that keeps the WHOLE
+    // tour feasible on the chosen date (validated with the planner). If nothing
+    // can be added, say so and add nothing — never a dead-end random city.
+    if (tourCities.length >= 5) {
+      setSurpriseMsg(t("surprise_none"));
+      return;
+    }
     const origin = query.origin || pickFrom(origins());
-    if (!origin) return;
+    if (!origin) {
+      setSurpriseMsg(t("surprise_none"));
+      return;
+    }
     const used = new Set([origin, ...tourCities]);
     const pool = [...new Set(avail.filter((t) => used.has(t.origin)).map((t) => t.destination))]
       .filter((d) => !used.has(d))
@@ -656,15 +670,24 @@ function surpriseMe(): void {
     const hi = Math.max(lo, query.maxDays ?? 3);
     const planOpts = { maxConnections: query.maxConnections };
     let chosen: string | undefined;
-    for (let i = 0; i < pool.length && i < 16; i++) {
+    for (let i = 0; i < pool.length && i < 40; i++) {
       const c = pool[i]!;
       if (planTours(deps.trains, origin, [...tourCities, c], query.date, planOpts, 1, lo, hi).length > 0) {
         chosen = c;
         break;
       }
     }
-    chosen ??= pool[0]; // fallback: still a reachable hop even if the full tour is tight
-    if (!chosen) return;
+    if (!chosen) {
+      // No possible city. Reflect a freshly-filled departure, but add nothing.
+      if (origin !== query.origin) {
+        query = { ...query, origin };
+        navStack = [];
+        syncFormFromQuery();
+        applyAndRun();
+      }
+      setSurpriseMsg(t("surprise_none"));
+      return;
+    }
     tourCities.push(chosen);
     query = { ...query, origin, cities: [...tourCities] };
   } else if (query.mode === "to") {
@@ -1088,6 +1111,8 @@ function buildForm(): FormBuild {
     text: t("act_surprise"),
     on: { click: surpriseMe },
   });
+  // Inline status for "surprise" (e.g. no city can be added to a tour).
+  surpriseMsgEl = el("p", { class: "surprise-msg", attrs: { role: "status" } });
 
   const howto = el("details", { class: "howto" }, [
     el("summary", { text: t("how_title") }),
@@ -1127,6 +1152,7 @@ function buildForm(): FormBuild {
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
+    surpriseMsgEl,
     howto,
     stationList,
   ]);

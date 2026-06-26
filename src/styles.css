@@ -465,6 +465,14 @@ a {
 .surprise-btn:hover {
   color: var(--accent);
 }
+.surprise-msg {
+  margin: 0.5rem 0 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.surprise-msg:empty {
+  display: none;
+}
 .howto {
   margin-top: 0.95rem;
   border-top: 1px solid var(--border);
