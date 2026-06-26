@@ -115,5 +115,6 @@ export const en: Dict = {
   stat_day_month: "{day} this day · {month} this month",
   act_surprise: "Surprise me",
   cities_add: "Add a city…",
+  field_stay: "Days per city",
   stat_window_hint: "{trains} MAX trains to this destination across {days} upcoming days. Open the exact trip to see which dates.",
 };

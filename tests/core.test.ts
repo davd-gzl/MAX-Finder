@@ -262,6 +262,21 @@ describe("planTours", () => {
     expect(tours[0]!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES"]);
     expect(tours[0]!.legs).toHaveLength(2);
   });
+
+  it("spaces hops by stayDays (multi-day vacation plan)", () => {
+    // Second hop runs 2 days after the start, not the next day.
+    const spaced = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+      { date: "2026-07-03", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const args = [spaced, "PARIS (intramuros)", ["LYON (intramuros)", "MARSEILLE ST CHARLES"], "2026-07-01", { maxConnections: 0 }, 10] as const;
+    // stayDays=1 (default): the second hop would need 2026-07-02 — no train.
+    expect(planTours(...args, 1)).toHaveLength(0);
+    // stayDays=2: second hop falls on 2026-07-03 and the tour is feasible.
+    const tours = planTours(...args, 2);
+    expect(tours).toHaveLength(1);
+    expect(tours[0]!.legs[1]!.date).toBe("2026-07-03");
+  });
 });
 
 function base(): RawRecord {

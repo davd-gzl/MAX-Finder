@@ -103,5 +103,6 @@ export const es: Dict = {
   stat_day_month: "{day} ese día · {month} este mes",
   act_surprise: "Al azar",
   cities_add: "Añadir una ciudad…",
+  field_stay: "Días por ciudad",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",
 };

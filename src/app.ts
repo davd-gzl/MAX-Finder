@@ -56,6 +56,8 @@ interface Refs {
   cities: HTMLInputElement;
   citiesField: HTMLElement;
   cityChips: HTMLElement;
+  stayDays: HTMLInputElement;
+  stayField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -255,6 +257,7 @@ function syncFormFromQuery(): void {
   tourCities = [...(query.cities ?? [])];
   refs.cities.value = "";
   renderCityChips();
+  refs.stayDays.value = query.stayDays != null ? String(query.stayDays) : "";
   updateFieldVisibility();
 }
 
@@ -288,6 +291,10 @@ function readQueryFromForm(): SearchQuery {
             ]),
           ]
         : query.cities,
+    stayDays: (() => {
+      const n = Number(refs.stayDays.value.trim());
+      return Number.isFinite(n) && n > 1 ? Math.min(14, Math.floor(n)) : undefined;
+    })(),
   };
 }
 
@@ -461,9 +468,15 @@ function runTourSearch(c: RenderCtx): void {
     refs.results.append(render.emptyEl(t("tour_hint")));
     return;
   }
-  const tours = planTours(trains, query.origin, cities, query.date, {
-    maxConnections: query.maxConnections,
-  });
+  const tours = planTours(
+    trains,
+    query.origin,
+    cities,
+    query.date,
+    { maxConnections: query.maxConnections },
+    10,
+    query.stayDays ?? 1,
+  );
   if (tours.length === 0) {
     refs.results.append(render.emptyEl(t("tour_none")));
     return;
@@ -605,9 +618,9 @@ function goHome(): void {
 
 /**
  * "Surprise me": stay on the current page and randomize that mode's own city —
- * a random arrival in "D'où venir", a random reachable destination (keeping the
- * origin) in "Trajet précis", and a random departure (for fresh ideas/results)
- * in the others. Purely random, and never the city that's already selected.
+ * a random city added to "Tour", a random arrival in "D'où venir", a random
+ * reachable destination (keeping the origin) in "Trajet précis", and a random
+ * departure elsewhere. Purely random, never a city that's already selected.
  */
 function surpriseMe(): void {
   const avail = deps.trains.filter((tr) => tr.available);
@@ -618,7 +631,14 @@ function surpriseMe(): void {
   const origins = (): string[] => [...new Set(avail.map((t) => t.origin))];
   const destinations = (): string[] => [...new Set(avail.map((t) => t.destination))];
 
-  if (query.mode === "to") {
+  if (query.mode === "tour") {
+    // Tour: add a random city to visit — never touch the departure city.
+    const used = new Set([query.origin, ...tourCities].filter((x): x is string => Boolean(x)));
+    const city = pickFrom(destinations().filter((d) => !used.has(d)));
+    if (!city) return;
+    tourCities.push(city);
+    query = { ...query, cities: [...tourCities] };
+  } else if (query.mode === "to") {
     const dest = pickFrom(destinations(), query.destination);
     if (!dest) return;
     query = { ...query, destination: dest };
@@ -644,7 +664,7 @@ function surpriseMe(): void {
       query = { ...query, origin: p.origin, destination: p.destination };
     }
   } else {
-    // from / best / tour: a random departure city, staying in the same mode.
+    // from / best: a random departure city, staying in the same mode.
     const origin = pickFrom(origins(), query.origin);
     if (!origin) return;
     query = { ...query, origin };
@@ -732,6 +752,7 @@ function updateFieldVisibility(): void {
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
   refs.regionField.style.display = query.mode === "best" ? "" : "none";
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
+  refs.stayField.style.display = query.mode === "tour" ? "" : "none";
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -1001,6 +1022,13 @@ function buildForm(): FormBuild {
   const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
   const citiesField = field(t("field_cities"), citiesBox);
+  // Minimum days spent in each city before the next hop — turns a tour into a
+  // multi-day, free-MAX vacation plan. Default 1 (a hop a day).
+  const stayDays = inputEl("number");
+  stayDays.min = "1";
+  stayDays.max = "14";
+  stayDays.placeholder = "1";
+  const stayField = field(t("field_stay"), stayDays);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
@@ -1057,6 +1085,7 @@ function buildForm(): FormBuild {
       returnField,
       regionField,
       citiesField,
+      stayField,
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn, surpriseBtn]),
@@ -1099,6 +1128,8 @@ function buildForm(): FormBuild {
       cities,
       citiesField,
       cityChips,
+      stayDays,
+      stayField,
     },
   };
 }
