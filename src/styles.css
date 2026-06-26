@@ -1049,13 +1049,21 @@ a {
 }
 .flex-date {
   font-weight: 620;
-  flex: 1 1 7rem;
+  flex: 0 0 auto;
+}
+.flex-dest {
+  flex: 1 1 8rem;
   min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .flex-time {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 .flex-meta {

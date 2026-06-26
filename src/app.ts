@@ -559,6 +559,30 @@ function runBestSearch(c: RenderCtx): void {
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
     return;
   }
+
+  // Flexible dates: for each day within ±flexDays of the chosen date, the single
+  // fastest getaway that day (where you can go quickest). Pick a day to switch.
+  if (query.flexDays && query.flexDays > 0) {
+    const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+    const section = el("section", { class: "flex-dates" }, [el("h3", { text: t("field_flex") })]);
+    let any = false;
+    for (let i = -query.flexDays; i <= query.flexDays; i++) {
+      const d = addDays(query.date, i);
+      if (d < today || d > lastBookable) continue;
+      let dayTrips = bestTrips(trains, query.origin, d, stationsOnDate(trains, d), {
+        ...filterOpts(),
+        maxConnections: query.maxConnections,
+      });
+      if (query.region)
+        dayTrips = dayTrips.filter((tr) => registry.get(tr.destination)?.region === query.region);
+      const fastest = dayTrips[0];
+      if (!fastest) continue;
+      section.append(render.flexDayEl(d, fastest.journey, c, d === query.date, registry.label(fastest.destination)));
+      any = true;
+    }
+    if (any) refs.results.append(section);
+  }
+
   refs.results.append(
     el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
   );
@@ -706,6 +730,11 @@ function surpriseMe(): void {
   };
   const origins = (): string[] => [...new Set(avail.map((t) => t.origin))];
   const destinations = (): string[] => [...new Set(avail.map((t) => t.destination))];
+  // When a region is selected (best / tour modes), the surprise departure must
+  // sit inside it — "I want to start my trip in Bretagne".
+  const inRegion = (id: string): boolean =>
+    !query.region || deps.registry.get(id)?.region === query.region;
+  const regionOrigins = (): string[] => origins().filter(inRegion);
 
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
@@ -717,7 +746,8 @@ function surpriseMe(): void {
       setSurpriseMsg(t("surprise_none"));
       return;
     }
-    const origin = query.origin || pickFrom(origins());
+    // Fill a missing departure — from the chosen region when one is set.
+    const origin = query.origin || pickFrom(regionOrigins());
     if (!origin) {
       setSurpriseMsg(t("surprise_none"));
       return;
@@ -778,9 +808,14 @@ function surpriseMe(): void {
       query = { ...query, origin: p.origin, destination: p.destination };
     }
   } else {
-    // from / best: a random departure city, staying in the same mode.
-    const origin = pickFrom(origins(), query.origin);
-    if (!origin) return;
+    // from / best: a random departure city, staying in the same mode. In "best"
+    // a chosen region constrains it to a departure inside that region.
+    const pool = query.mode === "best" ? regionOrigins() : origins();
+    const origin = pickFrom(pool, query.origin);
+    if (!origin) {
+      if (query.mode === "best" && query.region) setSurpriseMsg(t("surprise_none"));
+      return;
+    }
     query = { ...query, origin };
   }
   navStack = [];
@@ -863,7 +898,10 @@ function updateFieldVisibility(): void {
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  refs.flexField.style.display = query.mode === "od" ? "" : "none";
+  // Flexible dates apply to the date-anchored searches: a precise trip (od) and
+  // the "where can I go" ideas (best). from/to already span the whole window and
+  // tour has its own min/max-day range, so they don't show it.
+  refs.flexField.style.display = query.mode === "od" || query.mode === "best" ? "" : "none";
   refs.returnField.style.display = query.mode === "od" ? "" : "none";
   // Max journey duration: prominent (main form) only for a tour, where each hop's
   // length matters; everywhere else it's tucked into "Advanced filters" (inserted
