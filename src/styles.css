@@ -358,8 +358,7 @@ a {
   gap: 0.75rem;
   flex-wrap: wrap;
 }
-.cities-clear,
-.cities-nearest {
+.cities-clear {
   font-size: 0.8rem;
 }
 .cities-input {
