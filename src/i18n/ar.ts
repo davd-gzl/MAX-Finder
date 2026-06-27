@@ -122,6 +122,7 @@ export const ar: Dict = {
   flex_exact: "تاريخ محدد",
   stat_window: "{trains} قطار · {days} ي",
   stat_day_month: "{day} في اليوم · {month} في الشهر",
+  stat_flex_month: "{day} خلال ±{n} يوم · {month} في الشهر",
   act_surprise: "فاجئني",
   surprise_none: "لا توجد مدينة يمكن إضافتها.",
   cities_add: "أضف مدينة…",

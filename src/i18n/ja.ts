@@ -122,6 +122,7 @@ export const ja: Dict = {
   flex_exact: "正確な日付",
   stat_window: "{trains} 本 · {days} 日",
   stat_day_month: "その日 {day} · 今月 {month}",
+  stat_flex_month: "±{n}日 {day} · 今月 {month}",
   act_surprise: "おまかせ",
   surprise_none: "追加できる都市がありません。",
   cities_add: "都市を追加…",
