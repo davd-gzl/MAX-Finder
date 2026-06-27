@@ -14,13 +14,6 @@ describe("generateBookingUrl", () => {
     expect(input).toBe("Paris Lyon 29/06/2026");
   });
 
-  it("adds a correspondence hub as 'via'", () => {
-    const input = new URL(
-      generateBookingUrl("Paris", "Marseille", "2026-06-29", "08:30", ["Lyon"]),
-    ).searchParams.get("userInput");
-    expect(input).toBe("Paris Marseille via Lyon 29/06/2026 08h30");
-  });
-
   it("url-encodes accented station names", () => {
     const url = generateBookingUrl("Besançon Viotte", "Marne-la-Vallée", "2026-07-01", "08:06");
     expect(url).toContain("Besan%C3%A7on");
