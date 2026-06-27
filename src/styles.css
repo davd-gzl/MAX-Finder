@@ -335,6 +335,17 @@ a {
 .input::placeholder {
   color: var(--faint);
 }
+/* Connections + its "overnight stopover" option grouped as one cell. */
+.conn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.conn-group .field-check {
+  align-self: start;
+  padding-bottom: 0;
+}
+
 /* ---- tour min/max days ---- */
 .stay-fields {
   grid-column: 1 / -1;

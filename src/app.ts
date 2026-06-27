@@ -52,9 +52,8 @@ interface Refs {
   maxSpanDaysField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
-  connectionsField: HTMLElement;
+  connGroupField: HTMLElement;
   overnight: HTMLInputElement;
-  overnightField: HTMLElement;
   via: HTMLInputElement;
   flex: HTMLSelectElement;
   flexField: HTMLElement;
@@ -1153,7 +1152,7 @@ function updateFieldVisibility(): void {
   // every other mode keeps Connections/Overnight/Max-duration in Advanced. These
   // are single elements moved between containers, never duplicated.
   const tour = query.mode === "tour";
-  const movables = [refs.maxDurationField, refs.connectionsField, refs.overnightField];
+  const movables = [refs.maxDurationField, refs.connGroupField];
   for (const f of movables) {
     if (tour) refs.regionField.parentElement?.insertBefore(f, refs.regionField);
     else refs.trainTypeField.parentElement?.insertBefore(f, refs.trainTypeField);
@@ -1520,17 +1519,21 @@ function buildForm(): FormBuild {
   // type stays last as a stable insertion anchor. Km caps + max-span sit in Advanced
   // and are shown per mode (km for tour, span for od).
   const maxDurationField = field(t("field_maxDuration"), maxDuration);
-  const connectionsField = field(t("field_connections"), maxConnections);
   const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
   const trainTypeField = field(t("field_trainType"), trainType);
+  // Overnight is an option of "Connections" (a long layover is just a slow change),
+  // so group them into one cell — a lone checkbox floating mid-row looks orphaned.
+  const connGroupField = el("div", { class: "conn-group" }, [
+    field(t("field_connections"), maxConnections),
+    overnightField,
+  ]);
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
     el("div", { class: "advanced-grid" }, [
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
-      connectionsField,
-      overnightField,
+      connGroupField,
       maxDurationField,
       maxSpanDaysField,
       maxKmField,
@@ -1615,9 +1618,8 @@ function buildForm(): FormBuild {
       maxSpanDaysField,
       trainType,
       maxConnections,
-      connectionsField,
+      connGroupField,
       overnight,
-      overnightField,
       via,
       flex,
       flexField,
