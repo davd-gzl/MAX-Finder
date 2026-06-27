@@ -6,6 +6,7 @@ import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { formatDuration, dayIndex } from "../util/time";
+import { THROUGH_BOOK_MAX_LAYOVER_MIN } from "../config";
 import { t } from "../i18n";
 
 export interface RenderCtx {
@@ -156,21 +157,22 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
     ]),
   ]);
 
+  // SNCF Connect only sells a through-ticket when every layover is short enough
+  // (≤ 2h30); then the whole journey books in one "via" link (fewer tickets). With
+  // a longer layover it refuses the through-booking, so we book train by train via
+  // the step modal. Direct trips always deep-link straight through.
+  const maxLayover = j.layovers.length ? Math.max(...j.layovers) : 0;
+  const throughBookable = maxLayover <= THROUGH_BOOK_MAX_LAYOVER_MIN;
   const actions = el("div", { class: "actions" }, [
-    // Direct trips deep-link straight to SNCF Connect. A connecting trip can't be
-    // pinned to its exact free trains in one search (SNCF re-optimises the route),
-    // so its Book button opens a step modal — one deep link per train, in order.
-    connecting
-      ? el(
-          "button",
-          {
-            class: "btn btn-book",
-            type: "button",
-            on: { click: () => ctx.onBookSteps(j) },
-          },
-          [el("span", { text: t("act_book") }), icon(I.external)],
-        )
-      : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
+    !connecting
+      ? bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart)
+      : throughBookable
+        ? bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart, j.hubs)
+        : el(
+            "button",
+            { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
+            [el("span", { text: t("act_book") }), icon(I.external)],
+          ),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
