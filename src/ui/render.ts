@@ -11,6 +11,8 @@ import { t } from "../i18n";
 export interface RenderCtx {
   label: (id: string) => string;
   formatDate: (iso: string) => string;
+  /** Narrow localized weekday name (e.g. "Sat"). */
+  formatWeekday: (iso: string) => string;
   bookUrl: (origin: string, destination: string, date: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
@@ -456,17 +458,24 @@ export function calendarEl(
         : both
           ? t("cal_nearby_both")
           : t("cal_unavailable");
-    const cell = el("button", {
-      class: `cal-cell ${state}${sel}`,
-      type: "button",
-      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
-      attrs: {
-        "aria-label": `${ctx.formatDate(d.date)} — ${status}`,
-        ...(sel ? { "aria-current": "date" } : {}),
+    const cell = el(
+      "button",
+      {
+        class: `cal-cell ${state}${sel}`,
+        type: "button",
+        title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
+        attrs: {
+          "aria-label": `${ctx.formatDate(d.date)} — ${status}`,
+          ...(sel ? { "aria-current": "date" } : {}),
+        },
+        on: { click: () => ctx.onSelectDay(d.date) },
       },
-      text: d.date.slice(8, 10),
-      on: { click: () => ctx.onSelectDay(d.date) },
-    });
+      [
+        // Weekday above the day number, so each cell reads as a real date.
+        el("span", { class: "cal-dow", text: ctx.formatWeekday(d.date), attrs: { "aria-hidden": "true" } }),
+        el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
+      ],
+    );
     grid.append(cell);
   }
   const legend = [
