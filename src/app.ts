@@ -20,10 +20,10 @@ import { RouteMap } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
+import { generateBookingUrl } from "./util/booking";
 import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
 import {
-  SNCF_CONNECT_URL,
   MAX_JEUNE_URL,
   MAX_SENIOR_URL,
   GITHUB_URL,
@@ -471,7 +471,10 @@ function ctx(): RenderCtx {
     label: (id) => deps.registry.label(id),
     formatDate,
     formatWeekday,
-    bookUrl: () => SNCF_CONNECT_URL,
+    // Deep-link to SNCF Connect with the trip pre-filled (clean station names, the
+    // journey date, and the departure time).
+    bookUrl: (origin, destination, date, time) =>
+      generateBookingUrl(deps.registry.label(origin), deps.registry.label(destination), date, time),
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
       navStack.push({ ...query }); // remember the list we came from
