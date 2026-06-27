@@ -118,5 +118,6 @@ export const de: Dict = {
   field_stay_min: "Min. Tage / Stadt",
   field_stay_max: "Max. Tage / Stadt",
   field_maxKm: "Max. Gesamtdistanz (km)",
+  field_maxLegKm: "Max. Distanz / Zug (km)",
   stat_window_hint: "{trains} MAX-Züge zu diesem Ziel an {days} kommenden Tagen. Öffnen Sie die genaue Reise, um die Daten zu sehen.",
 };

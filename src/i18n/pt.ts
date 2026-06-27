@@ -117,5 +117,6 @@ export const pt: Dict = {
   field_stay_min: "Dias mín. / cidade",
   field_stay_max: "Dias máx. / cidade",
   field_maxKm: "Distância total máx. (km)",
+  field_maxLegKm: "Distância máx. / trem (km)",
   stat_window_hint: "{trains} trens MAX para este destino em {days} dias à frente. Abra a viagem exata para ver as datas.",
 };

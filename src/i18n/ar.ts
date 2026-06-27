@@ -117,5 +117,6 @@ export const ar: Dict = {
   field_stay_min: "أيام دنيا / مدينة",
   field_stay_max: "أيام قصوى / مدينة",
   field_maxKm: "أقصى مسافة إجمالية (كم)",
+  field_maxLegKm: "أقصى مسافة / قطار (كم)",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",
 };

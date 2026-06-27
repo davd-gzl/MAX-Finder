@@ -117,5 +117,6 @@ export const zh: Dict = {
   field_stay_min: "每城最少天数",
   field_stay_max: "每城最多天数",
   field_maxKm: "最大总距离（公里）",
+  field_maxLegKm: "每趟列车最大距离（公里）",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
 };

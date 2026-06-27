@@ -71,6 +71,7 @@ interface Refs {
   maxDays: HTMLInputElement;
   stayField: HTMLElement;
   maxKm: HTMLInputElement;
+  maxLegKm: HTMLInputElement;
   maxKmField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
@@ -173,7 +174,7 @@ function addNearestCity(): void {
   let chosen: string | undefined;
   for (let i = 0; i < candidates.length && i < 40; i++) {
     const c = candidates[i]!;
-    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm)) {
+    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm)) {
       chosen = c;
       break;
     }
@@ -404,12 +405,14 @@ function syncFormFromQuery(): void {
   refs.minDays.value = String(query.minDays ?? 1);
   refs.maxDays.value = String(query.maxDays ?? 3);
   refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
+  refs.maxLegKm.value = query.maxLegKm != null ? String(query.maxLegKm) : "";
   updateFieldVisibility();
 }
 
 function readQueryFromForm(): SearchQuery {
   const maxDur = Number(refs.maxDuration.value.trim());
   const maxKm = Number(refs.maxKm.value.trim());
+  const maxLegKm = Number(refs.maxLegKm.value.trim());
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -442,6 +445,7 @@ function readQueryFromForm(): SearchQuery {
     minDays: clampDays(refs.minDays.value, 1),
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
+    maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
   };
 }
 
@@ -635,17 +639,18 @@ function runTourSearch(c: RenderCtx): void {
   const hi = Math.max(lo, query.maxDays ?? 3);
   const planOpts = { maxConnections: query.maxConnections };
   const maxKm = query.maxKm; // optional cap on the tour's total straight-line km
+  const legKm = query.maxLegKm; // optional cap on each hop's straight-line km
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
   // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
@@ -885,7 +890,7 @@ function surpriseMe(): void {
     // "no city" when the few feasible ones land late in the shuffled order.
     let chosen: string | undefined;
     for (const c of pool) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm)) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm)) {
         chosen = c;
         break;
       }
@@ -1360,14 +1365,22 @@ function buildForm(): FormBuild {
     field(t("field_stay_min"), minDays),
     field(t("field_stay_max"), maxDays),
   ]);
-  // Optional cap on the tour's total straight-line distance (km), so a plan stays
-  // compact ("a tour, but no more than ~1500 km of travelling").
+  // Optional distance caps (km, straight line): the whole tour's total, and each
+  // single hop ("a tour, but no more than ~1000 km total and no train over ~400 km").
   const maxKm = inputEl("number");
   maxKm.min = "0";
   maxKm.step = "50";
   maxKm.placeholder = "1000";
   maxKm.setAttribute("aria-label", t("field_maxKm"));
-  const maxKmField = field(t("field_maxKm"), maxKm);
+  const maxLegKm = inputEl("number");
+  maxLegKm.min = "0";
+  maxLegKm.step = "50";
+  maxLegKm.placeholder = "400";
+  maxLegKm.setAttribute("aria-label", t("field_maxLegKm"));
+  const maxKmField = el("div", { class: "stay-fields" }, [
+    field(t("field_maxKm"), maxKm),
+    field(t("field_maxLegKm"), maxLegKm),
+  ]);
 
   // Max journey duration. It's prominent (main form) only for a tour, where each
   // hop's length matters; in the other modes it's relocated into "Advanced
@@ -1487,6 +1500,7 @@ function buildForm(): FormBuild {
       maxDays,
       stayField,
       maxKm,
+      maxLegKm,
       maxKmField,
     },
   };

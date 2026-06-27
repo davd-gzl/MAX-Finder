@@ -395,6 +395,17 @@ describe("planTourGreedy", () => {
     expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, 250)).toHaveLength(0);
     expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, 1000)).toHaveLength(1);
   });
+
+  it("respects a per-train (per-hop) distance cap", () => {
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"];
+    const dist = (a: string, b: string): number => (a === b ? 0 : 200); // each hop 200 km
+    // legCap below 200: every hop is too long -> no tour.
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, dist, undefined, 150)).toBeNull();
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, undefined, 150)).toHaveLength(0);
+    // legCap of 250: each hop fits (total unconstrained) -> full tour.
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, dist, undefined, 250)!.legs).toHaveLength(3);
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, undefined, 250)).toHaveLength(1);
+  });
 });
 
 describe("haversineKm", () => {

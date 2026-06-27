@@ -117,5 +117,6 @@ export const nl: Dict = {
   field_stay_min: "Min. dagen / stad",
   field_stay_max: "Max. dagen / stad",
   field_maxKm: "Max. totale afstand (km)",
+  field_maxLegKm: "Max. afstand / trein (km)",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
 };
