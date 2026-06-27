@@ -1447,12 +1447,16 @@ function updateFieldVisibility(): void {
   refs.flexField.style.display =
     query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
-  // Field placement per mode: a tour promotes Connections/Overnight into the
-  // prominent main form (and tucks its caps into Advanced); every other mode keeps
-  // Connections/Overnight in Advanced. Single elements moved, never duplicated.
+  // Field placement per mode: a tour AND an exact trip promote Connections (with
+  // Overnight/Night) into the prominent main form; the other modes keep it in
+  // Advanced. The exact trip also promotes its search radius. Single elements moved
+  // between the main fields grid and Advanced, never duplicated.
   const tour = query.mode === "tour";
-  if (tour) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
+  const od = query.mode === "od";
+  if (tour || od) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
   else refs.trainTypeField.parentElement?.insertBefore(refs.connGroupField, refs.trainTypeField);
+  if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
+  else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
 
   // Duration caps differ by mode. A single journey (od / from / to / best) caps its
   // TOTAL time. A multi-city tour instead caps the time of each hop ("max per
