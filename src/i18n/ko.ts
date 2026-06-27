@@ -64,6 +64,8 @@ export const ko: Dict = {
   act_fav_add: "즐겨찾기 추가",
   act_fav_remove: "즐겨찾기 삭제",
   cal_title: "30일 가용성",
+  best_cal_title: "날짜별 목적지",
+  best_cal_count: "목적지 {n}곳",
   cal_legend: "초록 = MAX 좌석 가능",
   cal_available: "가능",
   cal_unavailable: "불가",

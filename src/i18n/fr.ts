@@ -69,6 +69,8 @@ export const fr = {
   act_fav_remove: "Retirer des favoris",
 
   cal_title: "Disponibilité sur 30 jours",
+  best_cal_title: "Destinations par jour",
+  best_cal_count: "{n} destination(s)",
   cal_legend: "vert = place MAX dispo",
   cal_available: "disponible",
   cal_unavailable: "indisponible",

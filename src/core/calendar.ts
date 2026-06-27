@@ -1,5 +1,6 @@
 import type { MaxTrain, CalendarDay, Journey } from "../types";
 import { findJourneys, type ConnectionOptions } from "./connections";
+import { filterTrains, type FilterOptions } from "./search";
 
 /**
  * Availability over a set of dates for one O-D route. A day is "available" if at
@@ -20,6 +21,36 @@ export function availabilityCalendar(
 ): CalendarDay[] {
   return dates.map((date) => {
     const count = findJourneys(trains, origin, destination, date, opts).filter(accept).length;
+    return { date, available: count > 0, count };
+  });
+}
+
+/**
+ * Per-day count of distinct direct free-MAX destinations reachable from `origin`
+ * over `dates`. Powers the "ideas by day" strip in best mode — a day is available
+ * when at least one destination runs. `accept` optionally filters destinations
+ * (e.g. by region). Counts direct trains only (cheap, a navigation hint); the
+ * full list on click still includes connections.
+ */
+export function destinationCalendar(
+  trains: MaxTrain[],
+  origin: string,
+  dates: string[],
+  opts: FilterOptions = {},
+  accept: (destination: string) => boolean = () => true,
+): CalendarDay[] {
+  const byDate = new Map<string, Set<string>>();
+  for (const t of filterTrains(trains, { ...opts, origin })) {
+    if (!accept(t.destination)) continue;
+    let set = byDate.get(t.date);
+    if (!set) {
+      set = new Set();
+      byDate.set(t.date, set);
+    }
+    set.add(t.destination);
+  }
+  return dates.map((date) => {
+    const count = byDate.get(date)?.size ?? 0;
     return { date, available: count > 0, count };
   });
 }

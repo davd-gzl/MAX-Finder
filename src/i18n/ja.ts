@@ -64,6 +64,8 @@ export const ja: Dict = {
   act_fav_add: "お気に入りに追加",
   act_fav_remove: "お気に入りから削除",
   cal_title: "30日間の空き状況",
+  best_cal_title: "日付ごとの目的地",
+  best_cal_count: "目的地 {n} 件",
   cal_legend: "緑 = MAX 座席あり",
   cal_available: "空きあり",
   cal_unavailable: "空きなし",
