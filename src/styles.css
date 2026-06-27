@@ -673,20 +673,36 @@ a {
   background: transparent;
   font-weight: 560;
 }
-/* Per-leg "book this train" link on a connecting journey: small + tucked under the
-   leg, so it reads as a sub-action of that train, not the whole trip. */
-.btn-leg-book {
-  align-self: flex-start;
-  margin-top: 0.1rem;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 560;
-  color: var(--accent);
-}
-.leg {
+/* Step-by-step booking modal for a connecting journey: one row (train + Book) per
+   leg. */
+.book-steps {
+  list-style: decimal;
+  margin: 0.4rem 0 0.2rem;
+  padding-left: 1.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.6rem;
+}
+.book-step {
+  padding-left: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.book-step::marker {
+  color: var(--muted);
+  font-weight: 700;
+}
+.book-step-route {
+  font-size: 0.95rem;
+}
+.book-step-meta {
+  font-variant-numeric: tabular-nums;
+}
+.book-step-btn {
+  flex: none;
+  white-space: nowrap;
 }
 .iconbtn {
   border: 1px solid var(--border);

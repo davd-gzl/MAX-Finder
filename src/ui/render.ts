@@ -26,6 +26,8 @@ export interface RenderCtx {
   distanceKm: (a: string, b: string) => number;
   onSelectDay: (date: string) => void;
   onIcs: (journey: Journey) => void;
+  /** Open the step-by-step "book each train" modal for a connecting journey. */
+  onBookSteps: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
   onToggleFavorite: (route: RoutePair) => void;
 }
@@ -104,26 +106,6 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
   );
 }
 
-/**
- * A compact "Book this train" link for one leg of a connecting journey — MAX seats
- * often can't be booked end-to-end, so each train is bookable on its own.
- */
-function legBookLink(ctx: RenderCtx, leg: MaxTrain, n: number): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "btn btn-book btn-leg-book",
-      href: ctx.bookUrl(leg.origin, leg.destination, leg.date, leg.depart),
-      attrs: {
-        target: "_blank",
-        rel: "noopener noreferrer",
-        "aria-label": `${t("act_book_leg", { n })} — ${ctx.label(leg.origin)} → ${ctx.label(leg.destination)}`,
-      },
-    },
-    [el("span", { text: t("act_book_leg", { n }) }), icon(I.external)],
-  );
-}
-
 /** A direct or connecting journey card. */
 export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   const connecting = j.legs.length > 1;
@@ -155,10 +137,7 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
           ]
         : []),
     ]);
-    // Connecting journeys book per-train (end-to-end MAX is often unavailable).
-    const legChildren = [route, trainRowEl(leg)];
-    if (connecting) legChildren.push(legBookLink(ctx, leg, i + 1));
-    legs.append(el("div", { class: "leg" }, legChildren));
+    legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
   });
 
   const tag =
@@ -178,10 +157,20 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 
   const actions = el("div", { class: "actions" }, [
-    // Whole-journey booking (direct, or connecting "via" the hub). Connecting trips
-    // also keep the per-leg buttons above as a guaranteed fallback when the
-    // through-ticket isn't sold.
-    bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart, connecting ? j.hubs : undefined),
+    // Direct trips deep-link straight to SNCF Connect. A connecting trip can't be
+    // pinned to its exact free trains in one search (SNCF re-optimises the route),
+    // so its Book button opens a step modal — one deep link per train, in order.
+    connecting
+      ? el(
+          "button",
+          {
+            class: "btn btn-book",
+            type: "button",
+            on: { click: () => ctx.onBookSteps(j) },
+          },
+          [el("span", { text: t("act_book") }), icon(I.external)],
+        )
+      : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },

@@ -354,6 +354,62 @@ function showInfoModal(title: string, lines: string[]): void {
   dialog.showModal();
 }
 
+/**
+ * Step-by-step booking modal for a connecting journey: one SNCF Connect deep link
+ * per train, in order. A single via search can't be pinned to the exact free trains
+ * (SNCF re-optimises the route), so each leg is booked on its own — this lays out
+ * exactly which buttons to click, in sequence.
+ */
+function showBookingModal(j: Journey): void {
+  const label = (id: string): string => deps.registry.label(id);
+  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
+  const closeBtn = el("button", {
+    class: "btn btn-ghost modal-close",
+    type: "button",
+    text: t("act_close"),
+    on: { click: () => dialog.close() },
+  });
+  const steps = el("ol", { class: "book-steps" });
+  j.legs.forEach((leg, i) => {
+    const href = generateBookingUrl(label(leg.origin), label(leg.destination), leg.date, leg.depart);
+    steps.append(
+      el("li", { class: "book-step" }, [
+        el("div", { class: "book-step-info" }, [
+          el("div", { class: "book-step-route" }, [
+            el("strong", { text: label(leg.origin) }),
+            el("span", { class: "muted", text: " → " }),
+            el("strong", { text: label(leg.destination) }),
+          ]),
+          el("div", {
+            class: "book-step-meta muted small",
+            text: `${leg.depart} → ${leg.arrive} · ${t("lbl_train", { no: leg.trainNo })}`,
+          }),
+        ]),
+        el("a", {
+          class: "btn btn-primary book-step-btn",
+          href,
+          attrs: { target: "_blank", rel: "noopener noreferrer" },
+          text: t("act_book_leg", { n: i + 1 }),
+        }),
+      ]),
+    );
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      el("h2", { class: "modal-title", text: t("book_steps_title") }),
+      el("p", { class: "modal-text", text: t("book_steps_note") }),
+      steps,
+      el("div", { class: "modal-actions" }, [closeBtn]),
+    ]),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 async function promptInstall(): Promise<void> {
   // Use the browser's native prompt when it offered one (Chromium/Android).
   if (installPrompt) {
@@ -523,6 +579,7 @@ function ctx(): RenderCtx {
       const slug = j.legs.map((l) => l.trainNo.replace(/[^a-zA-Z0-9-]/g, "")).join("-");
       downloadText(`max-${j.date}-${slug}.ics`, journeyToIcs(j, summary));
     },
+    onBookSteps: (j) => showBookingModal(j),
     isFavorite: (route) => store.isFavorite(route),
     onToggleFavorite: (route) => {
       store.toggleFavorite(route);
