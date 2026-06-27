@@ -444,6 +444,12 @@ function formatDate(iso: string): string {
   }).format(d);
 }
 
+/** Narrow weekday name for a date (e.g. "Sat" / "sam." / "土"), localized. */
+function formatWeekday(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return new Intl.DateTimeFormat(getLang(), { weekday: "short" }).format(d);
+}
+
 function isWeekend(iso: string): boolean {
   const day = new Date(`${iso}T00:00:00`).getDay();
   return day === 0 || day === 6;
@@ -464,6 +470,7 @@ function ctx(): RenderCtx {
   return {
     label: (id) => deps.registry.label(id),
     formatDate,
+    formatWeekday,
     bookUrl: () => SNCF_CONNECT_URL,
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
