@@ -359,14 +359,25 @@ export function calendarEl(
 ): HTMLElement {
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
   const grid = el("div", { class: "cal-grid" });
+  let anyNearby = false;
   for (const d of days) {
     const sel = d.date === selected ? " sel" : "";
+    // Three states: free seat on the exact route (ok), reachable only via a nearby
+    // station within the search radius (nearby), or nothing (no).
+    const nearbyOnly = !d.available && Boolean(d.nearby);
+    if (nearbyOnly) anyNearby = true;
+    const state = d.available ? "ok" : nearbyOnly ? "nearby" : "no";
+    const status = d.available
+      ? t("cal_available")
+      : nearbyOnly
+        ? t("cal_nearby")
+        : t("cal_unavailable");
     const cell = el("button", {
-      class: `cal-cell ${d.available ? "ok" : "no"}${sel}`,
+      class: `cal-cell ${state}${sel}`,
       type: "button",
-      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : "—"}`,
+      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : nearbyOnly ? t("cal_nearby") : "—"}`,
       attrs: {
-        "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? t("cal_available") : t("cal_unavailable")}`,
+        "aria-label": `${ctx.formatDate(d.date)} — ${status}`,
         ...(sel ? { "aria-current": "date" } : {}),
       },
       text: d.date.slice(8, 10),
@@ -374,10 +385,11 @@ export function calendarEl(
     });
     grid.append(cell);
   }
+  const legend = [t("cal_legend"), ...(anyNearby ? [t("cal_legend_nearby")] : [])].join(" · ");
   return el("section", { class: "calendar" }, [
     el("h3", { text: opts?.title ?? t("cal_title") }),
     grid,
-    el("p", { class: "cal-legend muted", text: t("cal_legend") }),
+    el("p", { class: "cal-legend muted", text: legend }),
   ]);
 }
 
