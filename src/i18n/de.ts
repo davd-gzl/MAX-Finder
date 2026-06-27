@@ -127,6 +127,7 @@ export const de: Dict = {
   act_surprise: "Überrasch mich",
   surprise_none: "Keine mögliche Stadt zum Hinzufügen.",
   cities_add: "Stadt hinzufügen…",
+  tour_end_ph: "Optional — hier enden (Start = Schleife)",
   cities_clear: "Alle löschen",
   act_nearest: "Nächster Halt",
   nearest_hint: "Luftlinie · fügt die nächste erreichbare Station hinzu",

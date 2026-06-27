@@ -126,6 +126,7 @@ export const ja: Dict = {
   act_surprise: "おまかせ",
   surprise_none: "追加できる都市がありません。",
   cities_add: "都市を追加…",
+  tour_end_ph: "任意 — ここで終了（出発地＝周回）",
   cities_clear: "すべて消去",
   act_nearest: "最寄りの駅",
   nearest_hint: "直線距離 · 到達可能な最寄り駅を追加",

@@ -126,6 +126,7 @@ export const nl: Dict = {
   act_surprise: "Verras me",
   surprise_none: "Geen stad om toe te voegen.",
   cities_add: "Stad toevoegen…",
+  tour_end_ph: "Optioneel — hier eindigen (start = lus)",
   cities_clear: "Alles wissen",
   act_nearest: "Dichtstbijzijnde stop",
   nearest_hint: "Hemelsbrede afstand · voegt het dichtstbijzijnde bereikbare station toe",

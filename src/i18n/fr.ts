@@ -137,6 +137,7 @@ export const fr = {
   act_surprise: "Au hasard",
   surprise_none: "Aucune ville possible à ajouter.",
   cities_add: "Ajouter une ville…",
+  tour_end_ph: "Optionnel — finir ici (départ = boucle)",
   cities_clear: "Tout effacer",
   act_nearest: "Étape la plus proche",
   nearest_hint: "Distance à vol d'oiseau · ajoute la gare accessible la plus proche",

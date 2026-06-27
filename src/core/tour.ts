@@ -127,20 +127,23 @@ export function planTours(
   distance?: Distance,
   maxKm?: number,
   maxLegKm?: number,
+  end?: string,
 ): Tour[] {
-  const unique = [...new Set(cities.filter((c) => c && c !== start))];
+  // Intermediates exclude the start and a fixed end (the "nomad" stops in between).
+  const unique = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
   if (unique.length === 0 || unique.length > 5) return [];
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
   const firstFeasible = makeFirstFeasible(trains, opts);
+  const tail = end ? [end] : []; // finish at `end` (may equal start → a loop)
 
   const tours: Tour[] = [];
   for (const perm of permutations(unique)) {
-    const legs = planSequence(firstFeasible, [start, ...perm], startDate, lo, hi, distance, maxLegKm);
+    const legs = planSequence(firstFeasible, [start, ...perm, ...tail], startDate, lo, hi, distance, maxLegKm);
     if (!legs) continue;
     if (!withinKm(legs, distance, maxKm)) continue; // over the total-distance budget
     tours.push({
-      order: perm,
+      order: [...perm, ...tail],
       legs,
       totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0),
     });
@@ -165,9 +168,11 @@ export function planTourInOrder(
   distance?: Distance,
   maxKm?: number,
   maxLegKm?: number,
+  end?: string,
 ): Tour | null {
   const order: string[] = [];
   const seen = new Set([start]);
+  if (end) seen.add(end); // the end is appended last, never visited mid-tour
   for (const c of cities) {
     if (c && !seen.has(c)) {
       seen.add(c);
@@ -177,10 +182,11 @@ export function planTourInOrder(
   if (order.length === 0) return null;
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
-  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...order], startDate, lo, hi, distance, maxLegKm);
+  const full = end ? [...order, end] : order; // finish at `end` (may equal start)
+  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...full], startDate, lo, hi, distance, maxLegKm);
   if (!legs) return null;
   if (!withinKm(legs, distance, maxKm)) return null; // over the total-distance budget
-  return { order, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
+  return { order: full, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
 }
 
 /**
@@ -205,8 +211,9 @@ export function planTourGreedy(
   distance?: Distance,
   maxKm?: number,
   maxLegKm?: number,
+  end?: string,
 ): Tour | null {
-  const remaining = [...new Set(cities.filter((c) => c && c !== start))];
+  const remaining = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
   if (remaining.length === 0) return null;
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
@@ -261,6 +268,16 @@ export function planTourGreedy(
     const arr = arrivalDate(pickJourney);
     depFrom = addDays(arr, lo);
     depTo = addDays(arr, hi);
+  }
+  // Finish at the fixed end (may equal start → a loop), after every nomad stop.
+  if (end) {
+    const d = distance ? distance(current, end) : 0;
+    const hopKm = Number.isFinite(d) ? d : 0;
+    if ((Number.isFinite(d) && d > legCap) || spentKm + hopKm > budget) return null;
+    const j = firstFeasible(current, end, depFrom, depTo);
+    if (!j) return null;
+    order.push(end);
+    legs.push(j);
   }
   return { order, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
 }

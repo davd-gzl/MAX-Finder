@@ -127,6 +127,7 @@ export const it: Dict = {
   act_surprise: "A caso",
   surprise_none: "Nessuna città disponibile da aggiungere.",
   cities_add: "Aggiungi una città…",
+  tour_end_ph: "Opzionale — finire qui (partenza = anello)",
   cities_clear: "Cancella tutto",
   act_nearest: "Tappa più vicina",
   nearest_hint: "Distanza in linea d'aria · aggiunge la stazione raggiungibile più vicina",

@@ -342,6 +342,35 @@ describe("planTourInOrder", () => {
   });
 });
 
+describe("tour with a fixed end (from → nomad → destination)", () => {
+  // PARIS -> LYON -> MARSEILLE, and MARSEILLE -> PARIS (so a loop is feasible).
+  const data = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+    { date: "2026-07-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    { date: "2026-07-03", origine: "MARSEILLE ST CHARLES", destination: "PARIS (intramuros)", heure_depart: "09:00", heure_arrivee: "12:10", train_no: "12", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+  const opts = { maxConnections: 0 };
+
+  it("ends at the chosen destination after the nomad stops", () => {
+    const tours = planTours(data, "PARIS (intramuros)", ["LYON (intramuros)"], "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, "MARSEILLE ST CHARLES");
+    expect(tours).toHaveLength(1);
+    expect(tours[0]!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES"]);
+    expect(tours[0]!.legs).toHaveLength(2);
+  });
+
+  it("loops back to the start when end === start", () => {
+    const tour = planTourInOrder(data, "PARIS (intramuros)", ["LYON (intramuros)", "MARSEILLE ST CHARLES"], "2026-07-01", opts, 1, 1, undefined, undefined, undefined, "PARIS (intramuros)");
+    expect(tour).not.toBeNull();
+    expect(tour!.order).toEqual(["LYON (intramuros)", "MARSEILLE ST CHARLES", "PARIS (intramuros)"]);
+    expect(tour!.legs[tour!.legs.length - 1]!.destination).toBe("PARIS (intramuros)");
+  });
+
+  it("greedy honours a fixed end too", () => {
+    const tour = planTourGreedy(data, "PARIS (intramuros)", ["LYON (intramuros)"], "2026-07-01", opts, 1, 1, undefined, undefined, undefined, "MARSEILLE ST CHARLES");
+    expect(tour!.order[tour!.order.length - 1]).toBe("MARSEILLE ST CHARLES");
+  });
+});
+
 describe("planTourGreedy", () => {
   const chain = normalizeRecords([
     { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
