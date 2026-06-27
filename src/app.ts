@@ -10,7 +10,8 @@ import {
 import { filterTrains } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
-import { findJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
 import { haversineKm } from "./util/geo";
@@ -52,6 +53,8 @@ interface Refs {
   maxDuration: HTMLInputElement;
   maxSpanDays: HTMLInputElement;
   maxSpanDaysField: HTMLElement;
+  radius: HTMLInputElement;
+  radiusField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
   connGroupField: HTMLElement;
@@ -138,6 +141,51 @@ function stationDistanceKm(a: string, b: string): number {
   const ca = deps.registry.coords(a);
   const cb = deps.registry.coords(b);
   return ca && cb ? haversineKm(ca, cb) : Infinity;
+}
+
+interface NearbyTrip {
+  id: string;
+  km: number;
+  journey: Journey;
+}
+
+/**
+ * Paid-connection alternatives within `radiusKm` of the route endpoints, for when
+ * the exact origin→destination has no free MAX seat:
+ *  - `fromOrigin`: stations near the origin that DO have a free MAX journey to the
+ *    destination (pay a short hop origin → that station, then ride free).
+ *  - `toDest`: stations near the destination reachable by free MAX from the origin
+ *    (ride free to that station, then pay a short hop on to the destination).
+ * Each list is nearest-first and capped so the section stays scannable.
+ */
+function nearbyAlternatives(
+  origin: string,
+  destination: string,
+  date: string,
+  radiusKm: number,
+  opts: ConnectionOptions,
+): { fromOrigin: NearbyTrip[]; toDest: NearbyTrip[] } {
+  const CAP = 8;
+  const pool = deps.registry.list();
+  const skip = new Set([origin, destination]);
+  const near = (center: string): { id: string; km: number }[] =>
+    pool
+      .map((s) => ({ id: s.id, km: stationDistanceKm(center, s.id) }))
+      .filter((x) => !skip.has(x.id) && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
+      .sort((a, b) => a.km - b.km);
+  const collect = (cands: { id: string; km: number }[], findFree: (id: string) => Journey | null): NearbyTrip[] => {
+    const out: NearbyTrip[] = [];
+    for (const { id, km } of cands) {
+      const journey = findFree(id);
+      if (journey) out.push({ id, km, journey });
+      if (out.length >= CAP) break;
+    }
+    return out;
+  };
+  return {
+    fromOrigin: collect(near(origin), (id) => bestJourney(deps.trains, id, destination, date, opts)),
+    toDest: collect(near(destination), (id) => bestJourney(deps.trains, origin, id, date, opts)),
+  };
 }
 
 /**
@@ -404,6 +452,7 @@ function syncFormFromQuery(): void {
   refs.departBefore.value = query.departBefore ?? "";
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
+  refs.radius.value = query.radiusKm != null ? String(query.radiusKm) : "";
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
@@ -425,6 +474,7 @@ function readQueryFromForm(): SearchQuery {
   const maxLegKm = Number(refs.maxLegKm.value.trim());
   const maxLegDur = Number(refs.maxLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
+  const rad = Number(refs.radius.value.trim());
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -467,6 +517,9 @@ function readQueryFromForm(): SearchQuery {
     // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
       query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
+    // Search radius (km) is an exact-trip feature only.
+    radiusKm:
+      query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
     // Tour finish-by date — only meaningful with a tour destination set.
     tourEndDate:
       query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
@@ -864,6 +917,36 @@ function runOdSearch(c: RenderCtx): void {
     for (const j of journeys) refs.results.append(render.journeyEl(j, c));
   }
 
+  // Nearby paid-connection alternatives (radius search): surface nearby stations
+  // that DO have a free MAX seat, so you can pay a short hop to/from one when the
+  // exact route has none. Most useful with zero direct journeys, but always shown
+  // when a radius is set. Their ids also feed the map circles below.
+  let nearbyIds: string[] = [];
+  if (query.radiusKm) {
+    const alt = nearbyAlternatives(query.origin, query.destination, query.date, query.radiusKm, {
+      ...filterOpts(),
+      maxConnections: query.maxConnections,
+    });
+    nearbyIds = [...alt.fromOrigin.map((x) => x.id), ...alt.toDest.map((x) => x.id)];
+    const sec = el("section", { class: "nearby" }, [
+      el("h3", { text: t("nearby_title", { km: query.radiusKm }) }),
+      el("p", { class: "muted small", text: t("nearby_hint") }),
+    ]);
+    if (alt.fromOrigin.length === 0 && alt.toDest.length === 0) {
+      sec.append(render.emptyEl(t("nearby_none")));
+    } else {
+      if (alt.fromOrigin.length) {
+        sec.append(el("h4", { class: "nearby-sub", text: t("nearby_from_origin", { station: registry.label(query.origin) }) }));
+        for (const a of alt.fromOrigin) sec.append(render.nearbyTripRowEl(a.id, Math.round(a.km), a.journey, c));
+      }
+      if (alt.toDest.length) {
+        sec.append(el("h4", { class: "nearby-sub", text: t("nearby_to_dest", { station: registry.label(query.destination) }) }));
+        for (const a of alt.toDest) sec.append(render.nearbyTripRowEl(a.id, Math.round(a.km), a.journey, c));
+      }
+    }
+    refs.results.append(sec);
+  }
+
   // "Do you want to come back?": once an outbound exists, propose a return a couple
   // of days later (editable) and list the free-MAX returns for that day, live.
   if (journeys.length > 0) {
@@ -912,6 +995,16 @@ function runOdSearch(c: RenderCtx): void {
   // sorted fastest-first, so the first journey is the quickest.
   const display = journeys[0] ?? null;
   showRoute(display ? [display.origin, ...display.hubs, display.destination] : [query.origin, query.destination]);
+  // Overlay the search-radius circles + nearby-station markers on top of the route.
+  if (query.radiusKm) {
+    showRadius(
+      [
+        { id: query.origin, km: query.radiusKm },
+        { id: query.destination, km: query.radiusKm },
+      ],
+      nearbyIds,
+    );
+  }
 }
 
 /** Coarse pointer ≈ touch/phone. */
@@ -1159,6 +1252,13 @@ function showRoute(stations: string[]): void {
   requestAnimationFrame(() => m.invalidate());
 }
 
+/** Overlay radius circles + nearby-station markers on the current route map. */
+function showRadius(centers: { id: string; km: number }[], nearby: string[]): void {
+  const m = ensureMap();
+  m.radius(centers, nearby);
+  requestAnimationFrame(() => m.invalidate());
+}
+
 /** Reveal & expand the destination card matching a clicked map marker. */
 function selectStation(id: string): void {
   const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
@@ -1246,6 +1346,7 @@ function updateFieldVisibility(): void {
   // Advanced too, shown only for the exact trip.
   refs.maxKmField.style.display = tour ? "" : "none";
   refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
+  refs.radiusField.style.display = query.mode === "od" ? "" : "none";
   // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
   // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
   if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
@@ -1476,6 +1577,14 @@ function buildForm(): FormBuild {
   maxSpanDays.max = "14";
   maxSpanDays.placeholder = "2";
   maxSpanDays.setAttribute("aria-label", t("field_maxSpanDays"));
+  // Search radius (km) around the endpoints: suggest nearby stations with free MAX
+  // seats, for a paid hop to/from them when the exact route has none ("exact trip").
+  const radius = inputEl("number");
+  radius.min = "10";
+  radius.step = "10";
+  radius.placeholder = "100";
+  radius.setAttribute("aria-label", t("field_radius"));
+  const radiusField = field(t("field_radius"), radius);
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
@@ -1640,6 +1749,7 @@ function buildForm(): FormBuild {
       maxDurationField,
       maxLegDurationField,
       maxSpanDaysField,
+      radiusField,
       maxKmField,
       trainTypeField,
     ]),
@@ -1725,6 +1835,8 @@ function buildForm(): FormBuild {
       maxDuration,
       maxSpanDays,
       maxSpanDaysField,
+      radius,
+      radiusField,
       trainType,
       maxConnections,
       connGroupField,

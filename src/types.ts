@@ -88,6 +88,13 @@ export interface SearchQuery {
   maxSpanDays?: number;
   /** Finish the tour at the destination on or before this date ("tour" mode). */
   tourEndDate?: string;
+  /**
+   * Search radius in km around the endpoints ("exact trip" mode). When set, the
+   * map draws a circle around the origin and destination and the results suggest
+   * nearby stations with free MAX seats — so you can pay a short hop to/from a
+   * station that does have a free train when the exact route has none.
+   */
+  radiusKm?: number;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */
