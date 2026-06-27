@@ -366,6 +366,52 @@ a {
   background: var(--border-strong);
 }
 
+/* Keyboard-shortcut badge on a button — revealed on hover / keyboard focus, so
+   the shortcut keys from the "?" help are discoverable right where they act.
+   Absolutely positioned in the corner so revealing it never shifts the layout
+   (a row of mode tabs must not reflow when you hover one of them). */
+.has-kbd {
+  position: relative;
+}
+.kbd-hint {
+  position: absolute;
+  top: -0.5em;
+  inset-inline-end: -0.5em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2em;
+  height: 1.2em;
+  padding: 0 0.25em;
+  font: inherit;
+  font-size: 0.66em;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 5px;
+  opacity: 0;
+  transform: scale(0.7);
+  transform-origin: center;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .has-kbd:hover .kbd-hint {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.has-kbd:focus-visible .kbd-hint {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Tabs are transparent text; pin the badge close so it reads as a superscript. */
+.mode-tab .kbd-hint {
+  top: -0.35em;
+  inset-inline-end: -0.4em;
+}
+
 /* Connections + its "overnight stopover" option grouped as one cell. */
 .conn-group {
   display: flex;
@@ -1190,16 +1236,57 @@ a {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Each tour leg is one day. A continuous vertical timeline runs behind the legs,
+   with a bold numbered badge per day, so days separate at a glance. */
+.tour-legs {
+  position: relative;
+  margin-top: 0.5rem;
+}
+.tour-legs::before {
+  content: "";
+  position: absolute;
+  left: 0.74rem; /* centre of the day badges */
+  top: 0.9rem;
+  bottom: 0.9rem;
+  width: 2px;
+  background: var(--border-strong);
+}
 .tour-leg {
-  margin: 0.35rem 0;
-  padding-left: 0.55rem;
-  border-left: 2px solid var(--border-strong);
+  position: relative;
+  padding: 0.55rem 0 0.55rem 2.1rem;
+}
+.tour-leg + .tour-leg {
+  border-top: 1px solid var(--border);
 }
 .tour-leg-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+.tour-day-badge {
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  /* A halo the colour of the card punches the badge out of the timeline line. */
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.tour-day-date {
+  font-weight: 640;
+  font-size: 0.92rem;
 }
 .leg-km {
   font-size: 0.8rem;
