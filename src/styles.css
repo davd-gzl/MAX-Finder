@@ -1364,3 +1364,27 @@ a {
   justify-content: flex-end;
   margin-top: 0.3rem;
 }
+
+/* ---- od "come back?" return section ---- */
+.od-return {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.od-return h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-bottom: 0.5rem;
+}
+.return-date-field {
+  max-width: 14rem;
+  margin-bottom: 0.6rem;
+}
+.return-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.keys-btn {
+  font-weight: 700;
+}
