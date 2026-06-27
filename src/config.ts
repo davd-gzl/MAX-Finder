@@ -25,13 +25,6 @@ export const MAX_CONNECTION_MIN = 240;
 export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
 
 /**
- * SNCF Connect only sells a single through-ticket for a connection when the layover
- * is at most this long (it rejects longer ones). At/under it, a connecting journey
- * can book in one "via" link; over it, it must be booked train by train.
- */
-export const THROUGH_BOOK_MAX_LAYOVER_MIN = 150; // 2h30
-
-/**
  * A train counts as a "night train" if it leaves at/after this time (minutes from
  * midnight) or arrives past midnight — i.e. it has you travelling through the
  * night. Used by the "night trains" toggle to optionally exclude them.

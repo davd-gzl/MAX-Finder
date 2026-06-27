@@ -6,7 +6,6 @@ import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { formatDuration, dayIndex } from "../util/time";
-import { THROUGH_BOOK_MAX_LAYOVER_MIN } from "../config";
 import { t } from "../i18n";
 
 export interface RenderCtx {
@@ -14,7 +13,7 @@ export interface RenderCtx {
   formatDate: (iso: string) => string;
   /** Narrow localized weekday name (e.g. "Sat"). */
   formatWeekday: (iso: string) => string;
-  bookUrl: (origin: string, destination: string, date: string, time?: string, via?: string[]) => string;
+  bookUrl: (origin: string, destination: string, date: string, time?: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
@@ -73,13 +72,12 @@ function bookLink(
   destination: string,
   date: string,
   time?: string,
-  via?: string[],
 ): HTMLElement {
   return el(
     "a",
     {
       class: "btn btn-book",
-      href: ctx.bookUrl(origin, destination, date, time, via),
+      href: ctx.bookUrl(origin, destination, date, time),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
     [
@@ -157,22 +155,18 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
     ]),
   ]);
 
-  // SNCF Connect only sells a through-ticket when every layover is short enough
-  // (≤ 2h30); then the whole journey books in one "via" link (fewer tickets). With
-  // a longer layover it refuses the through-booking, so we book train by train via
-  // the step modal. Direct trips always deep-link straight through.
-  const maxLayover = j.layovers.length ? Math.max(...j.layovers) : 0;
-  const throughBookable = maxLayover <= THROUGH_BOOK_MAX_LAYOVER_MIN;
+  // A through-ticket can't be pinned to the exact free trains in a single SNCF
+  // Connect search (the connection time isn't settable from a deep link, so it
+  // re-optimises to the earliest connection). So a connecting trip books train by
+  // train via the step modal; a direct trip deep-links straight through.
   const actions = el("div", { class: "actions" }, [
-    !connecting
-      ? bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart)
-      : throughBookable
-        ? bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart, j.hubs)
-        : el(
-            "button",
-            { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
-            [el("span", { text: t("act_book") }), icon(I.external)],
-          ),
+    connecting
+      ? el(
+          "button",
+          { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
+          [el("span", { text: t("act_book") }), icon(I.external)],
+        )
+      : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
