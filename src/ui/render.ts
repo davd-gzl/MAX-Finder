@@ -13,7 +13,7 @@ export interface RenderCtx {
   formatDate: (iso: string) => string;
   /** Narrow localized weekday name (e.g. "Sat"). */
   formatWeekday: (iso: string) => string;
-  bookUrl: (origin: string, destination: string, date: string) => string;
+  bookUrl: (origin: string, destination: string, date: string, time?: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
@@ -64,12 +64,18 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
   return el("div", { class: "train-row" }, [time, meta]);
 }
 
-function bookLink(ctx: RenderCtx, origin: string, destination: string, date: string): HTMLElement {
+function bookLink(
+  ctx: RenderCtx,
+  origin: string,
+  destination: string,
+  date: string,
+  time?: string,
+): HTMLElement {
   return el(
     "a",
     {
       class: "btn btn-book",
-      href: ctx.bookUrl(origin, destination, date),
+      href: ctx.bookUrl(origin, destination, date, time),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
     [
@@ -147,7 +153,7 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 
   const actions = el("div", { class: "actions" }, [
-    bookLink(ctx, j.origin, j.destination, j.date),
+    bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
