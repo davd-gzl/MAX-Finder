@@ -21,6 +21,7 @@ export const ar: Dict = {
   field_origin: "محطة المغادرة",
   field_destination: "محطة الوصول",
   field_date: "التاريخ",
+  field_end_date: "تاريخ الانتهاء",
   field_return: "العودة (اختياري)",
   field_card: "الاشتراك",
   card_jeune: "MAX JEUNE",

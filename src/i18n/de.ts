@@ -21,6 +21,7 @@ export const de: Dict = {
   field_origin: "Abfahrtsbahnhof",
   field_destination: "Zielbahnhof",
   field_date: "Datum",
+  field_end_date: "Enddatum",
   field_return: "Rückfahrt (optional)",
   field_card: "Abo",
   card_jeune: "MAX JEUNE",

@@ -21,6 +21,7 @@ export const it: Dict = {
   field_origin: "Stazione di partenza",
   field_destination: "Stazione di arrivo",
   field_date: "Data",
+  field_end_date: "Data di fine",
   field_return: "Ritorno (opzionale)",
   field_card: "Abbonamento",
   card_jeune: "MAX JEUNE",

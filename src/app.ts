@@ -44,6 +44,8 @@ interface Refs {
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
+  endDate: HTMLInputElement;
+  endDateField: HTMLElement;
   card: HTMLSelectElement;
   departAfter: HTMLInputElement;
   departBefore: HTMLInputElement;
@@ -177,7 +179,7 @@ function addNearestCity(): void {
   let chosen: string | undefined;
   for (let i = 0; i < candidates.length && i < 40; i++) {
     const c = candidates[i]!;
-    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined)) {
+    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
       chosen = c;
       break;
     }
@@ -388,6 +390,7 @@ function syncFormFromQuery(): void {
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   refs.flex.value = String(query.flexDays ?? 0);
   refs.date.value = query.date;
+  refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
   refs.departBefore.value = query.departBefore ?? "";
@@ -448,6 +451,9 @@ function readQueryFromForm(): SearchQuery {
     // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
       query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
+    // Tour finish-by date — only meaningful with a tour destination set.
+    tourEndDate:
+      query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
   };
 }
 
@@ -480,6 +486,7 @@ function liveUpdate(): void {
   store.updateUrl(query);
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
+  refreshTourEndDate(); // a freshly typed tour destination reveals the finish-by date
   runSearch();
 }
 
@@ -658,19 +665,21 @@ function runTourSearch(c: RenderCtx): void {
   const maxKm = query.maxKm; // optional cap on the tour's total straight-line km
   const legKm = query.maxLegKm; // optional cap on each hop's straight-line km
   // Optional fixed finish: end the tour at this city (may equal the start → a loop
-  // back home). Empty = open-ended (end wherever the last nomad stop lands).
+  // back home). Empty = open-ended (end wherever the last nomad stop lands). With a
+  // finish set, an optional end date requires arriving there on or before it.
   const end = query.destination || undefined;
+  const endDate = end ? query.tourEndDate : undefined;
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
   // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
@@ -1010,7 +1019,7 @@ function surpriseMe(): void {
     // "no city" when the few feasible ones land late in the shuffled order.
     let chosen: string | undefined;
     for (const c of pool) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined)) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
         chosen = c;
         break;
       }
@@ -1146,6 +1155,7 @@ function updateFieldVisibility(): void {
   const needsDest = query.mode === "od" || query.mode === "to" || query.mode === "tour";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.destination.placeholder = query.mode === "tour" ? t("tour_end_ph") : "";
+  refreshTourEndDate();
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
   // Flexible dates belong in the "where to / where from" browse: widening to ±N
   // days surfaces more places. Exact trip already has the 30-day calendar (the flex
@@ -1175,6 +1185,16 @@ function updateFieldVisibility(): void {
   // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
   // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
   if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
+}
+
+/**
+ * The tour "finish by" date only makes sense with a destination set, so it appears
+ * the moment a tour destination is filled (and tracks the start as its lower bound).
+ */
+function refreshTourEndDate(): void {
+  const show = query.mode === "tour" && Boolean(resolveStation(refs.destination.value));
+  refs.endDateField.style.display = show ? "" : "none";
+  refs.endDate.min = query.date; // can't finish before you leave
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -1375,6 +1395,12 @@ function buildForm(): FormBuild {
   const lastBookable = windowDates[windowDates.length - 1] ?? today;
   date.min = today;
   date.max = lastBookable;
+  // Optional tour finish-by date (shown only when a tour has a destination).
+  const endDate = inputEl("date");
+  endDate.min = today;
+  endDate.max = lastBookable;
+  endDate.setAttribute("aria-label", t("field_end_date"));
+  const endDateField = field(t("field_end_date"), endDate);
   const departAfter = inputEl("time");
   const departBefore = inputEl("time");
   const maxDuration = inputEl("number");
@@ -1588,6 +1614,7 @@ function buildForm(): FormBuild {
       destinationField,
       viaField,
       field(t("field_date"), date),
+      endDateField,
       flexField,
       regionField,
       citiesField,
@@ -1616,6 +1643,8 @@ function buildForm(): FormBuild {
       origin,
       destination,
       date,
+      endDate,
+      endDateField,
       departAfter,
       departBefore,
       maxDuration,

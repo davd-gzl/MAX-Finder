@@ -369,6 +369,16 @@ describe("tour with a fixed end (from → nomad → destination)", () => {
     const tour = planTourGreedy(data, "PARIS (intramuros)", ["LYON (intramuros)"], "2026-07-01", opts, 1, 1, undefined, undefined, undefined, "MARSEILLE ST CHARLES");
     expect(tour!.order[tour!.order.length - 1]).toBe("MARSEILLE ST CHARLES");
   });
+
+  it("rejects a tour that can't finish by the end date", () => {
+    const cities = ["LYON (intramuros)"];
+    const end = "MARSEILLE ST CHARLES"; // arrives 2026-07-02
+    // Generous end date: feasible.
+    expect(planTours(data, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, end, "2026-07-05")).toHaveLength(1);
+    // End date before the earliest possible arrival: infeasible.
+    expect(planTours(data, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, end, "2026-07-01")).toHaveLength(0);
+    expect(planTourInOrder(data, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, undefined, undefined, undefined, end, "2026-07-01")).toBeNull();
+  });
 });
 
 describe("planTourGreedy", () => {

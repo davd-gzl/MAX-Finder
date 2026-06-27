@@ -21,6 +21,7 @@ export const zh: Dict = {
   field_origin: "出发车站",
   field_destination: "到达车站",
   field_date: "日期",
+  field_end_date: "结束日期",
   field_return: "返程（可选）",
   field_card: "通票",
   card_jeune: "MAX JEUNE",

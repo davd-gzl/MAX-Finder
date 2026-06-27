@@ -21,6 +21,7 @@ export const nl: Dict = {
   field_origin: "Vertrekstation",
   field_destination: "Aankomststation",
   field_date: "Datum",
+  field_end_date: "Einddatum",
   field_return: "Terugreis (optioneel)",
   field_card: "Abonnement",
   card_jeune: "MAX JEUNE",
