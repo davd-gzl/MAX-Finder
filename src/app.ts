@@ -698,17 +698,20 @@ function runTourSearch(c: RenderCtx): void {
   // finish set, an optional end date requires arriving there on or before it.
   const end = query.destination || undefined;
   const endDate = end ? query.tourEndDate : undefined;
+  // Flexible departure: let the first hop slip up to flexDays later than the chosen
+  // date, so a tour is found even when nothing leaves on that exact day.
+  const startFlex = query.flexDays ?? 0;
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
   // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
@@ -1201,10 +1204,12 @@ function updateFieldVisibility(): void {
   refs.destination.placeholder = query.mode === "tour" ? t("tour_end_ph") : "";
   refreshTourEndDate();
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  // Flexible dates belong in the "where to / where from" browse: widening to ±N
-  // days surfaces more places. Exact trip already has the 30-day calendar (the flex
-  // list would just duplicate it); best has its ideas-by-day calendar; tour a range.
-  refs.flexField.style.display = query.mode === "from" || query.mode === "to" ? "" : "none";
+  // Flexible dates: in the "where to / where from" browse, widening to ±N days
+  // surfaces more places; in a tour it lets the departure slip a few days later to
+  // find a feasible start. Exact trip already has the 30-day calendar (the flex list
+  // would just duplicate it); best has its ideas-by-day calendar.
+  refs.flexField.style.display =
+    query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
   // Field placement per mode: a tour promotes Connections/Overnight into the
   // prominent main form (and tucks its caps into Advanced); every other mode keeps

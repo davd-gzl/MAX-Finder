@@ -68,10 +68,13 @@ function planSequence(
   hi: number,
   distance?: Distance,
   maxLegKm?: number,
+  startFlex = 0,
 ): Journey[] | null {
   const legs: Journey[] = [];
-  let depFrom = startDate; // the first hop leaves on the chosen start date
-  let depTo = startDate;
+  // The first hop may leave on the chosen date or up to `startFlex` days later
+  // ("flexible departure"): the planner takes the earliest feasible start.
+  let depFrom = startDate;
+  let depTo = startFlex > 0 ? addDays(startDate, startFlex) : startDate;
   for (let i = 0; i < seq.length - 1; i++) {
     const from = seq[i];
     const to = seq[i + 1];
@@ -136,6 +139,7 @@ export function planTours(
   maxLegKm?: number,
   end?: string,
   endDate?: string,
+  startFlex = 0,
 ): Tour[] {
   // Intermediates exclude the start and a fixed end (the "nomad" stops in between).
   const unique = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
@@ -147,7 +151,7 @@ export function planTours(
 
   const tours: Tour[] = [];
   for (const perm of permutations(unique)) {
-    const legs = planSequence(firstFeasible, [start, ...perm, ...tail], startDate, lo, hi, distance, maxLegKm);
+    const legs = planSequence(firstFeasible, [start, ...perm, ...tail], startDate, lo, hi, distance, maxLegKm, startFlex);
     if (!legs) continue;
     if (!withinKm(legs, distance, maxKm)) continue; // over the total-distance budget
     if (!endsBy(legs, endDate)) continue; // doesn't finish by the target date
@@ -179,6 +183,7 @@ export function planTourInOrder(
   maxLegKm?: number,
   end?: string,
   endDate?: string,
+  startFlex = 0,
 ): Tour | null {
   const order: string[] = [];
   const seen = new Set([start]);
@@ -193,7 +198,7 @@ export function planTourInOrder(
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
   const full = end ? [...order, end] : order; // finish at `end` (may equal start)
-  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...full], startDate, lo, hi, distance, maxLegKm);
+  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...full], startDate, lo, hi, distance, maxLegKm, startFlex);
   if (!legs) return null;
   if (!withinKm(legs, distance, maxKm)) return null; // over the total-distance budget
   if (!endsBy(legs, endDate)) return null; // doesn't finish by the target date
@@ -224,6 +229,7 @@ export function planTourGreedy(
   maxLegKm?: number,
   end?: string,
   endDate?: string,
+  startFlex = 0,
 ): Tour | null {
   const remaining = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
   if (remaining.length === 0) return null;
@@ -237,7 +243,8 @@ export function planTourGreedy(
   const legs: Journey[] = [];
   let current = start;
   let depFrom = startDate;
-  let depTo = startDate;
+  // Flexible departure: the first hop may slip up to `startFlex` days later.
+  let depTo = startFlex > 0 ? addDays(startDate, startFlex) : startDate;
   let spentKm = 0;
 
   while (remaining.length > 0) {
