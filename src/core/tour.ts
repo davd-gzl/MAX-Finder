@@ -66,6 +66,8 @@ function planSequence(
   startDate: string,
   lo: number,
   hi: number,
+  distance?: Distance,
+  maxLegKm?: number,
 ): Journey[] | null {
   const legs: Journey[] = [];
   let depFrom = startDate; // the first hop leaves on the chosen start date
@@ -74,6 +76,11 @@ function planSequence(
     const from = seq[i];
     const to = seq[i + 1];
     if (!from || !to) return null;
+    // Per-train distance cap: reject a hop longer than maxLegKm (straight line).
+    if (maxLegKm && maxLegKm > 0 && distance) {
+      const d = distance(from, to);
+      if (Number.isFinite(d) && d > maxLegKm) return null;
+    }
     const j = firstFeasible(from, to, depFrom, depTo);
     if (!j) return null;
     legs.push(j);
@@ -119,6 +126,7 @@ export function planTours(
   maxDays = minDays,
   distance?: Distance,
   maxKm?: number,
+  maxLegKm?: number,
 ): Tour[] {
   const unique = [...new Set(cities.filter((c) => c && c !== start))];
   if (unique.length === 0 || unique.length > 5) return [];
@@ -128,7 +136,7 @@ export function planTours(
 
   const tours: Tour[] = [];
   for (const perm of permutations(unique)) {
-    const legs = planSequence(firstFeasible, [start, ...perm], startDate, lo, hi);
+    const legs = planSequence(firstFeasible, [start, ...perm], startDate, lo, hi, distance, maxLegKm);
     if (!legs) continue;
     if (!withinKm(legs, distance, maxKm)) continue; // over the total-distance budget
     tours.push({
@@ -156,6 +164,7 @@ export function planTourInOrder(
   maxDays = minDays,
   distance?: Distance,
   maxKm?: number,
+  maxLegKm?: number,
 ): Tour | null {
   const order: string[] = [];
   const seen = new Set([start]);
@@ -168,7 +177,7 @@ export function planTourInOrder(
   if (order.length === 0) return null;
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
-  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...order], startDate, lo, hi);
+  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...order], startDate, lo, hi, distance, maxLegKm);
   if (!legs) return null;
   if (!withinKm(legs, distance, maxKm)) return null; // over the total-distance budget
   return { order, legs, totalDurationMin: legs.reduce((s, j) => s + j.totalDurationMin, 0) };
@@ -195,6 +204,7 @@ export function planTourGreedy(
   maxDays = minDays,
   distance?: Distance,
   maxKm?: number,
+  maxLegKm?: number,
 ): Tour | null {
   const remaining = [...new Set(cities.filter((c) => c && c !== start))];
   if (remaining.length === 0) return null;
@@ -202,6 +212,7 @@ export function planTourGreedy(
   const hi = Math.max(lo, Math.floor(maxDays));
   const firstFeasible = makeFirstFeasible(trains, opts);
   const budget = maxKm && maxKm > 0 ? maxKm : Infinity;
+  const legCap = maxLegKm && maxLegKm > 0 ? maxLegKm : Infinity;
 
   const order: string[] = [];
   const legs: Journey[] = [];
@@ -221,6 +232,7 @@ export function planTourGreedy(
       const j = firstFeasible(current, city, depFrom, depTo);
       if (!j) continue;
       const d = distance ? distance(current, city) : 0;
+      if (Number.isFinite(d) && d > legCap) continue; // single hop too long (per-train cap)
       const hopKm = Number.isFinite(d) ? d : 0; // unplotted hop: don't charge the budget
       if (spentKm + hopKm > budget) continue; // would bust the total-distance budget
       const better =

@@ -118,5 +118,6 @@ export const ko: Dict = {
   field_stay_min: "도시당 최소 일수",
   field_stay_max: "도시당 최대 일수",
   field_maxKm: "최대 총 거리 (km)",
+  field_maxLegKm: "열차당 최대 거리 (km)",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
 };

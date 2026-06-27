@@ -114,6 +114,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.minDays != null && q.minDays !== 1) p.set("dmin", String(q.minDays));
   if (q.maxDays != null && q.maxDays !== 3) p.set("dmax", String(q.maxDays));
   if (q.maxKm != null && q.maxKm > 0) p.set("maxkm", String(q.maxKm));
+  if (q.maxLegKm != null && q.maxLegKm > 0) p.set("legkm", String(q.maxLegKm));
   return p;
 }
 
@@ -127,6 +128,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const dmin = Number(p.get("dmin"));
   const dmax = Number(p.get("dmax"));
   const maxkm = Number(p.get("maxkm"));
+  const legkm = Number(p.get("legkm"));
   const clampDay = (n: number, fallback: number): number =>
     Number.isFinite(n) && n >= 1 ? Math.min(14, Math.floor(n)) : fallback;
   return {
@@ -148,6 +150,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     minDays: p.has("dmin") ? clampDay(dmin, 1) : undefined,
     maxDays: p.has("dmax") ? clampDay(dmax, 3) : undefined,
     maxKm: Number.isFinite(maxkm) && maxkm > 0 ? Math.floor(maxkm) : undefined,
+    maxLegKm: Number.isFinite(legkm) && legkm > 0 ? Math.floor(legkm) : undefined,
   };
 }
 

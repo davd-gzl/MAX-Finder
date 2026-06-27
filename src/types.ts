@@ -76,6 +76,8 @@ export interface SearchQuery {
   maxDays?: number;
   /** Cap on the tour's total straight-line distance, in km ("tour" mode). */
   maxKm?: number;
+  /** Cap on each hop's straight-line distance, in km ("tour" mode). */
+  maxLegKm?: number;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */

@@ -128,6 +128,7 @@ export const fr = {
   field_stay_min: "Jours min. / ville",
   field_stay_max: "Jours max. / ville",
   field_maxKm: "Distance totale max. (km)",
+  field_maxLegKm: "Distance max. / train (km)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 };
 
