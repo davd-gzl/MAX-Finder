@@ -50,6 +50,8 @@ export const ar: Dict = {
   res_to_title: "الوصول إلى {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "لا يوجد مقعد MAX لهذه المعايير.",
+  nonbook_msg: "{station} لا يمكن حجزها ببطاقة MAX.",
+  nonbook_hint: "تظهر المحطات الدولية في البيانات المفتوحة لكنها غير مشمولة ببطاقة MAX JEUNE / SENIOR.",
   res_none_hint: "جرّب مزيدًا من التغييرات أو مرونة أكبر في التواريخ أو التوقفات الليلية أو إزالة عوامل التصفية.",
   tour_none_hint: "جرّب توسيع الأيام لكل مدينة أو إزالة مدينة أو السماح بمزيد من التغييرات.",
   res_destinations: "{n} وجهة",

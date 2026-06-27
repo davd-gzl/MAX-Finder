@@ -1,4 +1,5 @@
 import type { Dataset } from "./data/dataset";
+import { isNonBookable } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
 import type { SearchQuery, MaxTrain, Journey } from "./types";
 import {
@@ -576,6 +577,7 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   const { trains, registry } = deps;
   const anchor = dir === "from" ? query.origin : query.destination;
   if (!anchor) return showHint(dir === "from" ? refs.origin : refs.destination);
+  if (nonBookableNotice(anchor)) return;
   refs.title.textContent = t(dir === "from" ? "res_from_title" : "res_to_title", {
     station: registry.label(anchor),
     date: formatDate(query.date),
@@ -650,6 +652,7 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
 function runTourSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
   if (!query.origin) return showHint(refs.origin);
+  if (nonBookableNotice(query.origin, query.destination, ...(query.cities ?? []))) return;
   refs.title.textContent = t("tour_title", {
     station: registry.label(query.origin),
     date: formatDate(query.date),
@@ -696,6 +699,7 @@ function runTourSearch(c: RenderCtx): void {
 function runBestSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
   if (!query.origin) return showHint(refs.origin);
+  if (nonBookableNotice(query.origin)) return;
   refs.title.textContent = t("best_title", {
     station: registry.label(query.origin),
     date: formatDate(query.date),
@@ -745,6 +749,7 @@ function runOdSearch(c: RenderCtx): void {
   if (!query.origin || !query.destination) {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
+  if (nonBookableNotice(query.origin, query.destination, query.via)) return;
   odReturnDate = null; // a fresh outbound search re-proposes the return (outbound + 2)
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
@@ -857,6 +862,23 @@ function runOdSearch(c: RenderCtx): void {
 /** Coarse pointer ≈ touch/phone. */
 function isTouch(): boolean {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+}
+
+/**
+ * If any searched station is a non-bookable (international) stop, explain why
+ * there are no results and return true (so the caller stops). These appear in the
+ * open data but can't be reserved with a MAX pass.
+ */
+function nonBookableNotice(...stations: (string | undefined)[]): boolean {
+  const blocked = stations.find((s) => s && isNonBookable(s));
+  if (!blocked) return false;
+  refs.title.textContent = "";
+  refs.results.append(
+    render.emptyEl(t("nonbook_msg", { station: deps.registry.label(blocked) })),
+    render.hintEl(t("nonbook_hint")),
+  );
+  showMap(blocked, []);
+  return true;
 }
 
 function showHint(input: HTMLInputElement): void {

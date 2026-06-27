@@ -50,6 +50,8 @@ export const es: Dict = {
   res_to_title: "Llegando a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Ninguna plaza MAX para estos criterios.",
+  nonbook_msg: "{station} no se puede reservar con un pase MAX.",
+  nonbook_hint: "Las paradas internacionales aparecen en los datos abiertos pero no las cubre MAX JEUNE / SENIOR.",
   res_none_hint: "Prueba con más conexiones, mayor flexibilidad de fechas, escalas nocturnas o quita filtros.",
   tour_none_hint: "Prueba a ampliar los días por ciudad, quitar una ciudad o permitir más conexiones.",
   res_destinations: "{n} destino(s)",

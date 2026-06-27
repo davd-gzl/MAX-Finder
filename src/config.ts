@@ -26,6 +26,20 @@ export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
 
 export const DEFAULT_CARD: CardType = "jeune";
 
+/**
+ * Destinations that appear in the open data but are NOT bookable with a MAX pass
+ * (MAX JEUNE / SENIOR cover domestic France; these international stops show
+ * od_happy_card="OUI" in the feed but can't actually be reserved with the pass).
+ * Matched as accent-insensitive substrings of the station label — extend freely.
+ */
+export const NON_BOOKABLE_PATTERNS: string[] = [
+  "geneve", // Genève / Geneva (CH)
+  "lausanne", // (CH)
+  "zurich", // (CH)
+  "bruxelles", // Brussels (BE)
+  "brussel",
+];
+
 const BASE = (import.meta.env?.BASE_URL ?? "/") as string;
 
 /** Base-relative data URLs (work under the GitHub Pages sub-path). */

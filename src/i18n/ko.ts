@@ -50,6 +50,8 @@ export const ko: Dict = {
   res_to_title: "{station} 도착 — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "조건에 맞는 MAX 좌석이 없습니다.",
+  nonbook_msg: "{station}은(는) MAX 패스로 예약할 수 없습니다.",
+  nonbook_hint: "국제 정류장은 공개 데이터에 표시되지만 MAX JEUNE / SENIOR에는 포함되지 않습니다.",
   res_none_hint: "환승 횟수를 늘리거나 날짜 유연성을 넓히거나 야간 경유를 켜거나 필터를 줄여 보세요.",
   tour_none_hint: "도시당 일수를 늘리거나 도시를 줄이거나 환승을 더 허용해 보세요.",
   res_destinations: "목적지 {n}곳",
