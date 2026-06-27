@@ -52,8 +52,6 @@ export const fr = {
   res_to_title: "Pour arriver à {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Aucune place MAX pour ces critères.",
-  nonbook_msg: "{station} n'est pas réservable avec un pass MAX.",
-  nonbook_hint: "Les arrêts internationaux figurent dans les données ouvertes mais ne sont pas couverts par MAX JEUNE / SENIOR.",
   res_none_hint: "Essayez plus de correspondances, une souplesse de dates plus large, les escales de nuit, ou retirez des filtres.",
   tour_none_hint: "Essayez d'élargir les jours par ville, de retirer une ville, ou d'autoriser plus de correspondances.",
   res_destinations: "{n} destination(s)",
@@ -120,6 +118,7 @@ export const fr = {
   act_guide: "Guide de voyage",
   act_install: "Installer l'application",
   act_close: "Fermer",
+  act_clear: "Effacer",
   install_unavailable: "L'installation automatique n'est pas disponible dans ce navigateur.",
   install_help:
     "Pour installer : ouvrez le menu de votre navigateur et choisissez « Ajouter à l'écran d'accueil » ou « Installer l'application ».",

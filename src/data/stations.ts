@@ -1,5 +1,6 @@
 import type { Station } from "../types";
 import { CITY_REFERENCE } from "./cities";
+import { NON_BOOKABLE_PATTERNS } from "../config";
 
 /** Lowercase, strip accents/diacritics for tolerant matching. */
 export function normalizeText(s: string): string {
@@ -8,6 +9,17 @@ export function normalizeText(s: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
+}
+
+/**
+ * A station present in the open data but not bookable with a MAX pass (an
+ * international stop — see NON_BOOKABLE_PATTERNS). These are hidden from
+ * autocomplete/lists and their trains are marked unavailable, so they never
+ * surface anywhere in the UI. Accent-insensitive substring match.
+ */
+export function isNonBookable(station: string): boolean {
+  const n = normalizeText(station);
+  return NON_BOOKABLE_PATTERNS.some((p) => n.includes(p));
 }
 
 /**
@@ -138,7 +150,7 @@ export class StationRegistry {
 
   /** Display-ready stations, one per label, preferring bookable / located ids. */
   list(): Station[] {
-    return this.dedupe(this.all());
+    return this.dedupe(this.all().filter((s) => !isNonBookable(s.id)));
   }
 
   label(id: string): string {
@@ -175,6 +187,7 @@ export class StationRegistry {
     const prefix: Station[] = [];
     const contains: Station[] = [];
     for (const { station, hay, words } of this.index) {
+      if (isNonBookable(station.id)) continue; // hidden: can't be booked with MAX
       if (words.some((w) => w.startsWith(q))) prefix.push(station);
       else if (hay.includes(q)) contains.push(station);
     }

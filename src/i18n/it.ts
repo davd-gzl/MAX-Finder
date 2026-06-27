@@ -50,8 +50,6 @@ export const it: Dict = {
   res_to_title: "In arrivo a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Nessun posto MAX per questi criteri.",
-  nonbook_msg: "{station} non è prenotabile con un pass MAX.",
-  nonbook_hint: "Le fermate internazionali compaiono nei dati aperti ma non sono coperte da MAX JEUNE / SENIOR.",
   res_none_hint: "Prova più cambi, maggiore flessibilità sulle date, soste notturne o rimuovi filtri.",
   tour_none_hint: "Prova ad ampliare i giorni per città, rimuovere una città o consentire più cambi.",
   res_destinations: "{n} destinazione/i",
@@ -110,6 +108,7 @@ export const it: Dict = {
   act_guide: "Guida di viaggio",
   act_install: "Installa l'app",
   act_close: "Chiudi",
+  act_clear: "Cancella",
   install_unavailable: "L'installazione automatica non è disponibile in questo browser.",
   install_help:
     "Per installare: apri il menu del browser e scegli «Aggiungi alla schermata Home» o «Installa app».",

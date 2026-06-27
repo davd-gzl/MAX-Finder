@@ -50,8 +50,6 @@ export const ko: Dict = {
   res_to_title: "{station} 도착 — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "조건에 맞는 MAX 좌석이 없습니다.",
-  nonbook_msg: "{station}은(는) MAX 패스로 예약할 수 없습니다.",
-  nonbook_hint: "국제 정류장은 공개 데이터에 표시되지만 MAX JEUNE / SENIOR에는 포함되지 않습니다.",
   res_none_hint: "환승 횟수를 늘리거나 날짜 유연성을 넓히거나 야간 경유를 켜거나 필터를 줄여 보세요.",
   tour_none_hint: "도시당 일수를 늘리거나 도시를 줄이거나 환승을 더 허용해 보세요.",
   res_destinations: "목적지 {n}곳",
@@ -110,6 +108,7 @@ export const ko: Dict = {
   act_guide: "여행 가이드",
   act_install: "앱 설치",
   act_close: "닫기",
+  act_clear: "지우기",
   install_unavailable: "이 브라우저에서는 자동 설치를 사용할 수 없습니다.",
   install_help:
     "설치하려면: 브라우저 메뉴를 열고 '홈 화면에 추가' 또는 '앱 설치'를 선택하세요.",
