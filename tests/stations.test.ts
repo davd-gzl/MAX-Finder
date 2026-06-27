@@ -74,6 +74,21 @@ describe("StationRegistry.addMissing", () => {
   });
 });
 
+describe("non-bookable stations are hidden", () => {
+  it("never surface in search or list, even once present in the dataset", () => {
+    const r = new StationRegistry(stationData as Station[]);
+    r.addMissing(["BRUXELLES MIDI", "GENEVE", "PARIS (intramuros)"]);
+    // International stops the MAX pass can't book: registered (so labels/city
+    // links still resolve) but filtered out of every user-facing list.
+    expect(r.search("bruxelles")).toHaveLength(0);
+    expect(r.search("geneve")).toHaveLength(0);
+    expect(r.list().some((s) => s.id === "BRUXELLES MIDI")).toBe(false);
+    expect(r.list().some((s) => s.id === "GENEVE")).toBe(false);
+    // Bookable stations are unaffected.
+    expect(r.search("paris").map((s) => s.id)).toContain("PARIS (intramuros)");
+  });
+});
+
 describe("StationRegistry lookups", () => {
   it("returns coordinates and labels", () => {
     expect(registry.coords("PARIS (intramuros)")).toEqual([48.8566, 2.3522]);

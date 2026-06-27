@@ -335,6 +335,37 @@ a {
 .input::placeholder {
   color: var(--faint);
 }
+/* Clearable text input ("×" to empty it). */
+.input-wrap {
+  position: relative;
+  display: block;
+}
+.input.has-clear {
+  padding-right: 2rem;
+}
+.input-clear {
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.input-clear:hover {
+  background: var(--border-strong);
+}
+
 /* Connections + its "overnight stopover" option grouped as one cell. */
 .conn-group {
   display: flex;

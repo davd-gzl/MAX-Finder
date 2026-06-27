@@ -1,19 +1,8 @@
 import type { RawRecord, MaxTrain, DataMeta } from "../types";
-import { DATA_URL, META_URL, NON_BOOKABLE_PATTERNS } from "../config";
+import { DATA_URL, META_URL } from "../config";
 import { parseTimeToMinutes, minutesToHHMM } from "../util/time";
+import { isNonBookable } from "./stations";
 import sampleData from "../../data/tgvmax.sample.json";
-
-/**
- * A station present in the data but not bookable with a MAX pass (an international
- * stop — see NON_BOOKABLE_PATTERNS). Accent-insensitive substring match.
- */
-export function isNonBookable(station: string): boolean {
-  const n = station
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
-  return NON_BOOKABLE_PATTERNS.some((p) => n.includes(p));
-}
 
 /** Normalize one raw SNCF record into a `MaxTrain`. Returns null if invalid. */
 export function normalizeRecord(r: RawRecord): MaxTrain | null {
