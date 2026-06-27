@@ -75,6 +75,7 @@ export const nl: Dict = {
   lbl_train: "Trein {no}",
   lbl_dayoffset: "+{n} d",
   act_book: "Boeken op SNCF Connect",
+  act_book_leg: "Trein {n} boeken",
   act_ics: "Aan agenda toevoegen",
   act_calendar: "Agenda",
   act_fav_add: "Aan favorieten toevoegen",

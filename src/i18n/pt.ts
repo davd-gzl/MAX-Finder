@@ -75,6 +75,7 @@ export const pt: Dict = {
   lbl_train: "Trem {no}",
   lbl_dayoffset: "+{n} d",
   act_book: "Reservar no SNCF Connect",
+  act_book_leg: "Reservar o comboio {n}",
   act_ics: "Adicionar à agenda",
   act_calendar: "Agenda",
   act_fav_add: "Adicionar aos favoritos",

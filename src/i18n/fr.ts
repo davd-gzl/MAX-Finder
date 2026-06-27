@@ -79,6 +79,7 @@ export const fr = {
   lbl_dayoffset: "+{n} j",
 
   act_book: "Réserver sur SNCF Connect",
+  act_book_leg: "Réserver le train {n}",
   act_ics: "Ajouter au calendrier",
   act_calendar: "Calendrier",
   act_fav_add: "Ajouter aux favoris",

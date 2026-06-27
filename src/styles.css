@@ -673,6 +673,21 @@ a {
   background: transparent;
   font-weight: 560;
 }
+/* Per-leg "book this train" link on a connecting journey: small + tucked under the
+   leg, so it reads as a sub-action of that train, not the whole trip. */
+.btn-leg-book {
+  align-self: flex-start;
+  margin-top: 0.1rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 560;
+  color: var(--accent);
+}
+.leg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
 .iconbtn {
   border: 1px solid var(--border);
   background: var(--surface);

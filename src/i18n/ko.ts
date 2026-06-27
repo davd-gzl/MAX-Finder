@@ -75,6 +75,7 @@ export const ko: Dict = {
   lbl_train: "열차 {no}",
   lbl_dayoffset: "+{n}일",
   act_book: "SNCF Connect에서 예약",
+  act_book_leg: "{n}번 열차 예약",
   act_ics: "캘린더에 추가",
   act_calendar: "캘린더",
   act_fav_add: "즐겨찾기 추가",

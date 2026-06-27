@@ -103,8 +103,29 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
   );
 }
 
+/**
+ * A compact "Book this train" link for one leg of a connecting journey — MAX seats
+ * often can't be booked end-to-end, so each train is bookable on its own.
+ */
+function legBookLink(ctx: RenderCtx, leg: MaxTrain, n: number): HTMLElement {
+  return el(
+    "a",
+    {
+      class: "btn btn-book btn-leg-book",
+      href: ctx.bookUrl(leg.origin, leg.destination, leg.date, leg.depart),
+      attrs: {
+        target: "_blank",
+        rel: "noopener noreferrer",
+        "aria-label": `${t("act_book_leg", { n })} — ${ctx.label(leg.origin)} → ${ctx.label(leg.destination)}`,
+      },
+    },
+    [el("span", { text: t("act_book_leg", { n }) }), icon(I.external)],
+  );
+}
+
 /** A direct or connecting journey card. */
 export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
+  const connecting = j.legs.length > 1;
   const legs = el("div", { class: "legs" });
   j.legs.forEach((leg, i) => {
     if (i > 0) {
@@ -133,7 +154,10 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
           ]
         : []),
     ]);
-    legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
+    // Connecting journeys book per-train (end-to-end MAX is often unavailable).
+    const legChildren = [route, trainRowEl(leg)];
+    if (connecting) legChildren.push(legBookLink(ctx, leg, i + 1));
+    legs.append(el("div", { class: "leg" }, legChildren));
   });
 
   const tag =
@@ -153,7 +177,8 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 
   const actions = el("div", { class: "actions" }, [
-    bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
+    // Direct trips book in one tap; connecting ones book per-leg (buttons above).
+    ...(connecting ? [] : [bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart)]),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
