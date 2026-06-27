@@ -1373,7 +1373,7 @@ function buildForm(): FormBuild {
   const maxKm = inputEl("number");
   maxKm.min = "0";
   maxKm.step = "50";
-  maxKm.placeholder = "1500";
+  maxKm.placeholder = "1000";
   maxKm.setAttribute("aria-label", t("field_maxKm"));
   const maxKmField = field(t("field_maxKm"), maxKm);
 
