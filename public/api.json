@@ -31,18 +31,25 @@
     "base": "https://davd-gzl.github.io/MAX-Finder/",
     "method": "GET (query string deep-link)",
     "params": {
-      "mode": ["from", "to", "od", "best", "tour"],
+      "mode": ["from", "to", "od", "tour", "best"],
       "from": "origin station id",
       "to": "destination station id",
       "date": "YYYY-MM-DD",
-      "conn": "0 | 1 | 2 (max changes, default 1)",
+      "conn": "0 | 1 | 2 | 3 | 6 (max changes; 6 = unlimited; default 1)",
       "card": "jeune | senior",
       "after": "HH:MM (depart after)",
       "before": "HH:MM (depart before)",
-      "maxdur": "integer minutes (max total duration)",
+      "maxdur": "integer minutes (max total journey duration)",
       "type": "axis: SUD EST | ATLANTIQUE | NORD | EST",
-      "rg": "region label (mode=best)",
-      "cities": "~-separated station ids (mode=tour)"
+      "via": "station id to route through (mode=od)",
+      "flex": "1 | 2 | 3 | 7 (also search +/- N days around date; mode=od or best)",
+      "night": "1 to allow long overnight layovers at a hub",
+      "rg": "region label (mode=best or tour)",
+      "cities": "~-separated station ids to visit (mode=tour)",
+      "dmin": "integer (min days per city; mode=tour, default 1)",
+      "dmax": "integer (max days per city; mode=tour, default 3)",
+      "maxkm": "integer (cap on the tour's total straight-line distance in km; mode=tour)",
+      "legkm": "integer (cap on each hop's straight-line distance in km; mode=tour)"
     }
   }
 }

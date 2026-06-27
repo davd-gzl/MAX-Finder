@@ -86,7 +86,8 @@ Machine-readable and serverless. [`llms.txt`](public/llms.txt) and
 - **Availability** — `data/tgvmax.json` (records where `od_happy_card: "OUI"` means a
   free MAX seat is reservable), plus `data/meta.json` and `data/stations.json`.
 - **Deep-link search** — build a URL with `?mode=&from=&to=&date=&conn=…`
-  (modes: `from`, `to`, `od`, `best`, `tour`).
+  (modes: `from`, `to`, `od`, `tour`, `best`). Tour also takes `cities`, `dmin`/`dmax`,
+  `maxkm`/`legkm`, `rg`; `od`/`best` take `flex`; `od` takes `via`. Full list in `api.json`.
 
 ## License
 

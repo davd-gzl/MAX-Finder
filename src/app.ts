@@ -1215,7 +1215,7 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  for (const m of ["from", "to", "od", "best", "tour"] as const) {
+  for (const m of ["from", "to", "od", "tour", "best"] as const) {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
