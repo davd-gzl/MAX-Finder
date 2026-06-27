@@ -64,6 +64,8 @@ export const zh: Dict = {
   act_fav_add: "加入收藏",
   act_fav_remove: "取消收藏",
   cal_title: "30 天可用情况",
+  best_cal_title: "按日期的目的地",
+  best_cal_count: "{n} 个目的地",
   cal_legend: "绿色 = 有 MAX 座位",
   cal_available: "可用",
   cal_unavailable: "不可用",

@@ -313,15 +313,25 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
   return reachTripRowEl(trip.destination, trip.journey, ctx);
 }
 
-/** The 30-day availability strip for a route, with the selected day highlighted. */
-export function calendarEl(days: CalendarDay[], ctx: RenderCtx, selected?: string): HTMLElement {
+/**
+ * The 30-day strip with the selected day highlighted. Defaults to a route's
+ * train-availability calendar; `opts` lets "best" mode relabel it as an
+ * ideas-by-day strip (title + a "{n} destinations" count).
+ */
+export function calendarEl(
+  days: CalendarDay[],
+  ctx: RenderCtx,
+  selected?: string,
+  opts?: { title?: string; count?: (n: number) => string },
+): HTMLElement {
+  const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
   const grid = el("div", { class: "cal-grid" });
   for (const d of days) {
     const sel = d.date === selected ? " sel" : "";
     const cell = el("button", {
       class: `cal-cell ${d.available ? "ok" : "no"}${sel}`,
       type: "button",
-      title: `${ctx.formatDate(d.date)} — ${d.available ? t("badge_trains", { n: d.count }) : "—"}`,
+      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : "—"}`,
       attrs: {
         "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? t("cal_available") : t("cal_unavailable")}`,
         ...(sel ? { "aria-current": "date" } : {}),
@@ -332,7 +342,7 @@ export function calendarEl(days: CalendarDay[], ctx: RenderCtx, selected?: strin
     grid.append(cell);
   }
   return el("section", { class: "calendar" }, [
-    el("h3", { text: t("cal_title") }),
+    el("h3", { text: opts?.title ?? t("cal_title") }),
     grid,
     el("p", { class: "cal-legend muted", text: t("cal_legend") }),
   ]);

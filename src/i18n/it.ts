@@ -64,6 +64,8 @@ export const it: Dict = {
   act_fav_add: "Aggiungi ai preferiti",
   act_fav_remove: "Rimuovi dai preferiti",
   cal_title: "Disponibilità a 30 giorni",
+  best_cal_title: "Destinazioni per giorno",
+  best_cal_count: "{n} destinazione/i",
   cal_legend: "verde = posto MAX disponibile",
   cal_available: "disponibile",
   cal_unavailable: "non disponibile",

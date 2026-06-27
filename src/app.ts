@@ -11,7 +11,7 @@ import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys } from "./core/connections";
-import { availabilityCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { findRoundTrips } from "./core/roundtrip";
@@ -671,6 +671,25 @@ function runBestSearch(c: RenderCtx): void {
     station: registry.label(query.origin),
     date: formatDate(query.date),
   });
+  // Ideas by day: a 30-day strip showing how many destinations run each day.
+  // Clicking a day reloads that day's list (works even when today's is empty, so
+  // you can hop to a better day).
+  const inRegion = (d: string): boolean =>
+    !query.region || registry.get(d)?.region === query.region;
+  const cal = destinationCalendar(
+    trains,
+    query.origin,
+    dateRange(today, BOOKING_WINDOW_DAYS),
+    filterOpts(),
+    inRegion,
+  );
+  refs.results.append(
+    render.calendarEl(cal, c, query.date, {
+      title: t("best_cal_title"),
+      count: (n) => t("best_cal_count", { n }),
+    }),
+  );
+
   let trips = bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), {
     ...filterOpts(),
     maxConnections: query.maxConnections,
