@@ -1044,8 +1044,9 @@ function updateFieldVisibility(): void {
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
   refs.stayField.style.display = query.mode === "tour" ? "" : "none";
   refs.maxKmField.style.display = query.mode === "tour" ? "" : "none";
-  // "Nearest stop" is a tour-only action (it grows a multi-city trip).
-  nearestBtnEl?.toggleAttribute("hidden", query.mode !== "tour");
+  // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
+  // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
+  if (nearestBtnEl) nearestBtnEl.style.display = query.mode === "tour" ? "" : "none";
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -1338,9 +1339,10 @@ function buildForm(): FormBuild {
     class: "btn btn-ghost nearest-btn",
     type: "button",
     text: t("act_nearest"),
-    attrs: { title: t("nearest_hint"), hidden: "" },
+    attrs: { title: t("nearest_hint") },
     on: { click: addNearestCity },
   });
+  nearestBtn.style.display = "none"; // shown only in tour mode by updateFieldVisibility()
   nearestBtnEl = nearestBtn;
   const citiesField = field(
     t("field_cities"),
