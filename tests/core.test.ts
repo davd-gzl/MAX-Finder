@@ -296,6 +296,22 @@ describe("planTours", () => {
     expect(tours[0]!.legs).toHaveLength(2);
   });
 
+  it("allows a flexible departure: the first hop may leave a few days later", () => {
+    // The Paris→Lyon train only runs on 07-03, but the user asked to start 07-01.
+    const late = normalizeRecords([
+      { date: "2026-07-03", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+      { date: "2026-07-04", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES"];
+    const opts = { maxConnections: 0 };
+    // No flex: nothing leaves 07-01, so the tour is infeasible.
+    expect(planTours(late, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1)).toHaveLength(0);
+    // startFlex=3: the departure may slip to 07-03 -> the tour plans.
+    const flexed = planTours(late, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, undefined, undefined, 3);
+    expect(flexed).toHaveLength(1);
+    expect(flexed[0]!.legs[0]!.date).toBe("2026-07-03");
+  });
+
   it("searches the min/max day window for each hop (multi-day plan)", () => {
     // Second hop only runs 2 days after arriving in Lyon.
     const spaced = normalizeRecords([
