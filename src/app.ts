@@ -59,6 +59,7 @@ interface Refs {
   maxConnections: HTMLSelectElement;
   connGroupField: HTMLElement;
   overnight: HTMLInputElement;
+  night: HTMLInputElement;
   via: HTMLInputElement;
   flex: HTMLSelectElement;
   flexField: HTMLElement;
@@ -149,6 +150,16 @@ interface NearbyTrip {
   journey: Journey;
 }
 
+interface NearbyBothTrip {
+  from: { id: string; km: number };
+  to: { id: string; km: number };
+  journey: Journey;
+}
+
+// How many nearby stations to consider when both endpoints must be substituted
+// (the search is quadratic in this, so keep it small).
+const BOTH_ENDS_CAP = 8;
+
 /**
  * Paid-connection alternatives within `radiusKm` of the route endpoints, for when
  * the exact origin→destination has no free MAX seat:
@@ -164,7 +175,7 @@ function nearbyAlternatives(
   date: string,
   radiusKm: number,
   opts: ConnectionOptions,
-): { fromOrigin: NearbyTrip[]; toDest: NearbyTrip[] } {
+): { fromOrigin: NearbyTrip[]; toDest: NearbyTrip[]; bothEnds: NearbyBothTrip[] } {
   const CAP = 8;
   const pool = deps.registry.list();
   const skip = new Set([origin, destination]);
@@ -173,6 +184,8 @@ function nearbyAlternatives(
       .map((s) => ({ id: s.id, km: stationDistanceKm(center, s.id) }))
       .filter((x) => !skip.has(x.id) && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
       .sort((a, b) => a.km - b.km);
+  const nearOrigin = near(origin);
+  const nearDest = near(destination);
   const collect = (cands: { id: string; km: number }[], findFree: (id: string) => Journey | null): NearbyTrip[] => {
     const out: NearbyTrip[] = [];
     for (const { id, km } of cands) {
@@ -182,25 +195,41 @@ function nearbyAlternatives(
     }
     return out;
   };
-  return {
-    fromOrigin: collect(near(origin), (id) => bestJourney(deps.trains, id, destination, date, opts)),
-    toDest: collect(near(destination), (id) => bestJourney(deps.trains, origin, id, date, opts)),
-  };
+  const fromOrigin = collect(nearOrigin, (id) => bestJourney(deps.trains, id, destination, date, opts));
+  const toDest = collect(nearDest, (id) => bestJourney(deps.trains, origin, id, date, opts));
+  // Only when neither single substitution works is a double substitution (both
+  // ends nearby) the *only* option — compute it then, and keep it small (quadratic).
+  const bothEnds: NearbyBothTrip[] = [];
+  if (fromOrigin.length === 0 && toDest.length === 0) {
+    for (const from of nearOrigin.slice(0, BOTH_ENDS_CAP)) {
+      for (const to of nearDest.slice(0, BOTH_ENDS_CAP)) {
+        if (from.id === to.id) continue;
+        const journey = bestJourney(deps.trains, from.id, to.id, date, opts);
+        if (journey) {
+          bothEnds.push({ from, to, journey });
+          break; // one option per departure station keeps the list scannable
+        }
+      }
+      if (bothEnds.length >= CAP) break;
+    }
+  }
+  return { fromOrigin, toDest, bothEnds };
 }
 
 /**
- * Window dates that have a nearby paid-connection option (radius search) even when
- * the exact route has no free seat — so the calendar can flag them as still
- * reachable. The candidate stations are fixed across days, so they're found once,
- * then each day short-circuits on the first nearby station that has a journey.
+ * Per-day "nearby reachability" for the radius calendar, when the exact route has
+ * no free seat: level 1 = reachable by substituting ONE endpoint (a nearby start
+ * OR a nearby finish); level 2 = reachable ONLY by substituting BOTH. Candidate
+ * stations are fixed across days, so they're found once; each day short-circuits on
+ * the first hit, and the (quadratic) both-ends check runs only when level 1 fails.
  */
-function nearbyCalendarDates(
+function nearbyCalendarLevels(
   origin: string,
   destination: string,
   dates: string[],
   radiusKm: number,
   opts: ConnectionOptions,
-): Set<string> {
+): Map<string, 1 | 2> {
   const CAND_CAP = 12;
   const pool = deps.registry.list();
   const skip = new Set([origin, destination]);
@@ -213,12 +242,21 @@ function nearbyCalendarDates(
       .map((x) => x.id);
   const nearOrigin = nearest(origin);
   const nearDest = nearest(destination);
-  const out = new Set<string>();
+  const bothOrigin = nearOrigin.slice(0, BOTH_ENDS_CAP);
+  const bothDest = nearDest.slice(0, BOTH_ENDS_CAP);
+  const out = new Map<string, 1 | 2>();
   for (const date of dates) {
-    const hit =
+    const single =
       nearOrigin.some((id) => bestJourney(deps.trains, id, destination, date, opts)) ||
       nearDest.some((id) => bestJourney(deps.trains, origin, id, date, opts));
-    if (hit) out.add(date);
+    if (single) {
+      out.set(date, 1);
+      continue;
+    }
+    const both = bothOrigin.some((a) =>
+      bothDest.some((b) => a !== b && bestJourney(deps.trains, a, b, date, opts)),
+    );
+    if (both) out.set(date, 2);
   }
   return out;
 }
@@ -388,8 +426,11 @@ function resolveStation(text: string): string | undefined {
   if (!norm) return undefined;
   const byLabel = labelToId.get(norm.toLowerCase());
   if (byLabel) return byLabel;
+  // Strict: no fuzzy/raw fallback. Text matching no real station resolves to
+  // undefined, so a typo or made-up name reads as invalid instead of being kept as
+  // a phantom origin / city that silently matches nothing.
   const hit = deps.registry.search(norm, 1)[0];
-  return hit ? hit.id : norm;
+  return hit ? hit.id : undefined;
 }
 
 // --- formatting / context ---------------------------------------------------
@@ -479,6 +520,8 @@ function syncFormFromQuery(): void {
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
+  // Values set here are always resolved, so clear any stale invalid flag.
+  for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
   refs.flex.value = String(query.flexDays ?? 0);
   refs.date.value = query.date;
   refs.endDate.value = query.tourEndDate ?? "";
@@ -491,6 +534,7 @@ function syncFormFromQuery(): void {
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
+  refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.region.value = query.region ?? "";
   tourCities = [...(query.cities ?? [])];
   refs.cities.value = "";
@@ -524,6 +568,7 @@ function readQueryFromForm(): SearchQuery {
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
     overnight: refs.overnight.checked || undefined,
+    excludeNight: !refs.night.checked || undefined, // unchecked = drop night trains
     region: refs.region.value || undefined,
     // Chips hold the committed cities; also fold in any text still in the input
     // (typed but not yet turned into a chip) so a pending entry isn't lost.
@@ -620,6 +665,7 @@ function tourPlanOpts() {
   return {
     maxConnections: query.maxConnections,
     ...(query.maxLegDurationMin ? { maxDurationMin: query.maxLegDurationMin } : {}),
+    ...(query.excludeNight ? { excludeNight: true } : {}),
   };
 }
 
@@ -629,6 +675,7 @@ function filterOpts() {
     departBefore: query.departBefore,
     maxDurationMin: query.maxDurationMin,
     trainType: query.trainType,
+    ...(query.excludeNight ? { excludeNight: true } : {}),
     // Overnight stopovers: widen the layover ceiling so a journey can wait
     // overnight at a hub instead of being limited to a ~4h connection.
     ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
@@ -909,13 +956,19 @@ function runOdSearch(c: RenderCtx): void {
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
   const cal = availabilityCalendar(trains, query.origin, query.destination, windowDates, connOpts, passesVia);
   // With a radius set, flag days the exact route can't cover but a nearby station
-  // can — they show in a distinct calendar colour so "reachable nearby" stands out.
+  // can — single-end substitution (amber) vs both-ends substitution (a third
+  // colour), so the level of effort each day needs reads at a glance.
   if (query.radiusKm) {
-    const nearbyDates = nearbyCalendarDates(query.origin, query.destination, windowDates, query.radiusKm, {
+    const levels = nearbyCalendarLevels(query.origin, query.destination, windowDates, query.radiusKm, {
       ...filterOpts(),
       maxConnections: query.maxConnections,
     });
-    for (const d of cal) if (!d.available && nearbyDates.has(d.date)) d.nearby = true;
+    for (const d of cal) {
+      if (d.available) continue;
+      const lvl = levels.get(d.date);
+      if (lvl === 1) d.nearby = true;
+      else if (lvl === 2) d.nearbyBoth = true;
+    }
   }
   refs.results.append(render.calendarEl(cal, c, query.date));
 
@@ -965,12 +1018,16 @@ function runOdSearch(c: RenderCtx): void {
       ...filterOpts(),
       maxConnections: query.maxConnections,
     });
-    nearbyIds = [...alt.fromOrigin.map((x) => x.id), ...alt.toDest.map((x) => x.id)];
+    nearbyIds = [
+      ...alt.fromOrigin.map((x) => x.id),
+      ...alt.toDest.map((x) => x.id),
+      ...alt.bothEnds.flatMap((x) => [x.from.id, x.to.id]),
+    ];
     const sec = el("section", { class: "nearby" }, [
       el("h3", { text: t("nearby_title", { km: query.radiusKm }) }),
       el("p", { class: "muted small", text: t("nearby_hint") }),
     ]);
-    if (alt.fromOrigin.length === 0 && alt.toDest.length === 0) {
+    if (alt.fromOrigin.length === 0 && alt.toDest.length === 0 && alt.bothEnds.length === 0) {
       sec.append(render.emptyEl(t("nearby_none")));
     } else {
       if (alt.fromOrigin.length) {
@@ -980,6 +1037,15 @@ function runOdSearch(c: RenderCtx): void {
       if (alt.toDest.length) {
         sec.append(el("h4", { class: "nearby-sub", text: t("nearby_to_dest", { station: registry.label(query.destination) }) }));
         for (const a of alt.toDest) sec.append(render.nearbyTripRowEl(a.id, Math.round(a.km), a.journey, c));
+      }
+      // Both ends substituted — the only option is leaving from AND arriving at a
+      // nearby station. Shown only when neither single substitution worked.
+      if (alt.bothEnds.length) {
+        sec.append(el("h4", { class: "nearby-sub", text: t("nearby_both") }));
+        for (const a of alt.bothEnds)
+          sec.append(
+            render.nearbyBothRowEl(a.from.id, Math.round(a.from.km), a.to.id, Math.round(a.to.km), a.journey, c),
+          );
       }
     }
     refs.results.append(sec);
@@ -1124,6 +1190,20 @@ const SHORTCUT_MODES = ["from", "to", "od", "tour", "best"] as const;
  */
 function onGlobalKey(e: KeyboardEvent): void {
   if (e.key === "Escape") {
+    const tgt = e.target as HTMLElement | null;
+    // Escape the search bar first: blur whatever field is focused.
+    if (tgt && /^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName)) {
+      tgt.blur();
+      e.preventDefault();
+      return;
+    }
+    // In Ideas narrowed to a single day, return to the "all days" overview.
+    if (query.mode === "best" && !bestAllDays) {
+      e.preventDefault();
+      bestAllDays = true;
+      refreshInPlace();
+      return;
+    }
     if (navStack.length) {
       e.preventDefault();
       goBack();
@@ -1597,6 +1677,16 @@ function buildForm(): FormBuild {
   const origin = inputEl("text", "station-list");
   const destination = inputEl("text", "station-list");
   const via = inputEl("text", "station-list");
+  // Flag a station field whose text doesn't match any real station, so a typo or a
+  // made-up name reads as invalid instead of silently doing nothing. Neutral while
+  // typing (cleared on input); validated on commit (blur / datalist pick).
+  for (const input of [origin, destination, via]) {
+    input.addEventListener("input", () => input.classList.remove("is-invalid"));
+    input.addEventListener("change", () => {
+      const v = input.value.trim();
+      input.classList.toggle("is-invalid", v !== "" && !resolveStation(v));
+    });
+  }
   const date = inputEl("date");
   // Constrain dates to exactly the window the 30-day calendar renders.
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
@@ -1642,6 +1732,14 @@ function buildForm(): FormBuild {
   const overnightField = el("label", { class: "field field-check" }, [
     overnight,
     el("span", { class: "field-label", text: t("field_overnight") }),
+  ]);
+  // Night trains are included by default; unchecking drops trains that leave late
+  // or arrive past midnight, so you don't end up travelling through the night.
+  const night = el("input", { type: "checkbox" }) as HTMLInputElement;
+  night.checked = true;
+  const nightField = el("label", { class: "field field-check" }, [
+    night,
+    el("span", { class: "field-label", text: t("field_night") }),
   ]);
   // Flexible dates ("± N days") for the exact-trip search — find a MAX seat around
   // the chosen date, not only on it.
@@ -1781,6 +1879,7 @@ function buildForm(): FormBuild {
   const connGroupField = el("div", { class: "conn-group" }, [
     field(t("field_connections"), maxConnections),
     overnightField,
+    nightField,
   ]);
 
   const advanced = el("details", { class: "advanced" }, [
@@ -1884,6 +1983,7 @@ function buildForm(): FormBuild {
       maxConnections,
       connGroupField,
       overnight,
+      night,
       via,
       flex,
       flexField,
@@ -2001,7 +2101,8 @@ function clearableField(label: string, input: HTMLInputElement): HTMLElement {
   const clearBtn = el("button", {
     class: "input-clear",
     type: "button",
-    text: "×",
+    // An SVG cross centres reliably (the "×" glyph sits optically high in its box).
+    html: '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
     attrs: { "aria-label": t("act_clear"), tabindex: "-1", title: t("act_clear") },
   });
   const sync = (): void => {

@@ -11,6 +11,8 @@
   --accent-soft: #e7f4ee;
   --nearby: #b45309; /* amber — "reachable via a nearby station" */
   --nearby-soft: #fdf0e1;
+  --nearby2: #7c3aed; /* violet — "both ends substituted" */
+  --nearby2-soft: #f1ebfd;
   --btn: #0a0a0b;
   --btn-ink: #ffffff;
   --radius: 12px;
@@ -38,6 +40,8 @@
     --accent-soft: #11271f;
     --nearby: #fbbf24;
     --nearby-soft: #2a1f0a;
+    --nearby2: #c4b5fd;
+    --nearby2-soft: #1e1635;
     --btn: #fafafa;
     --btn-ink: #09090b;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -56,6 +60,8 @@
   --accent-soft: #11271f;
   --nearby: #fbbf24;
   --nearby-soft: #2a1f0a;
+  --nearby2: #c4b5fd;
+  --nearby2-soft: #1e1635;
   --btn: #fafafa;
   --btn-ink: #09090b;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -340,6 +346,11 @@ a {
 }
 .input::placeholder {
   color: var(--faint);
+}
+/* A station field whose text matches no real station. */
+.input.is-invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #dc2626 18%, transparent);
 }
 /* Clearable text input ("×" to empty it). */
 .input-wrap {
@@ -1123,6 +1134,13 @@ a {
   background: var(--nearby-soft);
   color: var(--nearby);
   border-color: color-mix(in srgb, var(--nearby) 40%, var(--border));
+  font-weight: 680;
+}
+/* Reachable only by substituting BOTH endpoints with nearby stations. */
+.cal-cell.nearby-both {
+  background: var(--nearby2-soft);
+  color: var(--nearby2);
+  border-color: color-mix(in srgb, var(--nearby2) 40%, var(--border));
   font-weight: 680;
 }
 .cal-cell.sel {

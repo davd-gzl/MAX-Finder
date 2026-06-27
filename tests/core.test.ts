@@ -3,7 +3,7 @@ import type { RawRecord } from "../src/types";
 import { normalizeRecords, normalizeRecord } from "../src/data/dataset";
 import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
-import { findJourneys } from "../src/core/connections";
+import { findJourneys, bestJourney, reachableJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
@@ -274,6 +274,38 @@ describe("findJourneys across midnight", () => {
     expect(js[0]!.legs.map((l) => l.trainNo)).toEqual(["T1", "T2"]);
     expect(js[0]!.layovers).toEqual([30]); // 00:30 -> 01:00 next day
     expect(js[0]!.totalDurationMin).toBe(180); // 23:00 -> 02:00 (+1 day)
+  });
+});
+
+describe("reachableJourneys (multi-target)", () => {
+  it("finds every destination — direct and connection-only — in one pass", () => {
+    const r = reachableJourneys(trains, "PARIS (intramuros)", "2026-06-25", { maxConnections: 1 });
+    expect(r.size).toBeGreaterThan(0);
+    expect(r.has("LILLE")).toBe(true); // direct
+    const tlse = r.get("TOULOUSE MATABIAU");
+    expect(tlse).toBeDefined();
+    expect(tlse!.legs.length).toBe(2); // only reachable via a change
+    // The best journey it records matches a per-destination lookup.
+    const direct = bestJourney(trains, "PARIS (intramuros)", "LILLE", "2026-06-25", { maxConnections: 1 });
+    expect(r.get("LILLE")!.totalDurationMin).toBe(direct!.totalDurationMin);
+  });
+});
+
+describe("excludeNight", () => {
+  const data = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "day", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "23:00", heure_arrivee: "01:00", train_no: "night", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("drops night trains (late departure / past-midnight arrival) when set", () => {
+    const all = findJourneys(data, "PARIS (intramuros)", "LYON (intramuros)", "2026-07-01", { maxConnections: 0 });
+    expect(all).toHaveLength(2);
+    const noNight = findJourneys(data, "PARIS (intramuros)", "LYON (intramuros)", "2026-07-01", {
+      maxConnections: 0,
+      excludeNight: true,
+    });
+    expect(noNight).toHaveLength(1);
+    expect(noNight[0]!.legs[0]!.trainNo).toBe("day");
   });
 });
 

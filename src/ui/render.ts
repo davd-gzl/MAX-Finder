@@ -270,7 +270,12 @@ export function groupCardEl(
  * A ranked journey row: the station of interest + best total time + direct/via.
  * Used by "best" mode and by the connection-aware "from"/"to" browse results.
  */
-export function reachTripRowEl(station: string, j: Journey, ctx: RenderCtx): HTMLElement {
+export function reachTripRowEl(
+  station: string,
+  j: Journey,
+  ctx: RenderCtx,
+  extra?: HTMLElement,
+): HTMLElement {
   const route: RoutePair = { origin: j.origin, destination: j.destination };
   const via = j.legs.length > 1;
   // Connecting trips get a "via" chip so a correspondence is obvious in the list;
@@ -297,6 +302,7 @@ export function reachTripRowEl(station: string, j: Journey, ctx: RenderCtx): HTM
     [
       el("span", { class: "dest-name", text: ctx.label(station) }),
       ...viaChip,
+      ...(extra ? [extra] : []),
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
         el("bdi", { text: formatDuration(j.totalDurationMin) }),
       ]),
@@ -308,9 +314,17 @@ export function reachTripRowEl(station: string, j: Journey, ctx: RenderCtx): HTM
   ]);
 }
 
-/** A ranked best-trip row ("best" mode). */
+/** A ranked best-trip row ("best" mode); in all-days view it shows a month count. */
 export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
-  return reachTripRowEl(trip.destination, trip.journey, ctx);
+  const badge =
+    trip.days != null
+      ? el("span", {
+          class: "chip chip-soft month-chip",
+          text: t("ideas_days", { n: trip.days }),
+          attrs: { title: t("ideas_days_hint", { n: trip.days }) },
+        })
+      : undefined;
+  return reachTripRowEl(trip.destination, trip.journey, ctx, badge);
 }
 
 /**
@@ -347,6 +361,45 @@ export function nearbyTripRowEl(station: string, km: number, j: Journey, ctx: Re
 }
 
 /**
+ * A both-ends nearby alternative (radius search): leave from a nearby station AND
+ * arrive at a nearby one. Shows both stations with their distances and the free
+ * journey between them; clicking opens that route.
+ */
+export function nearbyBothRowEl(
+  fromId: string,
+  fromKm: number,
+  toId: string,
+  toKm: number,
+  j: Journey,
+  ctx: RenderCtx,
+): HTMLElement {
+  const main = el(
+    "button",
+    {
+      class: "dest-main",
+      type: "button",
+      attrs: { "aria-label": `${ctx.label(fromId)} → ${ctx.label(toId)} — ${formatDuration(j.totalDurationMin)}` },
+      on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
+    },
+    [
+      el("span", { class: "dest-name" }, [
+        el("bdi", { text: ctx.label(fromId) }),
+        el("span", { class: "muted", text: " → " }),
+        el("bdi", { text: ctx.label(toId) }),
+      ]),
+      el("span", { class: "chip chip-soft km-chip", text: t("nearby_km", { km: Math.max(fromKm, toKm) }) }),
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        el("bdi", { text: formatDuration(j.totalDurationMin) }),
+      ]),
+      el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
+    ],
+  );
+  return el("article", { class: "group-card", dataset: { station: fromId } }, [
+    el("div", { class: "dest-row" }, [favStarEl({ origin: j.origin, destination: j.destination }, ctx), main]),
+  ]);
+}
+
+/**
  * The 30-day strip with the selected day highlighted. Defaults to a route's
  * train-availability calendar; `opts` lets "best" mode relabel it as an
  * ideas-by-day strip (title + a "{n} destinations" count).
@@ -359,23 +412,54 @@ export function calendarEl(
 ): HTMLElement {
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
   const grid = el("div", { class: "cal-grid" });
+  // Arrow-key navigation: move focus between day cells (←/→ a day, ↑/↓ a row,
+  // Home/End to the ends). The grid is a linear sequence of days, so the row size
+  // is read live from the layout (10 columns on desktop, 7 on phones).
+  grid.addEventListener("keydown", (e) => {
+    const keys = ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const cells = [...grid.querySelectorAll<HTMLButtonElement>(".cal-cell")];
+    const i = cells.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    e.preventDefault();
+    let cols = 1;
+    const top = cells[0]?.offsetTop;
+    for (let k = 1; k < cells.length; k++) {
+      if (cells[k]?.offsetTop !== top) break;
+      cols++;
+    }
+    const target =
+      e.key === "ArrowRight" ? i + 1
+      : e.key === "ArrowLeft" ? i - 1
+      : e.key === "ArrowDown" ? i + cols
+      : e.key === "ArrowUp" ? i - cols
+      : e.key === "Home" ? 0
+      : cells.length - 1;
+    cells[Math.max(0, Math.min(cells.length - 1, target))]?.focus();
+  });
   let anyNearby = false;
+  let anyBoth = false;
   for (const d of days) {
     const sel = d.date === selected ? " sel" : "";
-    // Three states: free seat on the exact route (ok), reachable only via a nearby
-    // station within the search radius (nearby), or nothing (no).
-    const nearbyOnly = !d.available && Boolean(d.nearby);
-    if (nearbyOnly) anyNearby = true;
-    const state = d.available ? "ok" : nearbyOnly ? "nearby" : "no";
+    // Four states: free seat on the exact route (ok); reachable by substituting one
+    // endpoint with a nearby station (nearby); only by substituting both ends
+    // (nearby-both); or nothing (no). The last two are radius-search only.
+    const nearby = !d.available && Boolean(d.nearby);
+    const both = !d.available && !d.nearby && Boolean(d.nearbyBoth);
+    if (nearby) anyNearby = true;
+    if (both) anyBoth = true;
+    const state = d.available ? "ok" : nearby ? "nearby" : both ? "nearby-both" : "no";
     const status = d.available
       ? t("cal_available")
-      : nearbyOnly
+      : nearby
         ? t("cal_nearby")
-        : t("cal_unavailable");
+        : both
+          ? t("cal_nearby_both")
+          : t("cal_unavailable");
     const cell = el("button", {
       class: `cal-cell ${state}${sel}`,
       type: "button",
-      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : nearbyOnly ? t("cal_nearby") : "—"}`,
+      title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
       attrs: {
         "aria-label": `${ctx.formatDate(d.date)} — ${status}`,
         ...(sel ? { "aria-current": "date" } : {}),
@@ -385,7 +469,11 @@ export function calendarEl(
     });
     grid.append(cell);
   }
-  const legend = [t("cal_legend"), ...(anyNearby ? [t("cal_legend_nearby")] : [])].join(" · ");
+  const legend = [
+    t("cal_legend"),
+    ...(anyNearby ? [t("cal_legend_nearby")] : []),
+    ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
+  ].join(" · ");
   return el("section", { class: "calendar" }, [
     el("h3", { text: opts?.title ?? t("cal_title") }),
     grid,
