@@ -37,7 +37,7 @@ export const fr = {
   field_advanced: "Filtres avancés",
   field_departAfter: "Départ après",
   field_departBefore: "Départ avant",
-  field_maxDuration: "Durée max (minutes)",
+  field_maxDuration: "Durée totale max (min)",
   field_maxSpanDays: "Durée max du trajet (jours)",
   field_trainType: "Type / axe",
   field_anyType: "Tous",
@@ -147,6 +147,7 @@ export const fr = {
   field_stay_max: "Jours max. / ville",
   field_maxKm: "Distance totale max. (km)",
   field_maxLegKm: "Distance max. / train (km)",
+  field_maxLegDuration: "Durée max. / train (min)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 };
 

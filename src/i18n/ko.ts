@@ -37,7 +37,7 @@ export const ko: Dict = {
   field_advanced: "고급 필터",
   field_departAfter: "출발 시각 이후",
   field_departBefore: "출발 시각 이전",
-  field_maxDuration: "최대 소요(분)",
+  field_maxDuration: "총 최대 소요시간 (분)",
   field_maxSpanDays: "최대 여행 기간(일)",
   field_trainType: "유형 / 노선",
   field_anyType: "전체",
@@ -137,5 +137,6 @@ export const ko: Dict = {
   field_stay_max: "도시당 최대 일수",
   field_maxKm: "최대 총 거리 (km)",
   field_maxLegKm: "열차당 최대 거리 (km)",
+  field_maxLegDuration: "열차당 최대 시간 (분)",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
 };

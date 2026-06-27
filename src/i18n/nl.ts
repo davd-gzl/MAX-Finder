@@ -37,7 +37,7 @@ export const nl: Dict = {
   field_advanced: "Geavanceerde filters",
   field_departAfter: "Vertrek na",
   field_departBefore: "Vertrek voor",
-  field_maxDuration: "Max. duur (minuten)",
+  field_maxDuration: "Max. totale duur (min)",
   field_maxSpanDays: "Max. reisduur (dagen)",
   field_trainType: "Type / as",
   field_anyType: "Alle",
@@ -136,5 +136,6 @@ export const nl: Dict = {
   field_stay_max: "Max. dagen / stad",
   field_maxKm: "Max. totale afstand (km)",
   field_maxLegKm: "Max. afstand / trein (km)",
+  field_maxLegDuration: "Max. duur / trein (min)",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
 };
