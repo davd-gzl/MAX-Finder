@@ -52,6 +52,8 @@ export const ar: Dict = {
   res_to_title: "الوصول إلى {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "لا يوجد مقعد MAX لهذه المعايير.",
+  res_itineraries: "{n} مسارات",
+  res_capped: "عرض أول {n} — قلّل مدة الرحلة أو أضف عوامل تصفية للحصول على نتائج أدق.",
   res_none_hint: "جرّب مزيدًا من التغييرات أو مرونة أكبر في التواريخ أو التوقفات الليلية أو إزالة عوامل التصفية.",
   tour_none_hint: "جرّب توسيع الأيام لكل مدينة أو إزالة مدينة أو السماح بمزيد من التغييرات.",
   res_destinations: "{n} وجهة",

@@ -12,7 +12,21 @@ export interface ConnectionOptions {
   departBefore?: string;
   maxDurationMin?: number; // total journey duration
   trainType?: string;
+  /**
+   * How many calendar days of trains to pool, so a journey may chain hops with
+   * multi-day stopovers at hubs ("trip over up to N days"). Default 2 — the chosen
+   * day plus the next, enough for a normal connection across midnight. Larger spans
+   * raise the layover ceiling to the span and widen the pool accordingly.
+   */
+  spanDays?: number;
 }
+
+// Safety bounds for the multi-day search: a wide span with several changes could
+// otherwise enumerate an enormous number of itineraries. We stop collecting at the
+// result cap, and bail the whole DFS if it expands too many nodes (pathological
+// fan-out), so the search always returns promptly.
+export const MAX_RESULTS = 200;
+const MAX_DFS_EXPANSIONS = 400_000;
 
 // Cache of available trains grouped by date, keyed by the (stable, loaded-once)
 // trains array. Avoids re-scanning the whole dataset on every journey lookup —
@@ -108,18 +122,23 @@ export function findJourneys(
   const maxConn = opts.maxConnections ?? 1;
   const hubSet = new Set(opts.hubs ?? HUB_STATIONS);
   const minC = opts.minConnectionMin ?? MIN_CONNECTION_MIN;
-  const maxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
-  const next = addDays(date, 1);
+  // Pool `span` calendar days (≥2). A multi-day span also raises the layover
+  // ceiling to the span, so a hop can wait days at a hub, not just hours.
+  const span = Math.max(2, Math.floor(opts.spanDays ?? 2));
+  const baseMaxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
+  const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = journeyMemo(trains);
-  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
-  // Available legs departing on `date` or the following day (so connections can
-  // cross midnight). Pulled from a cached per-date index, then sorted.
+  // Available legs departing within the pooled window (so connections can cross
+  // midnight, and multi-day trips can stop over at hubs). From a cached per-date
+  // index, then sorted.
   const idx = availableByDate(trains);
-  let pool = [...(idx.get(date) ?? []), ...(idx.get(next) ?? [])];
+  let pool: MaxTrain[] = [];
+  for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
   if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
   pool.sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
 
@@ -142,8 +161,13 @@ export function findJourneys(
 
   const results: Journey[] = [];
   const path: MaxTrain[] = [];
+  let expansions = 0;
 
   const dfs = (): void => {
+    // Bounds for the multi-day search: stop once we have plenty, or if the search
+    // fans out pathologically (a wide span × several changes).
+    if (results.length >= MAX_RESULTS || expansions >= MAX_DFS_EXPANSIONS) return;
+    expansions++;
     const last = path[path.length - 1];
     if (!last) return;
     if (last.destination === destination) {

@@ -52,6 +52,8 @@ export const nl: Dict = {
   res_to_title: "Aankomst in {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Geen MAX-plaats voor deze criteria.",
+  res_itineraries: "{n} routes",
+  res_capped: "De eerste {n} worden getoond — verkort de reisduur of voeg filters toe voor specifiekere resultaten.",
   res_none_hint: "Probeer meer overstappen, ruimere datumflexibiliteit, nachtoverstappen of minder filters.",
   tour_none_hint: "Probeer meer dagen per stad, een stad te verwijderen of meer overstappen toe te staan.",
   res_destinations: "{n} bestemming(en)",

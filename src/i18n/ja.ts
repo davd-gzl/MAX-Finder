@@ -52,6 +52,8 @@ export const ja: Dict = {
   res_to_title: "{station} 着 — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "条件に合う MAX 座席はありません。",
+  res_itineraries: "{n} 件の経路",
+  res_capped: "最初の {n} 件を表示中 — 旅行日数を短くするかフィルターを追加すると、より絞り込めます。",
   res_none_hint: "乗り換えを増やす、日付の柔軟性を広げる、夜行乗り継ぎを使う、フィルターを減らす、などをお試しください。",
   tour_none_hint: "都市ごとの日数を広げる、都市を減らす、乗り換えを増やす、などをお試しください。",
   res_destinations: "目的地 {n} 件",

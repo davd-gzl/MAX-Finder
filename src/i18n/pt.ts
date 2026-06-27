@@ -52,6 +52,8 @@ export const pt: Dict = {
   res_to_title: "Chegando a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "Nenhum lugar MAX para estes critérios.",
+  res_itineraries: "{n} itinerários",
+  res_capped: "A mostrar os primeiros {n} — reduza a duração da viagem ou adicione filtros para resultados mais específicos.",
   res_none_hint: "Tente mais conexões, maior flexibilidade de datas, escalas noturnas ou remover filtros.",
   tour_none_hint: "Tente ampliar os dias por cidade, remover uma cidade ou permitir mais conexões.",
   res_destinations: "{n} destino(s)",
