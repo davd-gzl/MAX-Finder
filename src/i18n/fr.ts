@@ -21,6 +21,7 @@ export const fr = {
   field_origin: "Gare de départ",
   field_destination: "Gare d'arrivée",
   field_date: "Date",
+  field_end_date: "Date de fin",
   field_return: "Retour (optionnel)",
   field_card: "Carte",
   card_jeune: "MAX JEUNE",

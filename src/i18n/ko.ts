@@ -21,6 +21,7 @@ export const ko: Dict = {
   field_origin: "출발역",
   field_destination: "도착역",
   field_date: "날짜",
+  field_end_date: "종료 날짜",
   field_return: "돌아오는 날 (선택)",
   field_card: "정기권",
   card_jeune: "MAX JEUNE",

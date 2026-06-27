@@ -21,6 +21,7 @@ export const ja: Dict = {
   field_origin: "出発駅",
   field_destination: "到着駅",
   field_date: "日付",
+  field_end_date: "終了日",
   field_return: "復路（任意）",
   field_card: "パス",
   card_jeune: "MAX JEUNE",

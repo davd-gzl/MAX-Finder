@@ -23,6 +23,7 @@ export const en: Dict = {
   field_origin: "From station",
   field_destination: "To station",
   field_date: "Date",
+  field_end_date: "End date",
   field_return: "Return (optional)",
   field_card: "Pass",
   card_jeune: "MAX JEUNE",

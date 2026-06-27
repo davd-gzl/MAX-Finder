@@ -116,6 +116,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxKm != null && q.maxKm > 0) p.set("maxkm", String(q.maxKm));
   if (q.maxLegKm != null && q.maxLegKm > 0) p.set("legkm", String(q.maxLegKm));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
+  if (q.tourEndDate) p.set("by", q.tourEndDate);
   return p;
 }
 
@@ -155,6 +156,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxLegKm: Number.isFinite(legkm) && legkm > 0 ? Math.floor(legkm) : undefined,
     // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
+    tourEndDate: p.get("by") ?? undefined,
   };
 }
 

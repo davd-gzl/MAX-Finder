@@ -84,6 +84,8 @@ export interface SearchQuery {
    * whole trip may straddle (1 = same-day, 2 = arrives the next day, …).
    */
   maxSpanDays?: number;
+  /** Finish the tour at the destination on or before this date ("tour" mode). */
+  tourEndDate?: string;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */
