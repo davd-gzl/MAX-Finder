@@ -117,6 +117,12 @@ export interface CalendarDay {
   date: string;
   available: boolean;
   count: number; // number of free-MAX trains that day
+  /**
+   * The exact route has no free seat this day, but a station within the chosen
+   * search radius does (radius search only) — so the day is still "reachable" via
+   * a short paid hop. Rendered in a distinct calendar colour.
+   */
+  nearby?: boolean;
 }
 
 /** A round-trip pairing (outbound + return both free-MAX). */

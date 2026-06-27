@@ -9,6 +9,8 @@
   --border-strong: #d4d4d9;
   --accent: #0f7a52; /* emerald — "available / go" */
   --accent-soft: #e7f4ee;
+  --nearby: #b45309; /* amber — "reachable via a nearby station" */
+  --nearby-soft: #fdf0e1;
   --btn: #0a0a0b;
   --btn-ink: #ffffff;
   --radius: 12px;
@@ -34,6 +36,8 @@
     --border-strong: #34343a;
     --accent: #34d399;
     --accent-soft: #11271f;
+    --nearby: #fbbf24;
+    --nearby-soft: #2a1f0a;
     --btn: #fafafa;
     --btn-ink: #09090b;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -50,6 +54,8 @@
   --border-strong: #34343a;
   --accent: #34d399;
   --accent-soft: #11271f;
+  --nearby: #fbbf24;
+  --nearby-soft: #2a1f0a;
   --btn: #fafafa;
   --btn-ink: #09090b;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -1110,6 +1116,13 @@ a {
   background: var(--accent-soft);
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  font-weight: 680;
+}
+/* Reachable only via a station within the search radius (radius search). */
+.cal-cell.nearby {
+  background: var(--nearby-soft);
+  color: var(--nearby);
+  border-color: color-mix(in srgb, var(--nearby) 40%, var(--border));
   font-weight: 680;
 }
 .cal-cell.sel {

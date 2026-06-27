@@ -189,6 +189,41 @@ function nearbyAlternatives(
 }
 
 /**
+ * Window dates that have a nearby paid-connection option (radius search) even when
+ * the exact route has no free seat — so the calendar can flag them as still
+ * reachable. The candidate stations are fixed across days, so they're found once,
+ * then each day short-circuits on the first nearby station that has a journey.
+ */
+function nearbyCalendarDates(
+  origin: string,
+  destination: string,
+  dates: string[],
+  radiusKm: number,
+  opts: ConnectionOptions,
+): Set<string> {
+  const CAND_CAP = 12;
+  const pool = deps.registry.list();
+  const skip = new Set([origin, destination]);
+  const nearest = (center: string): string[] =>
+    pool
+      .map((s) => ({ id: s.id, km: stationDistanceKm(center, s.id) }))
+      .filter((x) => !skip.has(x.id) && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
+      .sort((a, b) => a.km - b.km)
+      .slice(0, CAND_CAP)
+      .map((x) => x.id);
+  const nearOrigin = nearest(origin);
+  const nearDest = nearest(destination);
+  const out = new Set<string>();
+  for (const date of dates) {
+    const hit =
+      nearOrigin.some((id) => bestJourney(deps.trains, id, destination, date, opts)) ||
+      nearDest.some((id) => bestJourney(deps.trains, origin, id, date, opts));
+    if (hit) out.add(date);
+  }
+  return out;
+}
+
+/**
  * Tour "nearest stop": extend the trip to the geographically closest station you
  * can still reach by free MAX from the current frontier (the last stop, or the
  * departure when the list is empty) and that keeps the whole tour feasible.
@@ -871,14 +906,17 @@ function runOdSearch(c: RenderCtx): void {
   // 30-day availability calendar, anchored to today's bookable window (not the
   // selected date) so clicking a day doesn't shift the strip. The chosen date is
   // highlighted in place.
-  const cal = availabilityCalendar(
-    trains,
-    query.origin,
-    query.destination,
-    dateRange(today, BOOKING_WINDOW_DAYS),
-    connOpts,
-    passesVia,
-  );
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+  const cal = availabilityCalendar(trains, query.origin, query.destination, windowDates, connOpts, passesVia);
+  // With a radius set, flag days the exact route can't cover but a nearby station
+  // can — they show in a distinct calendar colour so "reachable nearby" stands out.
+  if (query.radiusKm) {
+    const nearbyDates = nearbyCalendarDates(query.origin, query.destination, windowDates, query.radiusKm, {
+      ...filterOpts(),
+      maxConnections: query.maxConnections,
+    });
+    for (const d of cal) if (!d.available && nearbyDates.has(d.date)) d.nearby = true;
+  }
   refs.results.append(render.calendarEl(cal, c, query.date));
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
@@ -1071,6 +1109,7 @@ function showShortcutsHelp(): void {
     t("keys_focus"),
     t("keys_day"),
     t("keys_surprise"),
+    t("keys_nearest"),
     t("keys_run"),
     t("keys_back"),
     t("keys_help"),
@@ -1113,6 +1152,9 @@ function onGlobalKey(e: KeyboardEvent): void {
   } else if (e.key === "s") {
     e.preventDefault();
     surpriseMe();
+  } else if (e.key === "n" && query.mode === "tour") {
+    e.preventDefault();
+    addNearestCity(); // tour-only: grow the trip to the nearest reachable stop
   } else if (e.key === "g") {
     e.preventDefault();
     runFromForm();
@@ -1677,6 +1719,7 @@ function buildForm(): FormBuild {
     attrs: { title: t("nearest_hint") },
     on: { click: addNearestCity },
   });
+  withShortcut(nearestBtn, "N"); // "n" grows the tour to the nearest stop
   nearestBtn.style.display = "none"; // shown only in tour mode by updateFieldVisibility()
   nearestBtnEl = nearestBtn;
   const citiesField = field(
