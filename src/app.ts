@@ -472,9 +472,15 @@ function ctx(): RenderCtx {
     formatDate,
     formatWeekday,
     // Deep-link to SNCF Connect with the trip pre-filled (clean station names, the
-    // journey date, and the departure time).
-    bookUrl: (origin, destination, date, time) =>
-      generateBookingUrl(deps.registry.label(origin), deps.registry.label(destination), date, time),
+    // journey date, the departure time, and any correspondence hub as "via").
+    bookUrl: (origin, destination, date, time, via) =>
+      generateBookingUrl(
+        deps.registry.label(origin),
+        deps.registry.label(destination),
+        date,
+        time,
+        via?.map((h) => deps.registry.label(h)),
+      ),
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
       navStack.push({ ...query }); // remember the list we came from

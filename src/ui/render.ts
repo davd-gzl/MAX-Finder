@@ -13,7 +13,7 @@ export interface RenderCtx {
   formatDate: (iso: string) => string;
   /** Narrow localized weekday name (e.g. "Sat"). */
   formatWeekday: (iso: string) => string;
-  bookUrl: (origin: string, destination: string, date: string, time?: string) => string;
+  bookUrl: (origin: string, destination: string, date: string, time?: string, via?: string[]) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
@@ -70,12 +70,13 @@ function bookLink(
   destination: string,
   date: string,
   time?: string,
+  via?: string[],
 ): HTMLElement {
   return el(
     "a",
     {
       class: "btn btn-book",
-      href: ctx.bookUrl(origin, destination, date, time),
+      href: ctx.bookUrl(origin, destination, date, time, via),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
     [
@@ -177,8 +178,10 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 
   const actions = el("div", { class: "actions" }, [
-    // Direct trips book in one tap; connecting ones book per-leg (buttons above).
-    ...(connecting ? [] : [bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart)]),
+    // Whole-journey booking (direct, or connecting "via" the hub). Connecting trips
+    // also keep the per-leg buttons above as a guaranteed fallback when the
+    // through-ticket isn't sold.
+    bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart, connecting ? j.hubs : undefined),
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
