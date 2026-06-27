@@ -474,6 +474,7 @@ function liveUpdate(): void {
   store.updateUrl(query);
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
+  refreshNearestBtn(); // a freshly typed (or cleared) departure flips its relevance
   runSearch();
 }
 
@@ -1039,8 +1040,15 @@ function updateFieldVisibility(): void {
   refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
   refs.stayField.style.display = query.mode === "tour" ? "" : "none";
   refs.maxKmField.style.display = query.mode === "tour" ? "" : "none";
-  // "Nearest stop" sits beside "Surprise me" but only makes sense for a tour.
-  nearestBtnEl?.toggleAttribute("hidden", query.mode !== "tour");
+  refreshNearestBtn();
+}
+
+/**
+ * "Nearest stop" extends a tour from its frontier, so it only makes sense in tour
+ * mode once there's a departure to extend from — hidden until then.
+ */
+function refreshNearestBtn(): void {
+  nearestBtnEl?.toggleAttribute("hidden", !(query.mode === "tour" && Boolean(query.origin)));
 }
 
 function buildLayout(root: HTMLElement): void {
