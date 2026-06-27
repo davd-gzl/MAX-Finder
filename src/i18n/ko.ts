@@ -123,6 +123,7 @@ export const ko: Dict = {
   flex_exact: "정확한 날짜",
   stat_window: "열차 {trains}편 · {days}일",
   stat_day_month: "그날 {day} · 이달 {month}",
+  stat_flex_month: "±{n}일 {day} · 이달 {month}",
   act_surprise: "랜덤 여행",
   surprise_none: "추가할 수 있는 도시가 없습니다.",
   cities_add: "도시 추가…",

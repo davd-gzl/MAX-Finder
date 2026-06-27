@@ -135,6 +135,7 @@ export const en: Dict = {
   flex_exact: "Exact date",
   stat_window: "{trains} trains · {days} d",
   stat_day_month: "{day} this day · {month} this month",
+  stat_flex_month: "{day} within ±{n}d · {month} this month",
   act_surprise: "Surprise me",
   surprise_none: "No possible city to add.",
   cities_add: "Add a city…",

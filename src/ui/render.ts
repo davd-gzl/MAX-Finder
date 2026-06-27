@@ -217,6 +217,7 @@ export function groupCardEl(
   ctx: RenderCtx,
   dayCount: number,
   stat?: WindowStat,
+  flexDays = 0,
 ): HTMLElement {
   const origin = mode === "from" ? anchor : group.station;
   const destination = mode === "from" ? group.station : anchor;
@@ -224,13 +225,12 @@ export function groupCardEl(
 
   const star = favStarEl(route, ctx);
 
-  // Two figures: trains on the selected day (may be 0 if it runs only on other
-  // days), and the total over the whole month — every reservable MAX train to
-  // this place, so the list shows everywhere you can go, ranked by availability.
+  // Two figures: trains on the chosen day (or, with flexible dates, within ±N days)
+  // and the total over the whole month — so the list ranks places by availability.
   const month = stat?.trains ?? group.count;
-  const summary = stat
-    ? t("stat_day_month", { day: dayCount, month })
-    : t("badge_trains", { n: dayCount });
+  const dayPart =
+    flexDays > 0 ? t("stat_flex_month", { day: dayCount, n: flexDays, month }) : t("stat_day_month", { day: dayCount, month });
+  const summary = stat ? dayPart : t("badge_trains", { n: dayCount });
 
   const meta: HTMLElement[] = [];
   if (stat) {

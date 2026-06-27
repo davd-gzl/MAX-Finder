@@ -133,6 +133,7 @@ export const fr = {
   flex_exact: "Date exacte",
   stat_window: "{trains} trains · {days} j",
   stat_day_month: "{day} ce jour · {month} ce mois",
+  stat_flex_month: "{day} à ±{n} j · {month} ce mois",
   act_surprise: "Au hasard",
   surprise_none: "Aucune ville possible à ajouter.",
   cities_add: "Ajouter une ville…",

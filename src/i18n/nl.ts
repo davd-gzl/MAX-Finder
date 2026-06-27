@@ -122,6 +122,7 @@ export const nl: Dict = {
   flex_exact: "Exacte datum",
   stat_window: "{trains} treinen · {days} d",
   stat_day_month: "die dag {day} · deze maand {month}",
+  stat_flex_month: "{day} binnen ±{n} d · {month} deze maand",
   act_surprise: "Verras me",
   surprise_none: "Geen stad om toe te voegen.",
   cities_add: "Stad toevoegen…",

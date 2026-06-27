@@ -575,16 +575,29 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   });
   const countKey = dir === "from" ? "res_destinations" : "res_origins";
 
-  // Trains that run on the *selected* day, per station — this is the list: every
-  // place shown actually has a free-MAX train that day (no "0 this day" rows).
-  const dayGroups =
-    dir === "from"
-      ? reachableDestinations(trains, anchor, query.date, filterOpts())
-      : reachableOrigins(trains, anchor, query.date, filterOpts());
-  const dayCount = new Map(dayGroups.map((g) => [g.station, g.count]));
+  // The list spans the chosen day, or — when "flexible dates" is on — a ±N-day
+  // window around it. Every place shown has a free-MAX train within that span, so
+  // there are no empty "0 this day" rows; widening the window surfaces more places.
+  const flex = query.flexDays ?? 0;
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  const windowDates: string[] = [];
+  for (let i = -flex; i <= flex; i++) {
+    const d = addDays(query.date, i);
+    // The selected date is always included; flex neighbours are clamped to the
+    // bookable window.
+    if (i === 0 || (d >= today && d <= lastBookable)) windowDates.push(d);
+  }
+  const dayCount = new Map<string, number>();
+  for (const d of windowDates) {
+    const g =
+      dir === "from"
+        ? reachableDestinations(trains, anchor, d, filterOpts())
+        : reachableOrigins(trains, anchor, d, filterOpts());
+    for (const x of g) dayCount.set(x.station, (dayCount.get(x.station) ?? 0) + x.count);
+  }
 
-  // Take the whole-window record for those same-day stations, so each card can show
-  // both the day count and the month total (the richer card data: fastest time etc.).
+  // Take the whole-window record for those reachable stations, so each card can show
+  // both the day/window count and the month total (richer card data: fastest time etc.).
   const groups = reachableGroups(trains, anchor, dir, filterOpts()).filter(
     (g) => (dayCount.get(g.station) ?? 0) > 0,
   );
@@ -621,7 +634,7 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
   for (const g of groups)
     refs.results.append(
-      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station)),
+      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
     );
   for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
   showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
@@ -763,24 +776,9 @@ function runOdSearch(c: RenderCtx): void {
   const withinSpan = (j: Journey): boolean =>
     !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
 
-  // Flexible dates: the fastest free-MAX trip for each day within ±flexDays of the
-  // chosen date (clamped to the bookable window). Pick a day to see its full list.
-  if (query.flexDays && query.flexDays > 0) {
-    const section = el("section", { class: "flex-dates" }, [el("h3", { text: t("field_flex") })]);
-    let any = false;
-    for (let i = -query.flexDays; i <= query.flexDays; i++) {
-      const d = addDays(query.date, i);
-      if (d < today || d > lastBookable) continue;
-      const fastest = findJourneys(trains, query.origin, query.destination, d, connOpts)
-        .filter(passesVia)
-        .filter(withinSpan)
-        .reduce<Journey | null>((a, b) => (!a || b.totalDurationMin < a.totalDurationMin ? b : a), null);
-      if (!fastest) continue;
-      section.append(render.flexDayEl(d, fastest, c, d === query.date));
-      any = true;
-    }
-    if (any) refs.results.append(section);
-  }
+  // (No flexible-dates strip here — the 30-day calendar above already lets you pick
+  // any day, so a per-day list would just duplicate it. Flexibility lives in the
+  // "where to / where from" browse instead.)
 
   // Sort by total travel time, fastest first (then earliest departure as a
   // tiebreak) so the best option is at the top of the list and the slowest last.
@@ -1143,9 +1141,10 @@ function updateFieldVisibility(): void {
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  // Flexible dates make sense only for a precise trip (od). from/to span the whole
-  // window already, best has its own "ideas by day" calendar, tour its day range.
-  refs.flexField.style.display = query.mode === "od" ? "" : "none";
+  // Flexible dates belong in the "where to / where from" browse: widening to ±N
+  // days surfaces more places. Exact trip already has the 30-day calendar (the flex
+  // list would just duplicate it); best has its ideas-by-day calendar; tour a range.
+  refs.flexField.style.display = query.mode === "from" || query.mode === "to" ? "" : "none";
 
   // Field placement per mode: a tour promotes Connections, Overnight and Max
   // duration into the prominent main form (and tucks its km caps into Advanced);

@@ -122,6 +122,7 @@ export const zh: Dict = {
   flex_exact: "精确日期",
   stat_window: "{trains} 趟列车 · {days} 天",
   stat_day_month: "当天 {day} · 当月 {month}",
+  stat_flex_month: "±{n}天内 {day} · 当月 {month}",
   act_surprise: "随机一城",
   surprise_none: "没有可添加的城市。",
   cities_add: "添加城市…",

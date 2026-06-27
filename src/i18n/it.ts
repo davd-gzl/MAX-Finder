@@ -123,6 +123,7 @@ export const it: Dict = {
   flex_exact: "Data esatta",
   stat_window: "{trains} treni · {days} g",
   stat_day_month: "{day} quel giorno · {month} nel mese",
+  stat_flex_month: "{day} in ±{n} g · {month} nel mese",
   act_surprise: "A caso",
   surprise_none: "Nessuna città disponibile da aggiungere.",
   cities_add: "Aggiungi una città…",
