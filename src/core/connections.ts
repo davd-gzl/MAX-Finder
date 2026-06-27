@@ -1,6 +1,7 @@
 import type { MaxTrain, Journey } from "../types";
 import { HUB_STATIONS, MIN_CONNECTION_MIN, MAX_CONNECTION_MIN } from "../config";
 import { absoluteMinute, addDays, dayIndex, parseTimeToMinutes } from "../util/time";
+import { isNightTrain } from "./search";
 
 export interface ConnectionOptions {
   /** 0 = direct only, 1 = one change (default), 2 = two changes. */
@@ -12,6 +13,8 @@ export interface ConnectionOptions {
   departBefore?: string;
   maxDurationMin?: number; // total journey duration
   trainType?: string;
+  /** Drop night trains (leave late or arrive past midnight) from the search. */
+  excludeNight?: boolean;
   /**
    * How many calendar days of trains to pool, so a journey may chain hops with
    * multi-day stopovers at hubs ("trip over up to N days"). Default 2 — the chosen
@@ -129,7 +132,7 @@ export function findJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = journeyMemo(trains);
-  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -140,6 +143,7 @@ export function findJourneys(
   let pool: MaxTrain[] = [];
   for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
   if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
+  if (opts.excludeNight) pool = pool.filter((t) => !isNightTrain(t));
   pool.sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
 
   // The first leg must depart on `date`, within the user's time window.
@@ -225,6 +229,91 @@ export function bestJourney(
   for (const j of findJourneys(trains, origin, destination, date, opts)) {
     if (!best || j.totalDurationMin < best.totalDurationMin) best = j;
   }
+  return best;
+}
+
+/**
+ * Best (shortest) free-MAX journey from `origin` to EVERY reachable destination on
+ * `date`, found in ONE graph search — far cheaper than calling findJourneys once
+ * per candidate when you want them all (e.g. the "ideas, all days" union). Same
+ * connection rules as findJourneys: intermediate stops must be hubs, layovers
+ * within the window, no station visited twice, first leg departs on `date`.
+ */
+export function reachableJourneys(
+  trains: MaxTrain[],
+  origin: string,
+  date: string,
+  opts: ConnectionOptions = {},
+): Map<string, Journey> {
+  const maxConn = opts.maxConnections ?? 1;
+  const hubSet = new Set(opts.hubs ?? HUB_STATIONS);
+  const minC = opts.minConnectionMin ?? MIN_CONNECTION_MIN;
+  const span = Math.max(2, Math.floor(opts.spanDays ?? 2));
+  const baseMaxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
+  const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
+
+  const idx = availableByDate(trains);
+  let pool: MaxTrain[] = [];
+  for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
+  if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
+  if (opts.excludeNight) pool = pool.filter((t) => !isNightTrain(t));
+  pool.sort((a, b) => absoluteMinute(a.date, a.departMin) - absoluteMinute(b.date, b.departMin));
+
+  const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
+  const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const firstPool = pool.filter(
+    (t) =>
+      t.date === date &&
+      (after === undefined || t.departMin >= after) &&
+      (before === undefined || t.departMin <= before),
+  );
+
+  const byOrigin = new Map<string, MaxTrain[]>();
+  for (const t of pool) {
+    const arr = byOrigin.get(t.origin);
+    if (arr) arr.push(t);
+    else byOrigin.set(t.origin, [t]);
+  }
+
+  const best = new Map<string, Journey>();
+  const maxDur = opts.maxDurationMin;
+  const path: MaxTrain[] = [];
+
+  const dfs = (): void => {
+    const last = path[path.length - 1];
+    if (!last) return;
+    // Every station reached is itself a candidate destination — record the best
+    // (shortest) journey to it.
+    const j = toJourney([...path]);
+    if (maxDur == null || j.totalDurationMin <= maxDur) {
+      const cur = best.get(j.destination);
+      if (!cur || j.totalDurationMin < cur.totalDurationMin) best.set(j.destination, j);
+    }
+    if (path.length - 1 >= maxConn) return; // used all allowed changes
+    if (!hubSet.has(last.destination)) return; // intermediate must be a hub
+    const visited = new Set<string>();
+    for (const l of path) {
+      visited.add(l.origin);
+      visited.add(l.destination);
+    }
+    const lastArr = absoluteMinute(last.date, last.arriveMin);
+    for (const nx of byOrigin.get(last.destination) ?? []) {
+      if (visited.has(nx.destination)) continue;
+      const layover = absoluteMinute(nx.date, nx.departMin) - lastArr;
+      if (layover < minC || layover > maxC) continue;
+      path.push(nx);
+      dfs();
+      path.pop();
+    }
+  };
+
+  for (const l1 of firstPool) {
+    if (l1.origin !== origin) continue;
+    path.push(l1);
+    dfs();
+    path.pop();
+  }
+  best.delete(origin);
   return best;
 }
 

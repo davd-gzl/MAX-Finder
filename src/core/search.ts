@@ -1,5 +1,6 @@
 import type { MaxTrain } from "../types";
 import { parseTimeToMinutes } from "../util/time";
+import { NIGHT_DEPART_MIN } from "../config";
 
 export interface FilterOptions {
   origin?: string;
@@ -11,6 +12,13 @@ export interface FilterOptions {
   trainType?: string; // matches MaxTrain.axe
   /** When true (default) only free-MAX trains are kept. */
   availableOnly?: boolean;
+  /** Drop night trains (leave late or arrive past midnight) when true. */
+  excludeNight?: boolean;
+}
+
+/** A train that travels through the night: leaves late or arrives past midnight. */
+export function isNightTrain(t: MaxTrain): boolean {
+  return t.departMin >= NIGHT_DEPART_MIN || t.arriveMin >= 1440;
 }
 
 /** Filter + sort trains (by departure time) for a set of constraints. */
@@ -28,6 +36,7 @@ export function filterTrains(trains: MaxTrain[], opts: FilterOptions): MaxTrain[
       if (before !== undefined && t.departMin > before) return false;
       if (opts.maxDurationMin !== undefined && t.durationMin > opts.maxDurationMin) return false;
       if (opts.trainType && (t.axe ?? "") !== opts.trainType) return false;
+      if (opts.excludeNight && isNightTrain(t)) return false;
       return true;
     })
     .sort((a, b) => a.departMin - b.departMin);

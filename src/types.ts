@@ -63,6 +63,8 @@ export interface SearchQuery {
   maxConnections: number;
   /** Allow long overnight layovers at a hub (evening train → sleep → morning train). */
   overnight?: boolean;
+  /** Exclude night trains (leave late / arrive past midnight) when true. */
+  excludeNight?: boolean;
   /** Force the journey to pass through this station ("exact trip" mode only). */
   via?: string;
   /** Flexible dates: also search ±N days around `date` ("exact trip" mode). */
@@ -118,11 +120,17 @@ export interface CalendarDay {
   available: boolean;
   count: number; // number of free-MAX trains that day
   /**
-   * The exact route has no free seat this day, but a station within the chosen
-   * search radius does (radius search only) — so the day is still "reachable" via
-   * a short paid hop. Rendered in a distinct calendar colour.
+   * The exact route has no free seat this day, but substituting ONE endpoint for a
+   * station within the search radius reaches it (radius search only) — still
+   * reachable via a short paid hop. Rendered in a distinct calendar colour.
    */
   nearby?: boolean;
+  /**
+   * Reachable this day ONLY by substituting BOTH endpoints — leaving from a nearby
+   * station AND arriving at a nearby one (radius search only). The most effort, so
+   * it gets its own calendar colour, distinct from the single-substitution one.
+   */
+  nearbyBoth?: boolean;
 }
 
 /** A round-trip pairing (outbound + return both free-MAX). */

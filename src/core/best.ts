@@ -1,10 +1,11 @@
 import type { MaxTrain, Journey } from "../types";
-import { bestJourney, type ConnectionOptions } from "./connections";
-import { filterTrains } from "./search";
+import { bestJourney, reachableJourneys, type ConnectionOptions } from "./connections";
 
 export interface BestTrip {
   destination: string;
   journey: Journey;
+  /** Days in the window this destination is reachable (set by the all-days view). */
+  days?: number;
 }
 
 /** Distinct stations that appear (as origin or destination) on a given date. */
@@ -42,13 +43,12 @@ export function bestTrips(
 /**
  * The best free-MAX trip to every destination reachable from `origin` on ANY day
  * across `dates` — the "ideas, all days" view. Each destination is kept once, on
- * the EARLIEST day a direct free-MAX train runs, so the result is the soonest way
- * to reach each place. Ranked by total travel time, fastest first.
+ * the EARLIEST day it's reachable (so the result is the soonest way to reach each
+ * place), and ranked by total travel time, fastest first.
  *
- * Candidates come from a single cheap pass over the direct trains from `origin`
- * (so the cost is one journey lookup per destination, not per destination-per-day).
- * Connection-only destinations — reachable only by changing trains, never direct on
- * any day — are rare and omitted here; the single-day list still surfaces them.
+ * Connection-aware: one multi-target graph search per day finds the same connecting
+ * destinations the single-day list does (not just direct ones), at roughly the cost
+ * of one journey lookup per day rather than per destination.
  */
 export function bestTripsAcrossWindow(
   trains: MaxTrain[],
@@ -56,22 +56,17 @@ export function bestTripsAcrossWindow(
   dates: string[],
   opts: ConnectionOptions = {},
 ): BestTrip[] {
-  const inWindow = new Set(dates);
-  // Earliest in-window date each destination has a direct free-MAX train.
-  const earliest = new Map<string, string>();
-  for (const t of filterTrains(trains, { ...opts, origin })) {
-    if (!inWindow.has(t.date)) continue;
-    const cur = earliest.get(t.destination);
-    if (!cur || t.date < cur) earliest.set(t.destination, t.date);
+  const found = new Map<string, BestTrip>();
+  const dayCount = new Map<string, number>();
+  for (const date of dates) {
+    for (const [destination, journey] of reachableJourneys(trains, origin, date, opts)) {
+      if (destination === origin) continue;
+      dayCount.set(destination, (dayCount.get(destination) ?? 0) + 1); // reachable that day
+      if (!found.has(destination)) found.set(destination, { destination, journey }); // earliest day
+    }
   }
-  const out: BestTrip[] = [];
-  for (const [destination, date] of earliest) {
-    if (destination === origin) continue;
-    // The best (possibly faster, connecting) journey on that earliest day.
-    const journey = bestJourney(trains, origin, destination, date, opts);
-    if (journey) out.push({ destination, journey });
-  }
-  return out.sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
+  for (const trip of found.values()) trip.days = dayCount.get(trip.destination);
+  return [...found.values()].sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
 }
 
 export interface ReachTrip {
