@@ -37,7 +37,7 @@ export const ja: Dict = {
   field_advanced: "詳細フィルター",
   field_departAfter: "出発時刻以降",
   field_departBefore: "出発時刻以前",
-  field_maxDuration: "最大所要（分）",
+  field_maxDuration: "合計最大所要時間（分）",
   field_maxSpanDays: "最大旅行日数（日）",
   field_trainType: "種別 / 路線",
   field_anyType: "すべて",
@@ -136,5 +136,6 @@ export const ja: Dict = {
   field_stay_max: "都市ごと最大日数",
   field_maxKm: "合計距離の上限 (km)",
   field_maxLegKm: "列車ごと距離の上限 (km)",
+  field_maxLegDuration: "1列車あたり最大時間（分）",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
 };

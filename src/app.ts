@@ -75,6 +75,8 @@ interface Refs {
   maxKm: HTMLInputElement;
   maxLegKm: HTMLInputElement;
   maxKmField: HTMLElement;
+  maxLegDuration: HTMLInputElement;
+  maxLegDurationField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -175,7 +177,7 @@ function addNearestCity(): void {
 
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
-  const planOpts = { maxConnections: query.maxConnections };
+  const planOpts = tourPlanOpts();
   let chosen: string | undefined;
   for (let i = 0; i < candidates.length && i < 40; i++) {
     const c = candidates[i]!;
@@ -407,6 +409,7 @@ function syncFormFromQuery(): void {
   refs.maxDays.value = String(query.maxDays ?? 3);
   refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
   refs.maxLegKm.value = query.maxLegKm != null ? String(query.maxLegKm) : "";
+  refs.maxLegDuration.value = query.maxLegDurationMin != null ? String(query.maxLegDurationMin) : "";
   updateFieldVisibility();
 }
 
@@ -414,6 +417,7 @@ function readQueryFromForm(): SearchQuery {
   const maxDur = Number(refs.maxDuration.value.trim());
   const maxKm = Number(refs.maxKm.value.trim());
   const maxLegKm = Number(refs.maxLegKm.value.trim());
+  const maxLegDur = Number(refs.maxLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   return {
     mode: query.mode,
@@ -448,6 +452,12 @@ function readQueryFromForm(): SearchQuery {
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
     maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
+    // Per-train time cap (tour mode). Floor at 30 min so a too-tight value can't
+    // silently rule out every train.
+    maxLegDurationMin:
+      query.mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
+        ? Math.max(30, Math.floor(maxLegDur))
+        : undefined,
     // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
       query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
@@ -505,6 +515,19 @@ function refreshInPlace(): void {
 }
 
 // --- search execution -------------------------------------------------------
+
+/**
+ * Connection options for the tour planner. Each tour hop is a single journey, so
+ * the per-train time cap maps onto a journey's total-duration limit; a hop longer
+ * than that is never considered. (Overnight stays are modelled by the per-city day
+ * window, not a long layover, so the tour doesn't widen the connection ceiling.)
+ */
+function tourPlanOpts() {
+  return {
+    maxConnections: query.maxConnections,
+    ...(query.maxLegDurationMin ? { maxDurationMin: query.maxLegDurationMin } : {}),
+  };
+}
 
 function filterOpts() {
   return {
@@ -661,7 +684,7 @@ function runTourSearch(c: RenderCtx): void {
   }
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
-  const planOpts = { maxConnections: query.maxConnections };
+  const planOpts = tourPlanOpts();
   const maxKm = query.maxKm; // optional cap on the tour's total straight-line km
   const legKm = query.maxLegKm; // optional cap on each hop's straight-line km
   // Optional fixed finish: end the tour at this city (may equal the start → a loop
@@ -1013,7 +1036,7 @@ function surpriseMe(): void {
       .sort(() => Math.random() - 0.5);
     const lo = query.minDays ?? 1;
     const hi = Math.max(lo, query.maxDays ?? 3);
-    const planOpts = { maxConnections: query.maxConnections };
+    const planOpts = tourPlanOpts();
     // No cap: the planner is memoised (journey cache persists across calls), so
     // scanning the whole frontier pool is cheap and avoids falsely reporting
     // "no city" when the few feasible ones land late in the shuffled order.
@@ -1162,17 +1185,18 @@ function updateFieldVisibility(): void {
   // list would just duplicate it); best has its ideas-by-day calendar; tour a range.
   refs.flexField.style.display = query.mode === "from" || query.mode === "to" ? "" : "none";
 
-  // Field placement per mode: a tour promotes Connections, Overnight and Max
-  // duration into the prominent main form (and tucks its km caps into Advanced);
-  // every other mode keeps Connections/Overnight/Max-duration in Advanced. These
-  // are single elements moved between containers, never duplicated.
+  // Field placement per mode: a tour promotes Connections/Overnight into the
+  // prominent main form (and tucks its caps into Advanced); every other mode keeps
+  // Connections/Overnight in Advanced. Single elements moved, never duplicated.
   const tour = query.mode === "tour";
-  const movables = [refs.maxDurationField, refs.connGroupField];
-  for (const f of movables) {
-    if (tour) refs.regionField.parentElement?.insertBefore(f, refs.regionField);
-    else refs.trainTypeField.parentElement?.insertBefore(f, refs.trainTypeField);
-  }
-  refs.maxDurationField.style.display = ""; // visible in whichever container it sits
+  if (tour) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
+  else refs.trainTypeField.parentElement?.insertBefore(refs.connGroupField, refs.trainTypeField);
+
+  // Duration caps differ by mode. A single journey (od / from / to / best) caps its
+  // TOTAL time. A multi-city tour instead caps the time of each hop ("max per
+  // train") — a whole-tour total would be meaningless across multi-day stays.
+  refs.maxDurationField.style.display = tour ? "none" : "";
+  refs.maxLegDurationField.style.display = tour ? "" : "none";
 
   // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
   refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
@@ -1531,13 +1555,12 @@ function buildForm(): FormBuild {
   ]);
   // Optional distance caps (km, straight line): the whole tour's total, and each
   // single hop ("a tour, but no more than ~1000 km total and no train over ~400 km").
+  // No minimum — any positive cap is valid (an empty box means "no cap").
   const maxKm = inputEl("number");
-  maxKm.min = "0";
   maxKm.step = "50";
   maxKm.placeholder = "1000";
   maxKm.setAttribute("aria-label", t("field_maxKm"));
   const maxLegKm = inputEl("number");
-  maxLegKm.min = "0";
   maxLegKm.step = "50";
   maxLegKm.placeholder = "400";
   maxLegKm.setAttribute("aria-label", t("field_maxLegKm"));
@@ -1545,6 +1568,14 @@ function buildForm(): FormBuild {
     field(t("field_maxKm"), maxKm),
     field(t("field_maxLegKm"), maxLegKm),
   ]);
+  // Per-train time cap (tour): no single hop longer than N minutes. Time matters
+  // more than distance, so this carries a sensible minimum (a 5-min cap is useless).
+  const maxLegDuration = inputEl("number");
+  maxLegDuration.min = "30";
+  maxLegDuration.step = "15";
+  maxLegDuration.placeholder = "240";
+  maxLegDuration.setAttribute("aria-label", t("field_maxLegDuration"));
+  const maxLegDurationField = field(t("field_maxLegDuration"), maxLegDuration);
 
   // These three default to Advanced; updateFieldVisibility() promotes them into the
   // main form for a tour (where connections/overnight/duration matter most). Train
@@ -1567,6 +1598,7 @@ function buildForm(): FormBuild {
       field(t("field_departBefore"), departBefore),
       connGroupField,
       maxDurationField,
+      maxLegDurationField,
       maxSpanDaysField,
       maxKmField,
       trainTypeField,
@@ -1676,6 +1708,8 @@ function buildForm(): FormBuild {
       maxKm,
       maxLegKm,
       maxKmField,
+      maxLegDuration,
+      maxLegDurationField,
     },
   };
 }

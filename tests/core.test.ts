@@ -458,6 +458,19 @@ describe("planTourGreedy", () => {
     expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 1, 1, dist, undefined, 250)!.legs).toHaveLength(3);
     expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, dist, undefined, 250)).toHaveLength(1);
   });
+
+  it("respects a per-train time cap (maxDurationMin on each hop)", () => {
+    // Hop durations: Paris→Lyon 120 min, Lyon→Marseille 100 min, Marseille→Nice 150 min.
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES", "NICE VILLE"];
+    // Cap at 130 min rules out the 150-min Nice hop, so the tour can't be completed.
+    const tight = { maxConnections: 0, maxDurationMin: 130 };
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", tight, 1, 1)).toBeNull();
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", tight, 10, 1, 1)).toHaveLength(0);
+    // A 200-min cap clears every hop -> the full chain plans.
+    const loose = { maxConnections: 0, maxDurationMin: 200 };
+    expect(planTourGreedy(chain, "PARIS (intramuros)", cities, "2026-07-01", loose, 1, 1)!.legs).toHaveLength(3);
+    expect(planTours(chain, "PARIS (intramuros)", cities, "2026-07-01", loose, 10, 1, 1)).toHaveLength(1);
+  });
 });
 
 describe("haversineKm", () => {

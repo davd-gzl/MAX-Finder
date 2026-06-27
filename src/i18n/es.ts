@@ -37,7 +37,7 @@ export const es: Dict = {
   field_advanced: "Filtros avanzados",
   field_departAfter: "Salida después de",
   field_departBefore: "Salida antes de",
-  field_maxDuration: "Duración máx (minutos)",
+  field_maxDuration: "Duración total máx. (min)",
   field_maxSpanDays: "Duración máx del viaje (días)",
   field_trainType: "Tipo / eje",
   field_anyType: "Todos",
@@ -137,5 +137,6 @@ export const es: Dict = {
   field_stay_max: "Días máx. / ciudad",
   field_maxKm: "Distancia total máx. (km)",
   field_maxLegKm: "Distancia máx. / tren (km)",
+  field_maxLegDuration: "Duración máx. / tren (min)",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",
 };

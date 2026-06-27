@@ -37,7 +37,7 @@ export const ar: Dict = {
   field_advanced: "عوامل تصفية متقدمة",
   field_departAfter: "المغادرة بعد",
   field_departBefore: "المغادرة قبل",
-  field_maxDuration: "أقصى مدة (دقيقة)",
+  field_maxDuration: "أقصى مدة إجمالية (دقيقة)",
   field_maxSpanDays: "أقصى مدة للرحلة (أيام)",
   field_trainType: "النوع / المحور",
   field_anyType: "الكل",
@@ -136,5 +136,6 @@ export const ar: Dict = {
   field_stay_max: "أيام قصوى / مدينة",
   field_maxKm: "أقصى مسافة إجمالية (كم)",
   field_maxLegKm: "أقصى مسافة / قطار (كم)",
+  field_maxLegDuration: "أقصى مدة / قطار (دقيقة)",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",
 };

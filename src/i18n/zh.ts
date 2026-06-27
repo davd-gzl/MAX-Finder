@@ -37,7 +37,7 @@ export const zh: Dict = {
   field_advanced: "高级筛选",
   field_departAfter: "出发时间晚于",
   field_departBefore: "出发时间早于",
-  field_maxDuration: "最长时长（分钟）",
+  field_maxDuration: "总最长时间（分钟）",
   field_maxSpanDays: "最长行程（天）",
   field_trainType: "类型 / 线路",
   field_anyType: "全部",
@@ -136,5 +136,6 @@ export const zh: Dict = {
   field_stay_max: "每城最多天数",
   field_maxKm: "最大总距离（公里）",
   field_maxLegKm: "每趟列车最大距离（公里）",
+  field_maxLegDuration: "每趟列车最长时间（分钟）",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
 };
