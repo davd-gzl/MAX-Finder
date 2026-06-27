@@ -113,4 +113,33 @@ export class RouteMap {
     if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.3));
     else if (pts.length === 1) map.setView(pts[0]!, 6);
   }
+
+  /**
+   * Overlay search-radius circles around `centers` and mark the `nearby` stations
+   * found inside them. Drawn on top of the current layer (call after `route`), and
+   * the view is widened so the whole radius is visible.
+   */
+  radius(centers: { id: string; km: number }[], nearby: string[]): void {
+    const { map, layer } = this.ensure();
+    let bounds: L.LatLngBounds | null = null;
+    for (const { id, km } of centers) {
+      const c = this.registry.coords(id);
+      if (!c) continue;
+      const circle = L.circle(c, {
+        radius: km * 1000,
+        color: EMERALD,
+        weight: 1,
+        opacity: 0.5,
+        fillColor: EMERALD,
+        fillOpacity: 0.06,
+      }).addTo(layer);
+      bounds = bounds ? bounds.extend(circle.getBounds()) : circle.getBounds();
+    }
+    for (const id of nearby) {
+      const c = this.registry.coords(id);
+      if (!c) continue;
+      this.marker(id, c, "via").addTo(layer);
+    }
+    if (bounds) map.fitBounds(bounds.pad(0.1));
+  }
 }

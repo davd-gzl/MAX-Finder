@@ -117,6 +117,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxLegKm != null && q.maxLegKm > 0) p.set("legkm", String(q.maxLegKm));
   if (q.maxLegDurationMin != null && q.maxLegDurationMin > 0) p.set("legdur", String(q.maxLegDurationMin));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
+  if (q.radiusKm != null && q.radiusKm > 0) p.set("rad", String(q.radiusKm));
   if (q.tourEndDate) p.set("by", q.tourEndDate);
   return p;
 }
@@ -134,6 +135,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const legkm = Number(p.get("legkm"));
   const legdur = Number(p.get("legdur"));
   const span = Number(p.get("span"));
+  const rad = Number(p.get("rad"));
   const clampDay = (n: number, fallback: number): number =>
     Number.isFinite(n) && n >= 1 ? Math.min(14, Math.floor(n)) : fallback;
   return {
@@ -160,6 +162,8 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxLegDurationMin: Number.isFinite(legdur) && legdur > 0 ? Math.max(30, Math.floor(legdur)) : undefined,
     // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
+    // od-only search radius (km) for nearby paid-connection alternatives.
+    radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
     tourEndDate: p.get("by") ?? undefined,
   };
 }

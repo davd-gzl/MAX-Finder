@@ -1522,6 +1522,27 @@ a {
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* Nearby paid-connection alternatives (radius search). */
+.nearby {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.nearby h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-bottom: 0.2rem;
+}
+.nearby-sub {
+  margin: 0.7rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 620;
+  color: var(--muted);
+}
+.km-chip {
+  font-variant-numeric: tabular-nums;
+}
 .keys-btn {
   font-weight: 700;
 }

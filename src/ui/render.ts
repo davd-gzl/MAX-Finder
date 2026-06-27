@@ -314,6 +314,39 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
 }
 
 /**
+ * A nearby paid-connection alternative (radius search): the nearby station, how
+ * far it is, and the free-MAX journey it offers. Clicking opens that free route;
+ * the user covers the short hop to/from the exact endpoint themselves.
+ */
+export function nearbyTripRowEl(station: string, km: number, j: Journey, ctx: RenderCtx): HTMLElement {
+  const via = j.legs.length > 1;
+  const viaChip = via
+    ? [el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })]
+    : [];
+  const main = el(
+    "button",
+    {
+      class: "dest-main",
+      type: "button",
+      attrs: { "aria-label": `${ctx.label(station)} — ${t("nearby_km", { km })} — ${formatDuration(j.totalDurationMin)}` },
+      on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
+    },
+    [
+      el("span", { class: "dest-name", text: ctx.label(station) }),
+      el("span", { class: "chip chip-soft km-chip", text: t("nearby_km", { km }) }),
+      ...viaChip,
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        el("bdi", { text: formatDuration(j.totalDurationMin) }),
+      ]),
+      el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
+    ],
+  );
+  return el("article", { class: "group-card", dataset: { station } }, [
+    el("div", { class: "dest-row" }, [favStarEl({ origin: j.origin, destination: j.destination }, ctx), main]),
+  ]);
+}
+
+/**
  * The 30-day strip with the selected day highlighted. Defaults to a route's
  * train-availability calendar; `opts` lets "best" mode relabel it as an
  * ideas-by-day strip (title + a "{n} destinations" count).
