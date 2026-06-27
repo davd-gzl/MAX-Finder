@@ -10,11 +10,10 @@ import {
 import { filterTrains } from "./core/search";
 import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
-import { findJourneys } from "./core/connections";
+import { findJourneys, journeySpanDays } from "./core/connections";
 import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
 import { haversineKm } from "./util/geo";
-import { findRoundTrips } from "./core/roundtrip";
 import { el, clear } from "./ui/dom";
 import { RouteMap } from "./ui/map";
 import * as render from "./ui/render";
@@ -45,21 +44,23 @@ interface Refs {
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
-  returnDate: HTMLInputElement;
   card: HTMLSelectElement;
   departAfter: HTMLInputElement;
   departBefore: HTMLInputElement;
   maxDuration: HTMLInputElement;
+  maxSpanDays: HTMLInputElement;
+  maxSpanDaysField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  connectionsField: HTMLElement;
   overnight: HTMLInputElement;
+  overnightField: HTMLElement;
   via: HTMLInputElement;
   flex: HTMLSelectElement;
   flexField: HTMLElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
   viaField: HTMLElement;
-  returnField: HTMLElement;
   maxDurationField: HTMLElement;
   trainTypeField: HTMLElement;
   region: HTMLSelectElement;
@@ -107,6 +108,9 @@ let installPrompt: InstallPromptEvent | null = null;
 let surpriseMsgEl: HTMLElement | null = null;
 let cityClearBtnEl: HTMLElement | null = null;
 let nearestBtnEl: HTMLElement | null = null;
+// Proposed/edited return date for the od "Do you want to come back?" section.
+// Reset on each fresh od search so a new outbound re-proposes (outbound + 2 days).
+let odReturnDate: string | null = null;
 
 /** Set (or clear with "") the inline status next to the "surprise" button. */
 function setSurpriseMsg(text: string): void {
@@ -268,14 +272,8 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     installPrompt = null;
   });
 
-  // Escape goes back to the previous page (same as the "Retour" button), when
-  // there's somewhere to go back to.
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && navStack.length) {
-      e.preventDefault();
-      goBack();
-    }
-  });
+  // Global keyboard shortcuts (mode switch, focus, day nav, surprise, run, help).
+  document.addEventListener("keydown", onGlobalKey);
 
   // Native browser Back/Forward: restore the page from the URL. The in-app drill
   // stack is the URL's source of truth here, so clear it to keep the in-app
@@ -395,6 +393,7 @@ function syncFormFromQuery(): void {
   refs.departAfter.value = query.departAfter ?? "";
   refs.departBefore.value = query.departBefore ?? "";
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
+  refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
@@ -413,6 +412,7 @@ function readQueryFromForm(): SearchQuery {
   const maxDur = Number(refs.maxDuration.value.trim());
   const maxKm = Number(refs.maxKm.value.trim());
   const maxLegKm = Number(refs.maxLegKm.value.trim());
+  const span = Number(refs.maxSpanDays.value.trim());
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -446,6 +446,9 @@ function readQueryFromForm(): SearchQuery {
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
     maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
+    // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
+    maxSpanDays:
+      query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
   };
 }
 
@@ -573,18 +576,20 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   });
   const countKey = dir === "from" ? "res_destinations" : "res_origins";
 
-  // The browse list spans the WHOLE booking window: every place a free-MAX train
-  // reaches on any bookable day appears, not only the selected date. Each card
-  // still shows how many run on the chosen day (the `dayCount` below).
-  const groups = reachableGroups(trains, anchor, dir, filterOpts());
-  const directStations = new Set(groups.map((g) => g.station));
-
-  // Trains that run on the *selected* day, per station, for the "X this day" figure.
+  // Trains that run on the *selected* day, per station — this is the list: every
+  // place shown actually has a free-MAX train that day (no "0 this day" rows).
   const dayGroups =
     dir === "from"
       ? reachableDestinations(trains, anchor, query.date, filterOpts())
       : reachableOrigins(trains, anchor, query.date, filterOpts());
   const dayCount = new Map(dayGroups.map((g) => [g.station, g.count]));
+
+  // Take the whole-window record for those same-day stations, so each card can show
+  // both the day count and the month total (the richer card data: fastest time etc.).
+  const groups = reachableGroups(trains, anchor, dir, filterOpts()).filter(
+    (g) => (dayCount.get(g.station) ?? 0) > 0,
+  );
+  const directStations = new Set(groups.map((g) => g.station));
 
   // Total MAX availability over the whole booking window, per destination, so each
   // card shows how many tickets exist before drilling into the exact-trip calendar.
@@ -702,29 +707,8 @@ function runBestSearch(c: RenderCtx): void {
     return;
   }
 
-  // Flexible dates: for each day within ±flexDays of the chosen date, the single
-  // fastest getaway that day (where you can go quickest). Pick a day to switch.
-  if (query.flexDays && query.flexDays > 0) {
-    const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-    const section = el("section", { class: "flex-dates" }, [el("h3", { text: t("field_flex") })]);
-    let any = false;
-    for (let i = -query.flexDays; i <= query.flexDays; i++) {
-      const d = addDays(query.date, i);
-      if (d < today || d > lastBookable) continue;
-      let dayTrips = bestTrips(trains, query.origin, d, stationsOnDate(trains, d), {
-        ...filterOpts(),
-        maxConnections: query.maxConnections,
-      });
-      if (query.region)
-        dayTrips = dayTrips.filter((tr) => registry.get(tr.destination)?.region === query.region);
-      const fastest = dayTrips[0];
-      if (!fastest) continue;
-      section.append(render.flexDayEl(d, fastest.journey, c, d === query.date, registry.label(fastest.destination)));
-      any = true;
-    }
-    if (any) refs.results.append(section);
-  }
-
+  // (Date navigation in best mode is the "ideas by day" calendar above — no
+  // separate flexible-dates strip here.)
   refs.results.append(
     el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
   );
@@ -737,6 +721,7 @@ function runOdSearch(c: RenderCtx): void {
   if (!query.origin || !query.destination) {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
+  odReturnDate = null; // a fresh outbound search re-proposes the return (outbound + 2)
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
     destination: registry.label(query.destination),
@@ -773,10 +758,15 @@ function runOdSearch(c: RenderCtx): void {
   );
   refs.results.append(render.calendarEl(cal, c, query.date));
 
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  // A journey's day-span cap (e.g. "no trip longer than 2 days"): overnight
+  // stopovers can chain trains across days, so cap the calendar span here.
+  const withinSpan = (j: Journey): boolean =>
+    !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
+
   // Flexible dates: the fastest free-MAX trip for each day within ±flexDays of the
   // chosen date (clamped to the bookable window). Pick a day to see its full list.
   if (query.flexDays && query.flexDays > 0) {
-    const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
     const section = el("section", { class: "flex-dates" }, [el("h3", { text: t("field_flex") })]);
     let any = false;
     for (let i = -query.flexDays; i <= query.flexDays; i++) {
@@ -784,6 +774,7 @@ function runOdSearch(c: RenderCtx): void {
       if (d < today || d > lastBookable) continue;
       const fastest = findJourneys(trains, query.origin, query.destination, d, connOpts)
         .filter(passesVia)
+        .filter(withinSpan)
         .reduce<Journey | null>((a, b) => (!a || b.totalDurationMin < a.totalDurationMin ? b : a), null);
       if (!fastest) continue;
       section.append(render.flexDayEl(d, fastest, c, d === query.date));
@@ -802,21 +793,49 @@ function runOdSearch(c: RenderCtx): void {
     connOpts,
   )
     .filter(passesVia)
+    .filter(withinSpan)
     .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
   if (journeys.length === 0)
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
   else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
 
-  // optional round trips
-  const ret = refs.returnDate.value;
-  if (ret) {
-    const trips = findRoundTrips(trains, query.origin, query.destination, query.date, ret, connOpts).filter(
-      (rt) => passesVia(rt.outbound) && passesVia(rt.inbound),
+  // "Do you want to come back?": once an outbound exists, propose a return a couple
+  // of days later (editable) and list the free-MAX returns for that day, live.
+  if (journeys.length > 0) {
+    const origin = query.origin;
+    const destination = query.destination;
+    const proposed =
+      odReturnDate ?? (addDays(query.date, 2) > lastBookable ? lastBookable : addDays(query.date, 2));
+    const retInput = inputEl("date");
+    retInput.min = query.date;
+    retInput.max = lastBookable;
+    retInput.value = proposed;
+    retInput.setAttribute("aria-label", t("ret_date_label"));
+    const retList = el("div", { class: "return-list" });
+    const returnOpts = { ...filterOpts(), maxConnections: query.maxConnections };
+    const renderReturns = (retDate: string): void => {
+      clear(retList);
+      const back = findJourneys(trains, destination, origin, retDate, returnOpts)
+        .filter(withinSpan)
+        .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
+      if (back.length === 0) retList.append(render.emptyEl(t("ret_none")));
+      else for (const j of back) retList.append(render.journeyEl(j, c));
+    };
+    retInput.addEventListener("change", () => {
+      odReturnDate = retInput.value || proposed;
+      renderReturns(odReturnDate);
+    });
+    renderReturns(proposed);
+    refs.results.append(
+      el("section", { class: "od-return" }, [
+        el("h3", { text: t("ret_title") }),
+        el("label", { class: "field return-date-field" }, [
+          el("span", { class: "field-label", text: t("ret_date_label") }),
+          retInput,
+        ]),
+        retList,
+      ]),
     );
-    const section = el("section", { class: "roundtrips" }, [el("h3", { text: t("rt_title") })]);
-    if (trips.length === 0) section.append(render.emptyEl(t("rt_none")));
-    else for (const rt of trips.slice(0, 20)) section.append(render.roundTripEl(rt, c));
-    refs.results.append(section);
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),
@@ -856,6 +875,88 @@ function goHome(): void {
   syncFormFromQuery();
   applyAndRun();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/** Switch search mode (tab click or 1–5 shortcut), starting a fresh history. */
+function switchMode(mode: SearchQuery["mode"]): void {
+  navStack = [];
+  query = { ...readQueryFromForm(), mode };
+  syncFormFromQuery();
+  applyAndRun();
+}
+
+/** Run a fresh search from the current form (submit or "g" shortcut). */
+function runFromForm(): void {
+  navStack = [];
+  query = readQueryFromForm();
+  applyAndRun();
+}
+
+/** Shift the chosen date by `delta` days, clamped to the bookable window. */
+function shiftDay(delta: number): void {
+  const last = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  const d = addDays(query.date, delta);
+  if (d < today || d > last) return;
+  query = { ...query, date: d };
+  refreshInPlace();
+}
+
+/** A modal listing the keyboard shortcuts (the "?" key or header button). */
+function showShortcutsHelp(): void {
+  showInfoModal(t("keys_title"), [
+    t("keys_modes"),
+    t("keys_focus"),
+    t("keys_day"),
+    t("keys_surprise"),
+    t("keys_run"),
+    t("keys_back"),
+    t("keys_help"),
+  ]);
+}
+
+const SHORTCUT_MODES = ["from", "to", "od", "tour", "best"] as const;
+
+/**
+ * Global keyboard shortcuts. Order matters: Escape first (also closes the help
+ * dialog natively), then bail on modifiers / while typing / under an open dialog.
+ */
+function onGlobalKey(e: KeyboardEvent): void {
+  if (e.key === "Escape") {
+    if (navStack.length) {
+      e.preventDefault();
+      goBack();
+    }
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // leave browser/OS combos alone
+  const tgt = e.target as HTMLElement | null;
+  if (tgt && (/^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName) || tgt.isContentEditable)) return;
+  if (document.querySelector("dialog[open]")) return; // not while a modal is up
+
+  if (/^[1-5]$/.test(e.key)) {
+    e.preventDefault();
+    switchMode(SHORTCUT_MODES[Number(e.key) - 1]!);
+  } else if (e.key === "/") {
+    e.preventDefault();
+    const f = query.mode === "to" ? refs.destination : refs.origin;
+    f.focus();
+    f.select();
+  } else if (e.key === "[") {
+    e.preventDefault();
+    shiftDay(-1);
+  } else if (e.key === "]") {
+    e.preventDefault();
+    shiftDay(1);
+  } else if (e.key === "s") {
+    e.preventDefault();
+    surpriseMe();
+  } else if (e.key === "g") {
+    e.preventDefault();
+    runFromForm();
+  } else if (e.key === "?") {
+    e.preventDefault();
+    showShortcutsHelp();
+  }
 }
 
 /**
@@ -1043,29 +1144,33 @@ function updateFieldVisibility(): void {
   const needsDest = query.mode === "od" || query.mode === "to";
   refs.destinationField.style.display = needsDest ? "" : "none";
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  // Flexible dates apply to the date-anchored searches: a precise trip (od) and
-  // the "where can I go" ideas (best). from/to already span the whole window and
-  // tour has its own min/max-day range, so they don't show it.
-  refs.flexField.style.display = query.mode === "od" || query.mode === "best" ? "" : "none";
-  refs.returnField.style.display = query.mode === "od" ? "" : "none";
-  // Max journey duration: prominent (main form) only for a tour, where each hop's
-  // length matters; everywhere else it's tucked into "Advanced filters" (inserted
-  // just before train type, which stays last). Move the single element rather than
-  // duplicate it.
-  refs.maxDurationField.style.display = "";
-  if (query.mode === "tour") {
-    refs.regionField.parentElement?.insertBefore(refs.maxDurationField, refs.regionField);
-  } else {
-    refs.trainTypeField.parentElement?.insertBefore(refs.maxDurationField, refs.trainTypeField);
+  // Flexible dates make sense only for a precise trip (od). from/to span the whole
+  // window already, best has its own "ideas by day" calendar, tour its day range.
+  refs.flexField.style.display = query.mode === "od" ? "" : "none";
+
+  // Field placement per mode: a tour promotes Connections, Overnight and Max
+  // duration into the prominent main form (and tucks its km caps into Advanced);
+  // every other mode keeps Connections/Overnight/Max-duration in Advanced. These
+  // are single elements moved between containers, never duplicated.
+  const tour = query.mode === "tour";
+  const movables = [refs.maxDurationField, refs.connectionsField, refs.overnightField];
+  for (const f of movables) {
+    if (tour) refs.regionField.parentElement?.insertBefore(f, refs.regionField);
+    else refs.trainTypeField.parentElement?.insertBefore(f, refs.trainTypeField);
   }
+  refs.maxDurationField.style.display = ""; // visible in whichever container it sits
+
   // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
-  refs.regionField.style.display = query.mode === "best" || query.mode === "tour" ? "" : "none";
-  refs.citiesField.style.display = query.mode === "tour" ? "" : "none";
-  refs.stayField.style.display = query.mode === "tour" ? "" : "none";
-  refs.maxKmField.style.display = query.mode === "tour" ? "" : "none";
+  refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
+  refs.citiesField.style.display = tour ? "" : "none";
+  refs.stayField.style.display = tour ? "" : "none";
+  // Km caps live in Advanced, shown only for a tour. Max trip span (days) lives in
+  // Advanced too, shown only for the exact trip.
+  refs.maxKmField.style.display = tour ? "" : "none";
+  refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
   // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
   // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
-  if (nearestBtnEl) nearestBtnEl.style.display = query.mode === "tour" ? "" : "none";
+  if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -1111,6 +1216,17 @@ function buildLayout(root: HTMLElement): void {
     store.saveSettings(settings);
     themeBtn.innerHTML = themeSvg(next);
   });
+
+  // Keyboard-shortcuts help (also the "?" key). Hidden on coarse-pointer devices
+  // where there's no keyboard, to avoid clutter.
+  const keysBtn = el("button", {
+    class: "ctl icon-ctl keys-btn",
+    type: "button",
+    text: "?",
+    attrs: { "aria-label": t("keys_title"), title: t("keys_title") },
+    on: { click: showShortcutsHelp },
+  });
+  if (isTouch()) keysBtn.style.display = "none";
 
   // Card (pass) is a global preference, kept at the top and persisted at once.
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
@@ -1161,7 +1277,7 @@ function buildLayout(root: HTMLElement): void {
         ]),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, themeBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, installBtn]),
   ]);
 
   // form
@@ -1240,14 +1356,7 @@ function buildForm(): FormBuild {
       type: "button",
       text: t(`mode_${m}` as const),
       dataset: { mode: m },
-      on: {
-        click: () => {
-          navStack = []; // switching mode starts a new history
-          query = { ...readQueryFromForm(), mode: m };
-          syncFormFromQuery();
-          applyAndRun();
-        },
-      },
+      on: { click: () => switchMode(m) },
     });
     modeTabs.append(btn);
   }
@@ -1257,17 +1366,21 @@ function buildForm(): FormBuild {
   const destination = inputEl("text", "station-list");
   const via = inputEl("text", "station-list");
   const date = inputEl("date");
-  const returnDate = inputEl("date");
   // Constrain dates to exactly the window the 30-day calendar renders.
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
   const lastBookable = windowDates[windowDates.length - 1] ?? today;
   date.min = today;
   date.max = lastBookable;
-  returnDate.min = today;
-  returnDate.max = lastBookable;
   const departAfter = inputEl("time");
   const departBefore = inputEl("time");
   const maxDuration = inputEl("number");
+  // Max trip length in days (exact trip): caps how many calendar days a journey may
+  // straddle — overnight stopovers can chain trains across several days.
+  const maxSpanDays = inputEl("number");
+  maxSpanDays.min = "1";
+  maxSpanDays.max = "14";
+  maxSpanDays.placeholder = "2";
+  maxSpanDays.setAttribute("aria-label", t("field_maxSpanDays"));
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
@@ -1342,7 +1455,6 @@ function buildForm(): FormBuild {
   const originField = field(t("field_origin"), origin);
   const destinationField = field(t("field_destination"), destination);
   const viaField = field(t("field_via"), via);
-  const returnField = field(t("field_return"), returnDate);
   const regionField = field(t("field_region"), region);
   const clearCitiesBtn = el("button", {
     class: "linklike cities-clear",
@@ -1403,11 +1515,13 @@ function buildForm(): FormBuild {
     field(t("field_maxLegKm"), maxLegKm),
   ]);
 
-  // Max journey duration. It's prominent (main form) only for a tour, where each
-  // hop's length matters; in the other modes it's relocated into "Advanced
-  // filters" by updateFieldVisibility(). Train type is the least important filter,
-  // so it stays last in the advanced grid (max duration is inserted before it).
+  // These three default to Advanced; updateFieldVisibility() promotes them into the
+  // main form for a tour (where connections/overnight/duration matter most). Train
+  // type stays last as a stable insertion anchor. Km caps + max-span sit in Advanced
+  // and are shown per mode (km for tour, span for od).
   const maxDurationField = field(t("field_maxDuration"), maxDuration);
+  const connectionsField = field(t("field_connections"), maxConnections);
+  const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
   const trainTypeField = field(t("field_trainType"), trainType);
 
   const advanced = el("details", { class: "advanced" }, [
@@ -1415,8 +1529,11 @@ function buildForm(): FormBuild {
     el("div", { class: "advanced-grid" }, [
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
-      field(t("field_connections"), maxConnections),
+      connectionsField,
       overnightField,
+      maxDurationField,
+      maxSpanDaysField,
+      maxKmField,
       trainTypeField,
     ]),
   ]);
@@ -1464,12 +1581,9 @@ function buildForm(): FormBuild {
       viaField,
       field(t("field_date"), date),
       flexField,
-      returnField,
-      maxDurationField,
       regionField,
       citiesField,
       stayField,
-      maxKmField,
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
@@ -1479,9 +1593,7 @@ function buildForm(): FormBuild {
   ]);
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    navStack = []; // a fresh search starts a new history
-    query = readQueryFromForm();
-    applyAndRun();
+    runFromForm();
   });
   // Live form: react to any committed field change (incl. clearing a box) without
   // waiting for the Search button. `change` fires on commit (blur / datalist pick /
@@ -1496,20 +1608,22 @@ function buildForm(): FormBuild {
       origin,
       destination,
       date,
-      returnDate,
       departAfter,
       departBefore,
       maxDuration,
+      maxSpanDays,
+      maxSpanDaysField,
       trainType,
       maxConnections,
+      connectionsField,
       overnight,
+      overnightField,
       via,
       flex,
       flexField,
       originField,
       destinationField,
       viaField,
-      returnField,
       maxDurationField,
       trainTypeField,
       region,

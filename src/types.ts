@@ -78,6 +78,12 @@ export interface SearchQuery {
   maxKm?: number;
   /** Cap on each hop's straight-line distance, in km ("tour" mode). */
   maxLegKm?: number;
+  /**
+   * Cap on a journey's total day-span ("exact trip" mode). Overnight stopovers
+   * can chain trains across several days; this limits how many calendar days the
+   * whole trip may straddle (1 = same-day, 2 = arrives the next day, …).
+   */
+  maxSpanDays?: number;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */

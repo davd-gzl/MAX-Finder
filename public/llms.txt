@@ -46,7 +46,8 @@ Query params:
 - `card`: `jeune` | `senior`
 - `after` / `before`: `HH:MM` departure window ; `maxdur`: minutes ; `type`: axis
 - `via`: station id to route through (`mode=od`)
-- `flex`: `1` | `2` | `3` | `7` — also search ± N days around `date` (`mode=od` or `best`)
+- `flex`: `1` | `2` | `3` | `7` — also search ± N days around `date` (`mode=od`)
+- `span`: max journey length in days (`mode=od`; overnight stopovers can chain days)
 - `night`: `1` to allow long overnight layovers at a hub
 - `rg`: region label (`mode=best` or `tour`) ; `cities`: `~`-separated station ids (`mode=tour`)
 - `dmin` / `dmax`: min / max days per city (`mode=tour`; default 1 / 3)

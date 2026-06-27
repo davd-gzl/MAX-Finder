@@ -115,6 +115,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxDays != null && q.maxDays !== 3) p.set("dmax", String(q.maxDays));
   if (q.maxKm != null && q.maxKm > 0) p.set("maxkm", String(q.maxKm));
   if (q.maxLegKm != null && q.maxLegKm > 0) p.set("legkm", String(q.maxLegKm));
+  if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
   return p;
 }
 
@@ -129,6 +130,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const dmax = Number(p.get("dmax"));
   const maxkm = Number(p.get("maxkm"));
   const legkm = Number(p.get("legkm"));
+  const span = Number(p.get("span"));
   const clampDay = (n: number, fallback: number): number =>
     Number.isFinite(n) && n >= 1 ? Math.min(14, Math.floor(n)) : fallback;
   return {
@@ -151,6 +153,8 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxDays: p.has("dmax") ? clampDay(dmax, 3) : undefined,
     maxKm: Number.isFinite(maxkm) && maxkm > 0 ? Math.floor(maxkm) : undefined,
     maxLegKm: Number.isFinite(legkm) && legkm > 0 ? Math.floor(legkm) : undefined,
+    // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
+    maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
   };
 }
 

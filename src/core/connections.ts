@@ -1,6 +1,6 @@
 import type { MaxTrain, Journey } from "../types";
 import { HUB_STATIONS, MIN_CONNECTION_MIN, MAX_CONNECTION_MIN } from "../config";
-import { absoluteMinute, addDays, parseTimeToMinutes } from "../util/time";
+import { absoluteMinute, addDays, dayIndex, parseTimeToMinutes } from "../util/time";
 
 export interface ConnectionOptions {
   /** 0 = direct only, 1 = one change (default), 2 = two changes. */
@@ -202,4 +202,17 @@ export function bestJourney(
     if (!best || j.totalDurationMin < best.totalDurationMin) best = j;
   }
   return best;
+}
+
+/**
+ * How many calendar days a journey straddles: 1 = same-day, 2 = arrives the next
+ * day, etc. Computed from the LAST leg's own date plus its past-midnight rollover
+ * (overnight stopovers can put later legs days after the first), relative to the
+ * journey's start date.
+ */
+export function journeySpanDays(j: Journey): number {
+  const last = j.legs[j.legs.length - 1];
+  if (!last) return 1;
+  const endDay = dayIndex(last.date) + Math.floor(last.arriveMin / 1440);
+  return endDay - dayIndex(j.date) + 1;
 }
