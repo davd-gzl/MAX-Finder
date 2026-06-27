@@ -437,16 +437,21 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
     ]),
   ]);
   // "Day N" is the actual trip day of each hop, so a multi-day stay shows real
-  // gaps (Day 1, Day 4, …) rather than a misleading 1-per-row count.
+  // gaps (Day 1, Day 4, …) rather than a misleading 1-per-row count. Each leg is a
+  // clear day band: a bold numbered badge + the date, so days are easy to scan.
   const base = first ? dayIndex(first.date) : 0;
   const legs = tour.legs.map((j) => {
     const km = legKm(j, ctx);
+    const dayNum = dayIndex(j.date) - base + 1;
+    const dayLabel = t("tour_day", { n: dayNum, date: ctx.formatDate(j.date) });
     return el("div", { class: "tour-leg" }, [
       el("div", { class: "tour-leg-head" }, [
         el("span", {
-          class: "chip chip-soft",
-          text: t("tour_day", { n: dayIndex(j.date) - base + 1, date: ctx.formatDate(j.date) }),
+          class: "tour-day-badge",
+          text: String(dayNum),
+          attrs: { "aria-label": dayLabel, title: dayLabel },
         }),
+        el("span", { class: "tour-day-date", text: ctx.formatDate(j.date) }),
         ...(km != null
           ? [el("span", { class: "leg-km muted", attrs: { title: t("nearest_hint") }, text: `${km} km` })]
           : []),
@@ -454,7 +459,7 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
       journeyEl(j, ctx),
     ]);
   });
-  return el("article", { class: "tour" }, [head, ...legs]);
+  return el("article", { class: "tour" }, [head, el("div", { class: "tour-legs" }, legs)]);
 }
 
 export function emptyEl(message: string): HTMLElement {

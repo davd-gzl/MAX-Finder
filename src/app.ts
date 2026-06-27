@@ -1374,7 +1374,7 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  for (const m of ["from", "to", "od", "tour", "best"] as const) {
+  (["from", "to", "od", "tour", "best"] as const).forEach((m, i) => {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
@@ -1382,8 +1382,9 @@ function buildForm(): FormBuild {
       dataset: { mode: m },
       on: { click: () => switchMode(m) },
     });
+    withShortcut(btn, String(i + 1)); // 1–5 mode shortcuts (see onGlobalKey)
     modeTabs.append(btn);
-  }
+  });
   const modeDesc = el("p", { class: "mode-desc" });
 
   const origin = inputEl("text", "station-list");
@@ -1573,6 +1574,7 @@ function buildForm(): FormBuild {
   ]);
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
+  withShortcut(searchBtn, "G"); // "g" runs the search (see onGlobalKey)
   // A discreet, playful shortcut to a random city.
   const surpriseBtn = el("button", {
     class: "btn btn-ghost surprise-btn",
@@ -1580,6 +1582,7 @@ function buildForm(): FormBuild {
     text: t("act_surprise"),
     on: { click: surpriseMe },
   });
+  withShortcut(surpriseBtn, "S"); // "s" = surprise me
   // Inline status for "surprise" (e.g. no city can be added to a tour).
   surpriseMsgEl = el("p", { class: "surprise-msg", attrs: { role: "status" } });
 
@@ -1786,6 +1789,17 @@ function clearableField(label: string, input: HTMLInputElement): HTMLElement {
   });
   sync();
   return field(label, el("span", { class: "input-wrap" }, [input, clearBtn]));
+}
+
+/**
+ * Append a keyboard-shortcut badge to a button. The badge stays out of the way
+ * until the pointer hovers (or the button is keyboard-focused), when CSS reveals
+ * it — so the same key shown in the "?" help is discoverable right on the button.
+ */
+function withShortcut(btn: HTMLElement, key: string): HTMLElement {
+  btn.classList.add("has-kbd");
+  btn.append(el("kbd", { class: "kbd-hint", text: key, attrs: { "aria-hidden": "true" } }));
+  return btn;
 }
 
 function optionEl(value: string, label: string, selected: boolean): HTMLElement {
