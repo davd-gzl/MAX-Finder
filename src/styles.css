@@ -934,6 +934,14 @@ a {
   border-radius: 8px;
 }
 
+/* "Ideas" all-days reset link, shown above the list once a day is picked. */
+.best-alldays-row {
+  margin: 0.2rem 0 0.6rem;
+}
+.best-alldays::before {
+  content: "← ";
+}
+
 /* ---- chips ---- */
 .chip {
   display: inline-flex;
