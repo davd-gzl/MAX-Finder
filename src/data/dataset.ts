@@ -1,27 +1,44 @@
 import type { RawRecord, MaxTrain, DataMeta } from "../types";
-import { DATA_URL, META_URL } from "../config";
+import { DATA_URL, META_URL, NON_BOOKABLE_PATTERNS } from "../config";
 import { parseTimeToMinutes, minutesToHHMM } from "../util/time";
 import sampleData from "../../data/tgvmax.sample.json";
+
+/**
+ * A station present in the data but not bookable with a MAX pass (an international
+ * stop — see NON_BOOKABLE_PATTERNS). Accent-insensitive substring match.
+ */
+export function isNonBookable(station: string): boolean {
+  const n = station
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+  return NON_BOOKABLE_PATTERNS.some((p) => n.includes(p));
+}
 
 /** Normalize one raw SNCF record into a `MaxTrain`. Returns null if invalid. */
 export function normalizeRecord(r: RawRecord): MaxTrain | null {
   if (!r || !r.origine || !r.destination || !r.date) return null;
-  if (r.origine.trim() === r.destination.trim()) return null; // skip self-loops (X → X)
+  const origin = r.origine.trim();
+  const destination = r.destination.trim();
+  if (origin === destination) return null; // skip self-loops (X → X)
   const departMin = parseTimeToMinutes(r.heure_depart);
   let arriveMin = parseTimeToMinutes(r.heure_arrivee);
   if (Number.isNaN(departMin) || Number.isNaN(arriveMin)) return null;
   if (arriveMin < departMin) arriveMin += 1440; // crosses midnight
+  // Reservable only if the feed says so AND neither endpoint is a non-bookable
+  // (international) stop the MAX pass doesn't cover.
+  const reservable = String(r.od_happy_card ?? "").trim().toUpperCase() === "OUI";
   return {
     date: r.date,
-    origin: r.origine.trim(),
-    destination: r.destination.trim(),
+    origin,
+    destination,
     depart: minutesToHHMM(departMin),
     arrive: minutesToHHMM(arriveMin),
     departMin,
     arriveMin,
     durationMin: arriveMin - departMin,
     trainNo: String(r.train_no ?? "").trim(),
-    available: String(r.od_happy_card ?? "").trim().toUpperCase() === "OUI",
+    available: reservable && !isNonBookable(origin) && !isNonBookable(destination),
     axe: r.axe?.trim() || undefined,
   };
 }

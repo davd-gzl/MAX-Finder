@@ -54,6 +54,8 @@ export const en: Dict = {
   res_to_title: "Arriving at {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "No MAX seat for these criteria.",
+  nonbook_msg: "{station} can't be booked with a MAX pass.",
+  nonbook_hint: "International stops appear in the open data but aren't covered by MAX JEUNE / SENIOR.",
   res_none_hint: "Try more connections, wider date flexibility, overnight stopovers, or removing filters.",
   tour_none_hint: "Try widening the days per city, removing a city, or allowing more connections.",
   res_destinations: "{n} destination(s)",

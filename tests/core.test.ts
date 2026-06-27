@@ -36,6 +36,19 @@ describe("normalizeRecord", () => {
     expect(normalizeRecord({ ...base(), od_happy_card: "NON" })!.available).toBe(false);
     expect(normalizeRecord({ ...base(), heure_depart: "" })).toBeNull();
   });
+
+  it("marks non-bookable (international) endpoints as unavailable even when OUI", () => {
+    // Paris -> Geneva shows OUI in the feed but isn't reservable with a MAX pass.
+    expect(
+      normalizeRecord({ ...base(), destination: "GENEVE", od_happy_card: "OUI" })!.available,
+    ).toBe(false);
+    expect(
+      normalizeRecord({ ...base(), origine: "BRUXELLES MIDI", destination: "LILLE", od_happy_card: "OUI" })!
+        .available,
+    ).toBe(false);
+    // A purely domestic OUI route stays bookable.
+    expect(normalizeRecord({ ...base(), destination: "LYON (intramuros)", od_happy_card: "OUI" })!.available).toBe(true);
+  });
 });
 
 describe("reachableDestinations", () => {
