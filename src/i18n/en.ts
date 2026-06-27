@@ -81,6 +81,7 @@ export const en: Dict = {
   lbl_dayoffset: "+{n} d",
 
   act_book: "Book on SNCF Connect",
+  act_book_leg: "Book train {n}",
   act_ics: "Add to calendar",
   act_calendar: "Calendar",
   act_fav_add: "Add to favorites",

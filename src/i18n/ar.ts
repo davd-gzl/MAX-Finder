@@ -75,6 +75,7 @@ export const ar: Dict = {
   lbl_train: "القطار {no}",
   lbl_dayoffset: "+{n} ي",
   act_book: "احجز على SNCF Connect",
+  act_book_leg: "احجز القطار {n}",
   act_ics: "أضف إلى التقويم",
   act_calendar: "التقويم",
   act_fav_add: "أضف إلى المفضلة",
