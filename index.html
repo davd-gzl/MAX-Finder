@@ -15,6 +15,9 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#0f7a52" />
     <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+    <!-- White-page guard: self-heals a blank page (stale cache / dead bundle).
+         Separate same-origin script so it runs even if the app bundle fails. -->
+    <script src="%BASE_URL%guard.js"></script>
   </head>
   <body>
     <div id="app">
