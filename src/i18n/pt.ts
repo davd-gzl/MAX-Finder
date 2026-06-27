@@ -126,6 +126,7 @@ export const pt: Dict = {
   act_surprise: "Surpreenda-me",
   surprise_none: "Nenhuma cidade possível para adicionar.",
   cities_add: "Adicionar uma cidade…",
+  tour_end_ph: "Opcional — terminar aqui (partida = volta)",
   cities_clear: "Limpar tudo",
   act_nearest: "Parada mais próxima",
   nearest_hint: "Distância em linha reta · adiciona a estação acessível mais próxima",

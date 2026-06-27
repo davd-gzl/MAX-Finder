@@ -126,6 +126,7 @@ export const zh: Dict = {
   act_surprise: "随机一城",
   surprise_none: "没有可添加的城市。",
   cities_add: "添加城市…",
+  tour_end_ph: "可选 — 在此结束（起点 = 环线）",
   cities_clear: "全部清除",
   act_nearest: "最近车站",
   nearest_hint: "直线距离 · 添加最近的可达车站",

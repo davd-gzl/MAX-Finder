@@ -127,6 +127,7 @@ export const ko: Dict = {
   act_surprise: "랜덤 여행",
   surprise_none: "추가할 수 있는 도시가 없습니다.",
   cities_add: "도시 추가…",
+  tour_end_ph: "선택 — 여기서 종료 (출발지 = 순환)",
   cities_clear: "모두 지우기",
   act_nearest: "가장 가까운 정류장",
   nearest_hint: "직선 거리 · 도달 가능한 가장 가까운 역을 추가",

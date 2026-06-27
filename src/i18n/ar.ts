@@ -126,6 +126,7 @@ export const ar: Dict = {
   act_surprise: "فاجئني",
   surprise_none: "لا توجد مدينة يمكن إضافتها.",
   cities_add: "أضف مدينة…",
+  tour_end_ph: "اختياري — تنتهي هنا (البداية = حلقة)",
   cities_clear: "مسح الكل",
   act_nearest: "أقرب محطة",
   nearest_hint: "مسافة بخط مستقيم · يضيف أقرب محطة يمكن الوصول إليها",

@@ -177,7 +177,7 @@ function addNearestCity(): void {
   let chosen: string | undefined;
   for (let i = 0; i < candidates.length && i < 40; i++) {
     const c = candidates[i]!;
-    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm)) {
+    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined)) {
       chosen = c;
       break;
     }
@@ -657,17 +657,20 @@ function runTourSearch(c: RenderCtx): void {
   const planOpts = { maxConnections: query.maxConnections };
   const maxKm = query.maxKm; // optional cap on the tour's total straight-line km
   const legKm = query.maxLegKm; // optional cap on each hop's straight-line km
+  // Optional fixed finish: end the tour at this city (may equal the start → a loop
+  // back home). Empty = open-ended (end wherever the last nomad stop lands).
+  const end = query.destination || undefined;
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
   // greedy route dead-ends, fall back to the typed order — a Surprise / "nearest
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
@@ -1007,7 +1010,7 @@ function surpriseMe(): void {
     // "no city" when the few feasible ones land late in the shuffled order.
     let chosen: string | undefined;
     for (const c of pool) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm)) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined)) {
         chosen = c;
         break;
       }
@@ -1138,8 +1141,11 @@ function setActiveTab(mode: SearchQuery["mode"]): void {
 function updateFieldVisibility(): void {
   // "D'où venir" (to) picks a destination, so the departure field is irrelevant.
   refs.originField.style.display = query.mode === "to" ? "none" : "";
-  const needsDest = query.mode === "od" || query.mode === "to";
+  // Destination: required in od/to; in tour it's the optional finish (can equal the
+  // start for a loop), so the field appears there too with a clarifying placeholder.
+  const needsDest = query.mode === "od" || query.mode === "to" || query.mode === "tour";
   refs.destinationField.style.display = needsDest ? "" : "none";
+  refs.destination.placeholder = query.mode === "tour" ? t("tour_end_ph") : "";
   refs.viaField.style.display = query.mode === "od" ? "" : "none";
   // Flexible dates belong in the "where to / where from" browse: widening to ±N
   // days surfaces more places. Exact trip already has the 30-day calendar (the flex
