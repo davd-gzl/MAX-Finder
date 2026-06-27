@@ -6,7 +6,7 @@ import { reachableDestinations, reachableOrigins } from "../src/core/destination
 import { findJourneys } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
-import { bestTrips, stationsOnDate } from "../src/core/best";
+import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -216,6 +216,25 @@ describe("bestTrips", () => {
     const toulouse = trips.find((tr) => tr.destination === "TOULOUSE MATABIAU");
     expect(toulouse).toBeDefined();
     expect(toulouse!.journey.legs.length).toBe(2); // only reachable via a change
+  });
+});
+
+describe("bestTripsAcrossWindow (ideas, all days)", () => {
+  it("unions destinations across the window, keeping each on its earliest day", () => {
+    const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
+    const all = bestTripsAcrossWindow(trains, "PARIS (intramuros)", dates, { maxConnections: 1 });
+    // Direct destinations from Paris across the window, once each, fastest-first.
+    expect(all.length).toBeGreaterThan(0);
+    const labels = all.map((t) => t.destination);
+    expect(new Set(labels).size).toBe(labels.length); // no destination twice
+    for (let i = 1; i < all.length; i++) {
+      expect(all[i]!.journey.totalDurationMin).toBeGreaterThanOrEqual(all[i - 1]!.journey.totalDurationMin);
+    }
+    // A destination that only runs on a later sample day is still listed, dated to
+    // the earliest day it actually runs.
+    const lyon = all.find((t) => t.destination === "LYON (intramuros)");
+    expect(lyon).toBeDefined();
+    expect(dates).toContain(lyon!.journey.date);
   });
 });
 

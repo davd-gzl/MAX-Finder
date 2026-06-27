@@ -8,7 +8,7 @@ import {
   windowStats,
 } from "./core/destinations";
 import { filterTrains } from "./core/search";
-import { bestTrips, stationsOnDate, reachableBest } from "./core/best";
+import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys, journeySpanDays } from "./core/connections";
 import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
@@ -98,6 +98,9 @@ const BOOKING_WINDOW_DAYS = 30;
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
 let navStack: SearchQuery[] = [];
+// "Ideas" (best) mode: when no specific day is picked, show every destination
+// reachable across the whole window. A calendar-day click narrows to that day.
+let bestAllDays = true;
 
 // Ordered list of station ids for the tour "cities to visit" chip input.
 let tourCities: string[] = [];
@@ -364,7 +367,10 @@ function ctx(): RenderCtx {
     // no teardown flash) and keep the scroll position so the calendar appears to
     // just move its highlight instead of vanishing and rebuilding.
     onSelectDay: (date) => {
-      if (date === query.date) return;
+      // In ideas mode, clicking a day narrows the "all days" list to that day.
+      const narrowing = query.mode === "best" && bestAllDays;
+      if (date === query.date && !narrowing) return;
+      if (query.mode === "best") bestAllDays = false;
       query = { ...query, date };
       refreshInPlace();
     },
@@ -719,33 +725,49 @@ function runTourSearch(c: RenderCtx): void {
 function runBestSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
   if (!query.origin) return showHint(refs.origin);
-  refs.title.textContent = t("best_title", {
-    station: registry.label(query.origin),
-    date: formatDate(query.date),
-  });
+  // No specific day picked → "all days": every destination reachable across the
+  // whole window. Clicking a calendar day narrows to that day.
+  const allDays = bestAllDays;
+  refs.title.textContent = allDays
+    ? t("best_title_all", { station: registry.label(query.origin) })
+    : t("best_title", { station: registry.label(query.origin), date: formatDate(query.date) });
   // Ideas by day: a 30-day strip showing how many destinations run each day.
   // Clicking a day reloads that day's list (works even when today's is empty, so
   // you can hop to a better day).
   const inRegion = (d: string): boolean =>
     !query.region || registry.get(d)?.region === query.region;
-  const cal = destinationCalendar(
-    trains,
-    query.origin,
-    dateRange(today, BOOKING_WINDOW_DAYS),
-    filterOpts(),
-    inRegion,
-  );
+  const window = dateRange(today, BOOKING_WINDOW_DAYS);
+  const cal = destinationCalendar(trains, query.origin, window, filterOpts(), inRegion);
   refs.results.append(
-    render.calendarEl(cal, c, query.date, {
+    // In all-days mode no single day is "selected" — leave the strip unhighlighted.
+    render.calendarEl(cal, c, allDays ? undefined : query.date, {
       title: t("best_cal_title"),
       count: (n) => t("best_cal_count", { n }),
     }),
   );
+  // Once a day is picked, offer a one-tap return to the full "all days" list.
+  if (!allDays) {
+    refs.results.append(
+      el("p", { class: "best-alldays-row" }, [
+        el("button", {
+          class: "linklike best-alldays",
+          type: "button",
+          text: t("best_all_days"),
+          on: {
+            click: () => {
+              bestAllDays = true;
+              refreshInPlace();
+            },
+          },
+        }),
+      ]),
+    );
+  }
 
-  let trips = bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
+  const opts = { ...filterOpts(), maxConnections: query.maxConnections };
+  let trips = allDays
+    ? bestTripsAcrossWindow(trains, query.origin, window, opts)
+    : bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), opts);
   if (query.region) {
     trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
   }
@@ -754,8 +776,6 @@ function runBestSearch(c: RenderCtx): void {
     return;
   }
 
-  // (Date navigation in best mode is the "ideas by day" calendar above — no
-  // separate flexible-dates strip here.)
   refs.results.append(
     el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
   );
@@ -912,6 +932,7 @@ function goHome(): void {
 /** Switch search mode (tab click or 1–5 shortcut), starting a fresh history. */
 function switchMode(mode: SearchQuery["mode"]): void {
   navStack = [];
+  if (mode === "best") bestAllDays = true; // a fresh "ideas" view shows every day
   query = { ...readQueryFromForm(), mode };
   syncFormFromQuery();
   applyAndRun();
