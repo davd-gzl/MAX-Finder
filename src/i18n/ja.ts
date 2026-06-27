@@ -76,6 +76,8 @@ export const ja: Dict = {
   lbl_dayoffset: "+{n}日",
   act_book: "SNCF Connect で予約",
   act_book_leg: "{n} 本目の列車を予約",
+  book_steps_title: "各列車を予約",
+  book_steps_note: "MAX の乗り継ぎは列車ごとに予約します。順番に各リンクを開いてください。",
   act_ics: "カレンダーに追加",
   act_calendar: "カレンダー",
   act_fav_add: "お気に入りに追加",

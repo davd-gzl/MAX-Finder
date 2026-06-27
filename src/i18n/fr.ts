@@ -80,6 +80,8 @@ export const fr = {
 
   act_book: "Réserver sur SNCF Connect",
   act_book_leg: "Réserver le train {n}",
+  book_steps_title: "Réserver chaque train",
+  book_steps_note: "Une correspondance MAX se réserve train par train — ouvrez chaque lien dans l’ordre.",
   act_ics: "Ajouter au calendrier",
   act_calendar: "Calendrier",
   act_fav_add: "Ajouter aux favoris",

@@ -82,6 +82,8 @@ export const en: Dict = {
 
   act_book: "Book on SNCF Connect",
   act_book_leg: "Book train {n}",
+  book_steps_title: "Book each train",
+  book_steps_note: "A MAX connection is booked one train at a time — open each link in order.",
   act_ics: "Add to calendar",
   act_calendar: "Calendar",
   act_fav_add: "Add to favorites",

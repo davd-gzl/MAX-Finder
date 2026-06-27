@@ -76,6 +76,8 @@ export const zh: Dict = {
   lbl_dayoffset: "+{n} 天",
   act_book: "在 SNCF Connect 预订",
   act_book_leg: "预订第 {n} 趟列车",
+  book_steps_title: "逐趟预订列车",
+  book_steps_note: "MAX 换乘需逐趟预订，请按顺序打开每个链接。",
   act_ics: "添加到日历",
   act_calendar: "日历",
   act_fav_add: "加入收藏",

@@ -76,6 +76,8 @@ export const it: Dict = {
   lbl_dayoffset: "+{n} g",
   act_book: "Prenota su SNCF Connect",
   act_book_leg: "Prenota il treno {n}",
+  book_steps_title: "Prenota ogni treno",
+  book_steps_note: "Una coincidenza MAX si prenota un treno alla volta: apri ogni link in ordine.",
   act_ics: "Aggiungi al calendario",
   act_calendar: "Calendario",
   act_fav_add: "Aggiungi ai preferiti",

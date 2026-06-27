@@ -76,6 +76,8 @@ export const de: Dict = {
   lbl_dayoffset: "+{n} T",
   act_book: "Auf SNCF Connect buchen",
   act_book_leg: "Zug {n} buchen",
+  book_steps_title: "Jeden Zug buchen",
+  book_steps_note: "Eine MAX-Verbindung wird Zug für Zug gebucht — öffne jeden Link der Reihe nach.",
   act_ics: "Zum Kalender hinzufügen",
   act_calendar: "Kalender",
   act_fav_add: "Zu Favoriten",
