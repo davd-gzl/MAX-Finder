@@ -475,7 +475,11 @@ function ctx(): RenderCtx {
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
       navStack.push({ ...query }); // remember the list we came from
-      query = { ...query, mode: "od", origin, destination };
+      // Drop any "via" carried over from a previous exact-trip search: drilling into
+      // a specific route (often a connecting one) shouldn't be filtered through an
+      // unrelated hub, which would force it through a station it doesn't pass and
+      // show nothing.
+      query = { ...query, mode: "od", origin, destination, via: undefined };
       syncFormFromQuery();
       applyAndRun();
       // One clean scroll to the new page's heading (focus uses preventScroll so
@@ -2026,7 +2030,8 @@ function buildForm(): FormBuild {
  * jumping straight to a result. The user reviews and presses Search.
  */
 function fillRoute(origin: string, destination: string): void {
-  query = { ...query, mode: "od", origin, destination };
+  // Clear any stale "via" so a saved route isn't filtered through an unrelated hub.
+  query = { ...query, mode: "od", origin, destination, via: undefined };
   syncFormFromQuery();
   store.updateUrl(query); // keep the URL in step with the prefilled route
   if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
