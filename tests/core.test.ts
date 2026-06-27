@@ -277,6 +277,30 @@ describe("findJourneys across midnight", () => {
   });
 });
 
+describe("findJourneys multi-day span", () => {
+  // Paris→Lyon runs day 1; Lyon→Marseille only runs three days later. Reaching
+  // Marseille means a multi-day stopover at the Lyon hub.
+  const spaced = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "A", od_happy_card: "OUI" },
+    { date: "2026-07-04", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "11:00", train_no: "B", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+  const opts = { maxConnections: 1, hubs: ["LYON (intramuros)"] };
+
+  it("finds nothing across the default 2-day pool", () => {
+    expect(findJourneys(spaced, "PARIS (intramuros)", "MARSEILLE ST CHARLES", "2026-07-01", opts)).toHaveLength(0);
+  });
+
+  it("chains a multi-day stopover when the span is wide enough", () => {
+    const js = findJourneys(spaced, "PARIS (intramuros)", "MARSEILLE ST CHARLES", "2026-07-01", {
+      ...opts,
+      spanDays: 5,
+    });
+    expect(js).toHaveLength(1);
+    expect(js[0]!.legs.map((l) => l.trainNo)).toEqual(["A", "B"]);
+    expect(js[0]!.legs[1]!.date).toBe("2026-07-04"); // continues after the stopover
+  });
+});
+
 describe("planTours", () => {
   const data = normalizeRecords([
     { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },

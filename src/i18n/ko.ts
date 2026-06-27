@@ -52,6 +52,8 @@ export const ko: Dict = {
   res_to_title: "{station} 도착 — {date}",
   res_od_title: "{origin} → {destination} — {date}",
   res_none: "조건에 맞는 MAX 좌석이 없습니다.",
+  res_itineraries: "{n}개 경로",
+  res_capped: "처음 {n}개 표시 — 더 구체적인 결과를 보려면 여행 기간을 줄이거나 필터를 추가하세요.",
   res_none_hint: "환승 횟수를 늘리거나 날짜 유연성을 넓히거나 야간 경유를 켜거나 필터를 줄여 보세요.",
   tour_none_hint: "도시당 일수를 늘리거나 도시를 줄이거나 환승을 더 허용해 보세요.",
   res_destinations: "목적지 {n}곳",

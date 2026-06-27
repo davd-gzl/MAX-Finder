@@ -10,7 +10,7 @@ import {
 import { filterTrains } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
-import { findJourneys, journeySpanDays } from "./core/connections";
+import { findJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays } from "./util/time";
 import { haversineKm } from "./util/geo";
@@ -834,25 +834,35 @@ function runOdSearch(c: RenderCtx): void {
   const withinSpan = (j: Journey): boolean =>
     !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
 
-  // (No flexible-dates strip here — the 30-day calendar above already lets you pick
-  // any day, so a per-day list would just duplicate it. Flexibility lives in the
-  // "where to / where from" browse instead.)
+  // A multi-day trip span pools that many days of trains so journeys can chain
+  // hops with multi-day stopovers at hubs ("show every way to get there over N
+  // days"). The 30-day calendar keeps the cheap 2-day search — it's just a per-day
+  // availability hint, not the itinerary list.
+  const spanDays = query.maxSpanDays && query.maxSpanDays > 2 ? query.maxSpanDays : undefined;
+  const journeyOpts = spanDays ? { ...connOpts, spanDays } : connOpts;
 
   // Sort by total travel time, fastest first (then earliest departure as a
   // tiebreak) so the best option is at the top of the list and the slowest last.
-  const journeys: Journey[] = findJourneys(
-    trains,
-    query.origin,
-    query.destination,
-    query.date,
-    connOpts,
-  )
+  const raw = findJourneys(trains, query.origin, query.destination, query.date, journeyOpts);
+  const journeys: Journey[] = raw
     .filter(passesVia)
     .filter(withinSpan)
     .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
-  if (journeys.length === 0)
+  if (journeys.length === 0) {
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
-  else for (const j of journeys) refs.results.append(render.journeyEl(j, c));
+  } else {
+    // A wide span can return dozens of itineraries — count them, and be honest when
+    // the search hit its internal cap (more multi-day routes exist than shown).
+    if (spanDays) {
+      refs.results.append(
+        el("p", { class: "muted count", text: t("res_itineraries", { n: journeys.length }) }),
+      );
+      if (raw.length >= MAX_RESULTS) {
+        refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
+      }
+    }
+    for (const j of journeys) refs.results.append(render.journeyEl(j, c));
+  }
 
   // "Do you want to come back?": once an outbound exists, propose a return a couple
   // of days later (editable) and list the free-MAX returns for that day, live.
@@ -867,7 +877,11 @@ function runOdSearch(c: RenderCtx): void {
     retInput.value = proposed;
     retInput.setAttribute("aria-label", t("ret_date_label"));
     const retList = el("div", { class: "return-list" });
-    const returnOpts = { ...filterOpts(), maxConnections: query.maxConnections };
+    const returnOpts = {
+      ...filterOpts(),
+      maxConnections: query.maxConnections,
+      ...(spanDays ? { spanDays } : {}),
+    };
     const renderReturns = (retDate: string): void => {
       clear(retList);
       const back = findJourneys(trains, destination, origin, retDate, returnOpts)
