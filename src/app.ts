@@ -444,10 +444,10 @@ function formatDate(iso: string): string {
   }).format(d);
 }
 
-/** Narrow weekday name for a date (e.g. "Sat" / "sam." / "土"), localized. */
+/** Single-letter weekday for a date (e.g. "S" / "L" / "月"), localized. */
 function formatWeekday(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
-  return new Intl.DateTimeFormat(getLang(), { weekday: "short" }).format(d);
+  return new Intl.DateTimeFormat(getLang(), { weekday: "narrow" }).format(d);
 }
 
 function isWeekend(iso: string): boolean {

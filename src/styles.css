@@ -1149,14 +1149,14 @@ a {
   font-weight: 680;
 }
 /* Reachable only via a station within the search radius (radius search). */
-.cal-cell.nearby {
+.cal-cell.near {
   background: var(--nearby-soft);
   color: var(--nearby);
   border-color: color-mix(in srgb, var(--nearby) 40%, var(--border));
   font-weight: 680;
 }
 /* Reachable only by substituting BOTH endpoints with nearby stations. */
-.cal-cell.nearby-both {
+.cal-cell.near-both {
   background: var(--nearby2-soft);
   color: var(--nearby2);
   border-color: color-mix(in srgb, var(--nearby2) 40%, var(--border));

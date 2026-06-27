@@ -444,13 +444,15 @@ export function calendarEl(
   for (const d of days) {
     const sel = d.date === selected ? " sel" : "";
     // Four states: free seat on the exact route (ok); reachable by substituting one
-    // endpoint with a nearby station (nearby); only by substituting both ends
-    // (nearby-both); or nothing (no). The last two are radius-search only.
+    // endpoint with a nearby station (near); only by substituting both ends
+    // (near-both); or nothing (no). The last two are radius-search only. NB: these
+    // class names are calendar-local — "near" not "nearby", which is the results
+    // section's class and would leak its margin onto the cells.
     const nearby = !d.available && Boolean(d.nearby);
     const both = !d.available && !d.nearby && Boolean(d.nearbyBoth);
     if (nearby) anyNearby = true;
     if (both) anyBoth = true;
-    const state = d.available ? "ok" : nearby ? "nearby" : both ? "nearby-both" : "no";
+    const state = d.available ? "ok" : nearby ? "near" : both ? "near-both" : "no";
     const status = d.available
       ? t("cal_available")
       : nearby
