@@ -190,4 +190,7 @@ export const ar: Dict = {
   trip_summary_oneway: "ذهاب فقط · {date} · {dur}",
   trip_more_dates: "عرض كل التواريخ",
 
+  ret_cal_title: "توفّر رحلات العودة",
+  ret_view_round: "عرض الذهاب والإياب",
+
 };

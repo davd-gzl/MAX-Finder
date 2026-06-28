@@ -203,4 +203,7 @@ export const en: Dict = {
   trip_summary_oneway: "One-way · {date} · {dur}",
   trip_more_dates: "See all dates",
 
+  ret_cal_title: "Return availability",
+  ret_view_round: "See round trip",
+
 };

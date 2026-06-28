@@ -14,7 +14,7 @@ import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/to
 import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
-import { addDays } from "./util/time";
+import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
 import { RouteMap } from "./ui/map";
@@ -1238,47 +1238,82 @@ function runOdSearch(c: RenderCtx): void {
     refs.results.append(sec);
   }
 
-  // "Do you want to come back?": once an outbound exists, propose a return a couple
-  // of days later (editable) and list the free-MAX returns for that day, live.
+  // "Do you want to come back?": a return availability calendar (every bookable
+  // return day at a glance) plus a stay-N-nights quick pick. Picking a day lists
+  // that day's free-MAX returns and lets you open the whole round trip on one page.
   if (journeys.length > 0) {
     const origin = query.origin;
     const destination = query.destination;
+    const bestOutbound = journeys[0]!; // fastest outbound shown above
     const proposed =
       odReturnDate ?? (addDays(query.date, 2) > lastBookable ? lastBookable : addDays(query.date, 2));
-    const retInput = inputEl("date");
-    retInput.min = query.date;
-    retInput.max = lastBookable;
-    retInput.value = proposed;
-    retInput.setAttribute("aria-label", t("ret_date_label"));
-    const retList = el("div", { class: "return-list" });
     const returnOpts = {
       ...filterOpts(),
       maxConnections: query.maxConnections,
       ...(spanDays ? { spanDays } : {}),
     };
+    // Availability of a free-MAX return (destination → origin) for every bookable
+    // day from the outbound date onward — so all return options are visible at once.
+    const retDates = dateRange(query.date, dayIndex(lastBookable) - dayIndex(query.date) + 1);
+    const cal = availabilityCalendar(trains, destination, origin, retDates, returnOpts, withinSpan);
+    const retCal = el("div", { class: "ret-cal" });
+    const retList = el("div", { class: "return-list" });
+    let selectReturn: (retDate: string) => void = () => {};
+    // The return calendar reuses the journey ctx but redirects day clicks to the
+    // return date (not the outbound date, which the main calendar owns).
+    const retCtx: RenderCtx = { ...c, onSelectDay: (d) => selectReturn(d) };
     const renderReturns = (retDate: string): void => {
       clear(retList);
       const back = findJourneys(trains, destination, origin, retDate, returnOpts)
         .filter(withinSpan)
         .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
-      if (back.length === 0) retList.append(render.emptyEl(t("ret_none")));
-      else for (const j of back) retList.append(render.journeyEl(j, c));
-    };
-    retInput.addEventListener("change", () => {
-      odReturnDate = retInput.value || proposed;
-      renderReturns(odReturnDate);
-    });
-    renderReturns(proposed);
-    refs.results.append(
-      el("section", { class: "od-return" }, [
-        el("h3", { text: t("ret_title") }),
-        el("label", { class: "field return-date-field" }, [
-          el("span", { class: "field-label", text: t("ret_date_label") }),
-          retInput,
+      const nights = dayIndex(retDate) - dayIndex(query.date);
+      retList.append(
+        el("p", {
+          class: "muted ret-summary",
+          text: nights > 0 ? t("getaway_nights", { n: nights }) : t("nights_sameday"),
+        }),
+      );
+      if (back.length === 0) {
+        retList.append(render.emptyEl(t("ret_none")));
+        return;
+      }
+      // Open the whole round trip (best outbound + this day's fastest return) on
+      // one page, ready to book both legs and save.
+      retList.append(
+        el("div", { class: "ret-actions" }, [
+          el("button", {
+            class: "btn btn-primary",
+            type: "button",
+            text: t("ret_view_round"),
+            on: { click: () => showTripModal(bestOutbound, back[0]!) },
+          }),
         ]),
-        retList,
-      ]),
-    );
+      );
+      for (const j of back) retList.append(render.journeyEl(j, c));
+    };
+    selectReturn = (retDate: string): void => {
+      odReturnDate = retDate;
+      clear(retCal);
+      retCal.append(render.calendarEl(cal, retCtx, retDate, { title: t("ret_cal_title") }));
+      renderReturns(retDate);
+    };
+    // Stay-N-nights quick pick (clamped to the booking window).
+    const quick = el("div", { class: "ret-quick" }, [
+      el("span", { class: "field-label", text: t("field_nights") }),
+      ...[1, 2, 3].map((n) =>
+        el("button", {
+          class: "btn btn-ghost ret-quick-btn",
+          type: "button",
+          text: t("nights_n", { n }),
+          on: {
+            click: () => selectReturn(addDays(query.date, n) > lastBookable ? lastBookable : addDays(query.date, n)),
+          },
+        }),
+      ),
+    ]);
+    selectReturn(proposed);
+    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), quick, retCal, retList]));
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),

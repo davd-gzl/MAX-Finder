@@ -201,6 +201,9 @@ export const fr = {
   trip_summary_oneway: "Aller simple · {date} · {dur}",
   trip_more_dates: "Voir toutes les dates",
 
+  ret_cal_title: "Disponibilité des retours",
+  ret_view_round: "Voir l'aller-retour",
+
 };
 
 export type Dict = typeof fr;

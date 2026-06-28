@@ -74,9 +74,13 @@ describe("app (jsdom smoke)", () => {
     // Only reachable via a connection (Bordeaux) that day.
     expect(root.querySelector(".chip-via")).not.toBeNull();
     expect(text).toContain("Bordeaux");
-    // 30-day calendar is rendered.
-    expect(root.querySelector(".cal-grid")).not.toBeNull();
-    expect(root.querySelectorAll(".cal-cell").length).toBe(30);
+    // The 30-day route availability calendar is rendered (first .cal-grid; the
+    // "come back?" section adds a second, return-availability calendar below it).
+    const routeCal = root.querySelector(".cal-grid");
+    expect(routeCal).not.toBeNull();
+    expect(routeCal!.querySelectorAll(".cal-cell").length).toBe(30);
+    // The return calendar exists too (a second grid).
+    expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
   });
 
   it("drills into a connecting destination and back again", () => {

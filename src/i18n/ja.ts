@@ -190,4 +190,7 @@ export const ja: Dict = {
   trip_summary_oneway: "片道 · {date} · {dur}",
   trip_more_dates: "すべての日付を見る",
 
+  ret_cal_title: "復路の空き状況",
+  ret_view_round: "往復を見る",
+
 };
