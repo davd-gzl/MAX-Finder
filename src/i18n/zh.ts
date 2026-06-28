@@ -164,6 +164,7 @@ export const zh: Dict = {
   nearest_hint: "直线距离 · 添加最近的可达车站",
   field_stay_min: "每城最少天数",
   field_stay_max: "每城最多天数",
+  field_tour_count: "要添加的城市数",
   field_maxKm: "最大总距离（公里）",
   field_maxLegKm: "每趟列车最大距离（公里）",
   field_maxLegDuration: "每趟列车最长时间（分钟）",

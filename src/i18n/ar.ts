@@ -164,6 +164,7 @@ export const ar: Dict = {
   nearest_hint: "مسافة بخط مستقيم · يضيف أقرب محطة يمكن الوصول إليها",
   field_stay_min: "أيام دنيا / مدينة",
   field_stay_max: "أيام قصوى / مدينة",
+  field_tour_count: "مدن للإضافة",
   field_maxKm: "أقصى مسافة إجمالية (كم)",
   field_maxLegKm: "أقصى مسافة / قطار (كم)",
   field_maxLegDuration: "أقصى مدة / قطار (دقيقة)",

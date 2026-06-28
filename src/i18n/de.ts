@@ -165,6 +165,7 @@ export const de: Dict = {
   nearest_hint: "Luftlinie · fügt die nächste erreichbare Station hinzu",
   field_stay_min: "Min. Tage / Stadt",
   field_stay_max: "Max. Tage / Stadt",
+  field_tour_count: "Städte hinzufügen",
   field_maxKm: "Max. Gesamtdistanz (km)",
   field_maxLegKm: "Max. Distanz / Zug (km)",
   field_maxLegDuration: "Max. Dauer / Zug (Min.)",

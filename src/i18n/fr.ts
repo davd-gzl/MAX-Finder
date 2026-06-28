@@ -175,6 +175,7 @@ export const fr = {
   nearest_hint: "Distance à vol d'oiseau · ajoute la gare accessible la plus proche",
   field_stay_min: "Jours min. / ville",
   field_stay_max: "Jours max. / ville",
+  field_tour_count: "Villes à ajouter",
   field_maxKm: "Distance totale max. (km)",
   field_maxLegKm: "Distance max. / train (km)",
   field_maxLegDuration: "Durée max. / train (min)",

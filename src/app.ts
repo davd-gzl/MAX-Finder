@@ -82,6 +82,8 @@ interface Refs {
   regionField: HTMLElement;
   cities: HTMLInputElement;
   citiesField: HTMLElement;
+  tourCount: HTMLInputElement;
+  tourCountField: HTMLElement;
   cityChips: HTMLElement;
   minDays: HTMLInputElement;
   maxDays: HTMLInputElement;
@@ -274,13 +276,24 @@ function nearbyCalendarLevels(
   return out;
 }
 
+// Hard cap on how many cities one "find N" click can add, so a huge number can't
+// freeze the planner.
+const MAX_TOUR_FILL = 12;
+
+/** Cities to add per Surprise / Nearest click — the "Cities to add" input (≥1). */
+function tourAddCount(): number {
+  const n = Math.floor(Number(refs.tourCount.value.trim()));
+  return Number.isFinite(n) && n >= 1 ? Math.min(MAX_TOUR_FILL, n) : 1;
+}
+
 /**
- * Tour "nearest stop": extend the trip to the geographically closest station you
- * can still reach by free MAX from the current frontier (the last stop, or the
- * departure when the list is empty) and that keeps the whole tour feasible.
- * Already-visited stations are excluded, so the route never loops back.
+ * Grow the tour by up to `count` more cities, each the next hop from the frontier
+ * (the last stop, or the departure when empty) that keeps the WHOLE in-order tour
+ * feasible — `"nearest"` picks the closest each time, `"random"` shuffles (Surprise
+ * me). Fills a missing departure first; stops early when no city keeps it feasible.
+ * One re-render at the end. So "find me 5 cities" is just count = 5.
  */
-function addNearestCity(): void {
+function growTour(mode: "nearest" | "random", count: number): void {
   setSurpriseMsg("");
   const avail = deps.trains.filter((tr) => tr.available);
   const inRegion = (id: string): boolean =>
@@ -297,38 +310,45 @@ function addNearestCity(): void {
     return;
   }
 
-  const frontier = tourCities[tourCities.length - 1] ?? origin;
-  const used = new Set([origin, ...tourCities]);
-  // Candidates: stations with a direct free-MAX train from the frontier, not yet
-  // visited, in-region, and locatable.
-  const candidates = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))]
-    .filter((d) => !used.has(d) && inRegion(d) && deps.registry.coords(d));
-  // Order by straight-line distance from the frontier (nearest first). If the
-  // frontier itself is unplotted every distance is Infinity (NaN comparator), so
-  // fall back to a stable label order instead of an arbitrary one.
-  if (deps.registry.coords(frontier)) {
-    candidates.sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
-  } else {
-    candidates.sort((a, b) => deps.registry.label(a).localeCompare(deps.registry.label(b)));
-  }
-
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
   const planOpts = tourPlanOpts();
-  // Scan every candidate in nearest-first order and take the first one that keeps
-  // the whole tour feasible. No cap — the planner is memoised, so this is cheap and
-  // avoids falsely reporting "no city" when the only feasible stop (e.g. under a
-  // tight night-train-only filter) is farther than an arbitrary cutoff (like Surprise).
-  let chosen: string | undefined;
-  for (const c of candidates) {
-    if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
-      chosen = c;
-      break;
+  let added = 0;
+  for (let k = 0; k < count; k++) {
+    const frontier = tourCities[tourCities.length - 1] ?? origin;
+    const used = new Set([origin, ...tourCities]);
+    // Candidates: stations with a direct free-MAX train from the frontier, not yet
+    // visited and in-region (nearest also needs coordinates to sort by distance).
+    let candidates = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))].filter(
+      (d) => !used.has(d) && inRegion(d),
+    );
+    if (mode === "nearest") {
+      candidates = candidates.filter((d) => deps.registry.coords(d));
+      // Nearest first; if the frontier itself is unplotted, fall back to a stable
+      // label order rather than an arbitrary NaN-comparator one.
+      if (deps.registry.coords(frontier)) {
+        candidates.sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
+      } else {
+        candidates.sort((a, b) => deps.registry.label(a).localeCompare(deps.registry.label(b)));
+      }
+    } else {
+      candidates.sort(() => Math.random() - 0.5);
     }
+    // Take the first candidate that keeps the whole in-order tour feasible.
+    let chosen: string | undefined;
+    for (const c of candidates) {
+      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
+        chosen = c;
+        break;
+      }
+    }
+    if (!chosen) break; // nothing more keeps it feasible — stop here
+    tourCities.push(chosen);
+    added++;
   }
-  if (!chosen) {
-    // Nothing reachable nearby keeps the tour feasible: reflect a freshly-filled
-    // departure if any, but add no city.
+
+  if (added === 0) {
+    // Couldn't add any city. Reflect a freshly-filled departure, but add nothing.
     if (origin !== query.origin) {
       query = { ...query, origin };
       navStack = [];
@@ -338,11 +358,15 @@ function addNearestCity(): void {
     setSurpriseMsg(t("surprise_none"));
     return;
   }
-  tourCities.push(chosen);
   query = { ...query, origin, cities: [...tourCities] };
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
+}
+
+/** Tour "nearest stop": fill up to N closest reachable stops that keep it feasible. */
+function addNearestCity(): void {
+  growTour("nearest", tourAddCount());
 }
 
 /** A simple accessible modal dialog: a title and one or more message lines. */
@@ -1791,52 +1815,11 @@ function surpriseMe(): void {
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
   if (query.mode === "tour") {
-    // Tour: fill the departure if empty, then add ONE more random city that keeps
-    // the WHOLE tour feasible on the chosen date (validated with the planner). No
-    // city cap — keep clicking to see how far a free-MAX trip can sprawl. If
-    // nothing can be added, say so and add nothing — never a dead-end city.
-    // Fill a missing departure — from the chosen region when one is set.
-    const origin = query.origin || pickFrom(regionOrigins());
-    if (!origin) {
-      setSurpriseMsg(t("surprise_none"));
-      return;
-    }
-    const used = new Set([origin, ...tourCities]);
-    // The next hop leaves from the frontier (last city, or the departure when the
-    // list is empty), so draw candidates from there — not from every visited
-    // station, which would waste tries on cities the final hop can't reach.
-    const frontier = tourCities[tourCities.length - 1] ?? origin;
-    const pool = [...new Set(avail.filter((t) => t.origin === frontier).map((t) => t.destination))]
-      .filter((d) => !used.has(d))
-      // "Focus on a region" (e.g. visit Bretagne): only add cities from it.
-      .filter((d) => !query.region || deps.registry.get(d)?.region === query.region)
-      .sort(() => Math.random() - 0.5);
-    const lo = query.minDays ?? 1;
-    const hi = Math.max(lo, query.maxDays ?? 3);
-    const planOpts = tourPlanOpts();
-    // No cap: the planner is memoised (journey cache persists across calls), so
-    // scanning the whole frontier pool is cheap and avoids falsely reporting
-    // "no city" when the few feasible ones land late in the shuffled order.
-    let chosen: string | undefined;
-    for (const c of pool) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
-        chosen = c;
-        break;
-      }
-    }
-    if (!chosen) {
-      // No possible city. Reflect a freshly-filled departure, but add nothing.
-      if (origin !== query.origin) {
-        query = { ...query, origin };
-        navStack = [];
-        syncFormFromQuery();
-        applyAndRun();
-      }
-      setSurpriseMsg(t("surprise_none"));
-      return;
-    }
-    tourCities.push(chosen);
-    query = { ...query, origin, cities: [...tourCities] };
+    // Tour: fill the departure if empty, then add cities (the "Cities to add" count,
+    // default 1) — each a random hop that keeps the WHOLE tour feasible. So "find me
+    // 5 cities" is one click with the count set to 5.
+    growTour("random", tourAddCount());
+    return;
   } else if (query.mode === "to") {
     const dest = pickFrom(destinations(), query.destination);
     if (!dest) return;
@@ -2001,6 +1984,7 @@ function updateFieldVisibility(): void {
   // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
   refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
   refs.citiesField.style.display = tour ? "" : "none";
+  refs.tourCountField.style.display = tour ? "" : "none";
   refs.stayField.style.display = tour ? "" : "none";
   // Km caps live in Advanced, shown only for a tour. Max trip span (days) lives in
   // Advanced too, shown only for the exact trip.
@@ -2446,6 +2430,14 @@ function buildForm(): FormBuild {
     field(t("field_stay_min"), minDays),
     field(t("field_stay_max"), maxDays),
   ]);
+  // How many cities Surprise me / Nearest stop add per click — set to 5 and click
+  // once to "find me a tour of 5 cities".
+  const tourCount = inputEl("number");
+  tourCount.min = "1";
+  tourCount.max = String(MAX_TOUR_FILL);
+  tourCount.placeholder = "1";
+  tourCount.setAttribute("aria-label", t("field_tour_count"));
+  const tourCountField = field(t("field_tour_count"), tourCount);
   // Optional distance caps (km, straight line): the whole tour's total, and each
   // single hop ("a tour, but no more than ~1000 km total and no train over ~400 km").
   // No minimum — any positive cap is valid (an empty box means "no cap").
@@ -2560,6 +2552,7 @@ function buildForm(): FormBuild {
       regionField,
       citiesField,
       stayField,
+      tourCountField,
     ]),
     advanced,
     el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
@@ -2619,6 +2612,8 @@ function buildForm(): FormBuild {
       regionField,
       cities,
       citiesField,
+      tourCount,
+      tourCountField,
       cityChips,
       minDays,
       maxDays,
