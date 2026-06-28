@@ -65,6 +65,8 @@ export interface SearchQuery {
   overnight?: boolean;
   /** Exclude night trains (leave late / arrive past midnight) when true. */
   excludeNight?: boolean;
+  /** Only keep journeys that include a night train (sleep aboard) when true. */
+  onlyNight?: boolean;
   /** Force the journey to pass through this station ("exact trip" mode only). */
   via?: string;
   /** Flexible dates: also search ±N days around `date` ("exact trip" mode). */

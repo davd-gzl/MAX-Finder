@@ -14,6 +14,8 @@ export interface FilterOptions {
   availableOnly?: boolean;
   /** Drop night trains (leave late or arrive past midnight) when true. */
   excludeNight?: boolean;
+  /** Keep ONLY night trains (sleep aboard) when true. */
+  onlyNight?: boolean;
 }
 
 /** A train that travels through the night: leaves late or arrives past midnight. */
@@ -37,6 +39,7 @@ export function filterTrains(trains: MaxTrain[], opts: FilterOptions): MaxTrain[
       if (opts.maxDurationMin !== undefined && t.durationMin > opts.maxDurationMin) return false;
       if (opts.trainType && (t.axe ?? "") !== opts.trainType) return false;
       if (opts.excludeNight && isNightTrain(t)) return false;
+      if (opts.onlyNight && !isNightTrain(t)) return false;
       return true;
     })
     .sort((a, b) => a.departMin - b.departMin);
