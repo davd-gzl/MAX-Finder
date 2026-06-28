@@ -191,4 +191,7 @@ export const de: Dict = {
   trip_summary_oneway: "Einfache Fahrt · {date} · {dur}",
   trip_more_dates: "Alle Daten anzeigen",
 
+  ret_cal_title: "Verfügbarkeit der Rückfahrten",
+  ret_view_round: "Hin- und Rückfahrt ansehen",
+
 };

@@ -1750,6 +1750,32 @@ a {
   max-width: 14rem;
   margin-bottom: 0.6rem;
 }
+/* Stay-N-nights quick pick above the return calendar. */
+.ret-quick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.6rem;
+}
+.ret-quick .field-label {
+  margin-right: 0.15rem;
+}
+.ret-quick-btn {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+}
+.ret-cal {
+  margin-bottom: 0.4rem;
+}
+.ret-summary {
+  margin: 0.2rem 0 0.1rem;
+  font-weight: 560;
+}
+.ret-actions {
+  display: flex;
+  margin-bottom: 0.2rem;
+}
 .return-list {
   display: flex;
   flex-direction: column;

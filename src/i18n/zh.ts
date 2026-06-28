@@ -190,4 +190,7 @@ export const zh: Dict = {
   trip_summary_oneway: "单程 · {date} · {dur}",
   trip_more_dates: "查看所有日期",
 
+  ret_cal_title: "返程可订日期",
+  ret_view_round: "查看往返",
+
 };
