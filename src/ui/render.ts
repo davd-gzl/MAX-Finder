@@ -60,6 +60,9 @@ const I = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   pin: '<path d="M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
   bookmark: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/>',
+  // A numbered/stepped list — used when "Book" opens the step-by-step modal (book
+  // each train in turn) rather than a single deep link to a new tab.
+  steps: '<path d="M9 6h11M9 12h11M9 18h11M4 5l1 1 1.5-1.5M4 11l1 1 1.5-1.5M4 17l1 1 1.5-1.5"/>',
 };
 
 /**
@@ -241,7 +244,9 @@ export function journeyEl(
       ? el(
           "button",
           { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
-          [el("span", { text: t("act_book") }), icon(I.external)],
+          // A "steps" icon (not the new-tab arrow): this opens the book-each-train
+          // modal rather than deep-linking straight to SNCF Connect.
+          [el("span", { text: t("act_book") }), icon(I.steps)],
         )
       : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
     el(
@@ -629,13 +634,12 @@ export function calendarEl(
   days: CalendarDay[],
   ctx: RenderCtx,
   selected?: string,
-  opts?: { title?: string; count?: (n: number) => string; showCount?: boolean },
+  opts?: { title?: string; count?: (n: number) => string; showCount?: boolean; countLegend?: string },
 ): HTMLElement {
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
-  // Show the per-cell number only where it exactly matches what clicking the day
-  // reveals (a route's trains / returns). It's hidden on the ideas + round-trip
-  // strips, where the day's actual result count differs from a cheap proxy.
   const showCount = opts?.showCount !== false;
+  // What the per-cell number means (trains on a route, or destinations per day).
+  const countLegend = opts?.countLegend ?? t("cal_legend_count");
   const grid = el("div", { class: "cal-grid" });
   // Arrow-key navigation: move focus between day cells (←/→ a day, ↑/↓ a row,
   // Home/End to the ends). The grid is a linear sequence of days, so the row size
@@ -709,7 +713,7 @@ export function calendarEl(
   }
   const legend = [
     t("cal_legend"),
-    ...(showCount ? [t("cal_legend_count")] : []),
+    ...(showCount ? [countLegend] : []),
     ...(anyNearby ? [t("cal_legend_nearby")] : []),
     ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
   ].join(" · ");
@@ -787,10 +791,19 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   // clicking one leg highlights it and clears the other, even though they sit in
   // separate sections. `onPick` is a no-op — the highlight is the whole point, and
   // it avoids journeyEl's default click (which would scroll to the map behind the modal).
+  // The trip's date(s) — important when the row that opened this came from a
+  // flexible search (the start day varies). One-ways already show the date in the
+  // summary, so this is just for round trips.
+  const dateLine = inbound
+    ? inbound.date !== outbound.date
+      ? `${ctx.formatDate(outbound.date)} – ${ctx.formatDate(inbound.date)}`
+      : ctx.formatDate(outbound.date)
+    : null;
   const view = el("div", { class: "trip-view" });
   const pickOpts = { saveable: false, group: view, onPick: () => {}, hideMap: true };
   view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
+    ...(dateLine ? [el("p", { class: "trip-dates", text: dateLine })] : []),
     el("p", { class: "muted trip-summary", text: summary }),
     el("section", { class: "trip-leg" }, [
       ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),

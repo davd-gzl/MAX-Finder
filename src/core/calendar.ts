@@ -1,5 +1,5 @@
 import type { MaxTrain, CalendarDay, Journey } from "../types";
-import { findJourneys, type ConnectionOptions } from "./connections";
+import { findJourneys, reachableJourneys, type ConnectionOptions } from "./connections";
 import { filterTrains, type FilterOptions } from "./search";
 
 /**
@@ -51,6 +51,29 @@ export function destinationCalendar(
   }
   return dates.map((date) => {
     const count = byDate.get(date)?.size ?? 0;
+    return { date, available: count > 0, count };
+  });
+}
+
+/**
+ * Per-day count of distinct destinations reachable from `origin` over `dates`,
+ * INCLUDING connections (so a place reached only via a stopover still counts) —
+ * one multi-target graph search per day. Matches what the connection-aware lists
+ * actually show, unlike `destinationCalendar` (direct only). `accept` optionally
+ * filters destinations (e.g. by region).
+ */
+export function reachableCountCalendar(
+  trains: MaxTrain[],
+  origin: string,
+  dates: string[],
+  opts: ConnectionOptions = {},
+  accept: (destination: string) => boolean = () => true,
+): CalendarDay[] {
+  return dates.map((date) => {
+    let count = 0;
+    for (const dest of reachableJourneys(trains, origin, date, opts).keys()) {
+      if (accept(dest)) count++;
+    }
     return { date, available: count > 0, count };
   });
 }

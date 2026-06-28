@@ -199,4 +199,6 @@ export const ko: Dict = {
   flex_days: "일",
   cal_legend_count: "숫자 = 그날의 열차 수",
 
+  cal_legend_dest: "숫자 = 그날의 목적지 수",
+
 };

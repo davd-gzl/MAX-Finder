@@ -199,4 +199,6 @@ export const it: Dict = {
   flex_days: "giorni",
   cal_legend_count: "numero = treni quel giorno",
 
+  cal_legend_dest: "numero = destinazioni quel giorno",
+
 };
