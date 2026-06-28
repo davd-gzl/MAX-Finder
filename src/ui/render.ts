@@ -761,7 +761,11 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
           ]),
         ]
       : []),
-    el("div", { class: "trip-view-actions" }, [tripSaveBtn(outbound, ctx, inbound)]),
+    // Save the trip + a travel guide for the destination city (what to do once there).
+    el("div", { class: "trip-view-actions" }, [
+      tripSaveBtn(outbound, ctx, inbound),
+      guideLinkEl(ctx, outbound.destination),
+    ]),
   );
   return view;
 }
