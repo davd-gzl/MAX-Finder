@@ -91,6 +91,8 @@ interface Refs {
   maxKmField: HTMLElement;
   maxLegDuration: HTMLInputElement;
   maxLegDurationField: HTMLElement;
+  minLegDuration: HTMLInputElement;
+  minLegDurationField: HTMLElement;
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
@@ -313,9 +315,12 @@ function addNearestCity(): void {
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
   const planOpts = tourPlanOpts();
+  // Scan every candidate in nearest-first order and take the first one that keeps
+  // the whole tour feasible. No cap — the planner is memoised, so this is cheap and
+  // avoids falsely reporting "no city" when the only feasible stop (e.g. under a
+  // tight night-train-only filter) is farther than an arbitrary cutoff (like Surprise).
   let chosen: string | undefined;
-  for (let i = 0; i < candidates.length && i < 40; i++) {
-    const c = candidates[i]!;
+  for (const c of candidates) {
     if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
       chosen = c;
       break;
@@ -732,6 +737,7 @@ function syncFormFromQuery(): void {
   refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
   refs.maxLegKm.value = query.maxLegKm != null ? String(query.maxLegKm) : "";
   refs.maxLegDuration.value = query.maxLegDurationMin != null ? String(query.maxLegDurationMin) : "";
+  refs.minLegDuration.value = query.minLegDurationMin != null ? String(query.minLegDurationMin) : "";
   updateFieldVisibility();
 }
 
@@ -740,6 +746,7 @@ function readQueryFromForm(): SearchQuery {
   const maxKm = Number(refs.maxKm.value.trim());
   const maxLegKm = Number(refs.maxLegKm.value.trim());
   const maxLegDur = Number(refs.maxLegDuration.value.trim());
+  const minLegDur = Number(refs.minLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
   const stayHours = Number(refs.stayHours.value.trim());
@@ -789,6 +796,11 @@ function readQueryFromForm(): SearchQuery {
     maxLegDurationMin:
       query.mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
         ? Math.max(30, Math.floor(maxLegDur))
+        : undefined,
+    // Per-train time floor (tour mode) — e.g. require long legs / night trains.
+    minLegDurationMin:
+      query.mode === "tour" && Number.isFinite(minLegDur) && minLegDur > 0
+        ? Math.floor(minLegDur)
         : undefined,
     // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
@@ -872,8 +884,13 @@ function tourPlanOpts() {
   return {
     maxConnections: query.maxConnections,
     ...(query.maxLegDurationMin ? { maxDurationMin: query.maxLegDurationMin } : {}),
+    ...(query.minLegDurationMin ? { minDurationMin: query.minLegDurationMin } : {}),
     ...(query.excludeNight ? { excludeNight: true } : {}),
     ...(query.onlyNight ? { onlyNight: true } : {}),
+    // Overnight stopovers widen the layover ceiling, so a hop can wait a whole day
+    // at a hub — e.g. step off a night train in the morning and pick up the next
+    // night train that evening (a sleeper every day).
+    ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
   };
 }
 
@@ -1671,6 +1688,7 @@ function showShortcutsHelp(): void {
     t("keys_day"),
     t("keys_surprise"),
     t("keys_nearest"),
+    t("keys_clear"),
     t("keys_run"),
     t("keys_back"),
     t("keys_help"),
@@ -1738,6 +1756,9 @@ function onGlobalKey(e: KeyboardEvent): void {
   } else if (e.key === "n" && query.mode === "tour") {
     e.preventDefault();
     addNearestCity(); // tour-only: grow the trip to the nearest reachable stop
+  } else if (e.key === "c" && query.mode === "tour") {
+    e.preventDefault();
+    clearTourCities(); // tour-only: clear every "city to visit" at once
   } else if (e.key === "g") {
     e.preventDefault();
     runFromForm();
@@ -1975,6 +1996,7 @@ function updateFieldVisibility(): void {
   // train") — a whole-tour total would be meaningless across multi-day stays.
   refs.maxDurationField.style.display = tour ? "none" : "";
   refs.maxLegDurationField.style.display = tour ? "" : "none";
+  refs.minLegDurationField.style.display = tour ? "" : "none";
 
   // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
   refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
@@ -2387,6 +2409,7 @@ function buildForm(): FormBuild {
     attrs: { hidden: "" },
     on: { click: clearTourCities },
   });
+  withShortcut(clearCitiesBtn, "C"); // "c" clears every tour city
   cityClearBtnEl = clearCitiesBtn;
   // "Nearest stop": greedily extend the trip to the closest reachable new station.
   // It lives next to "Surprise me" in the form actions and only shows for a tour.
@@ -2446,6 +2469,14 @@ function buildForm(): FormBuild {
   maxLegDuration.placeholder = "240";
   maxLegDuration.setAttribute("aria-label", t("field_maxLegDuration"));
   const maxLegDurationField = field(t("field_maxLegDuration"), maxLegDuration);
+  // Floor on each hop's time — e.g. require ~6 h legs so a tour only chains long
+  // overnight trains, never a quick 1 h regional hop.
+  const minLegDuration = inputEl("number");
+  minLegDuration.min = "0";
+  minLegDuration.step = "15";
+  minLegDuration.placeholder = "0";
+  minLegDuration.setAttribute("aria-label", t("field_minLegDuration"));
+  const minLegDurationField = field(t("field_minLegDuration"), minLegDuration);
 
   // These three default to Advanced; updateFieldVisibility() promotes them into the
   // main form for a tour (where connections/overnight/duration matter most). Train
@@ -2471,6 +2502,7 @@ function buildForm(): FormBuild {
       connGroupField,
       maxDurationField,
       maxLegDurationField,
+      minLegDurationField,
       maxSpanDaysField,
       radiusField,
       maxKmField,
@@ -2596,6 +2628,8 @@ function buildForm(): FormBuild {
       maxKmField,
       maxLegDuration,
       maxLegDurationField,
+      minLegDuration,
+      minLegDurationField,
     },
   };
 }

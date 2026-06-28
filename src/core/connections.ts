@@ -12,6 +12,7 @@ export interface ConnectionOptions {
   departAfter?: string; // constrains the first leg only
   departBefore?: string;
   maxDurationMin?: number; // total journey duration
+  minDurationMin?: number; // skip journeys shorter than this (e.g. exclude 1 h hops)
   trainType?: string;
   /** Drop night trains (leave late or arrive past midnight) from the search. */
   excludeNight?: boolean;
@@ -148,7 +149,7 @@ export function findJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = journeyMemo(trains);
-  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -223,6 +224,9 @@ export function findJourneys(
   let out = dedupe(results);
   if (opts.maxDurationMin != null) {
     out = out.filter((j) => j.totalDurationMin <= opts.maxDurationMin!);
+  }
+  if (opts.minDurationMin != null) {
+    out = out.filter((j) => j.totalDurationMin >= opts.minDurationMin!);
   }
   out.sort(
     (a, b) =>

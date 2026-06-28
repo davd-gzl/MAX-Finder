@@ -381,6 +381,20 @@ describe("excludeNight", () => {
   });
 });
 
+describe("minDurationMin (exclude short hops)", () => {
+  const data = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LILLE", heure_depart: "08:00", heure_arrivee: "09:00", train_no: "short", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "TOULON", heure_depart: "08:00", heure_arrivee: "13:00", train_no: "long", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("drops journeys shorter than the floor", () => {
+    const lille = findJourneys(data, "PARIS (intramuros)", "LILLE", "2026-07-01", { maxConnections: 0, minDurationMin: 180 });
+    expect(lille).toHaveLength(0); // the 1 h hop is below 3 h
+    const toulon = findJourneys(data, "PARIS (intramuros)", "TOULON", "2026-07-01", { maxConnections: 0, minDurationMin: 180 });
+    expect(toulon).toHaveLength(1); // the 5 h trip clears the floor
+  });
+});
+
 describe("findJourneys multi-day span", () => {
   // Paris→Lyon runs day 1; Lyon→Marseille only runs three days later. Reaching
   // Marseille means a multi-day stopover at the Lyon hub.
