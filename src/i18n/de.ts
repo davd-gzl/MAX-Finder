@@ -187,7 +187,7 @@ export const de: Dict = {
   act_unsave: "Aus gespeicherten Reisen entfernen",
   saved_title: "Gespeicherte Reisen",
   trip_summary: "{n} Nacht/Nächte · {dur} Hin- und Rückfahrt",
-  trip_summary_day: "Tagesausflug · {dur} Fahrt",
+  trip_summary_day: "Tagesausflug · {onsite} vor Ort · {dur} Fahrt",
   trip_summary_oneway: "Einfache Fahrt · {date} · {dur}",
   trip_more_dates: "Alle Daten anzeigen",
 

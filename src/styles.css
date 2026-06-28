@@ -858,9 +858,14 @@ a {
 .journey.is-clickable {
   cursor: pointer;
 }
-.journey.is-active {
+.journey.is-active,
+.journey.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;
+}
+/* The picked outbound for a round trip gets a soft accent wash, too. */
+.journey.is-selected {
+  background: var(--accent-soft);
 }
 .flash {
   animation: mf-flash 1.1s ease;
@@ -958,6 +963,13 @@ a {
   font-size: 0.74rem;
   font-weight: 640;
   font-variant-numeric: tabular-nums;
+}
+/* Two chips side by side on an Ideas row (train count + days reachable). */
+.row-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
 }
 .chev {
   margin-left: auto;

@@ -197,7 +197,7 @@ export const fr = {
   act_unsave: "Retirer des trajets enregistrés",
   saved_title: "Trajets enregistrés",
   trip_summary: "{n} nuit(s) · {dur} de trajet aller-retour",
-  trip_summary_day: "Aller-retour dans la journée · {dur} de trajet",
+  trip_summary_day: "Aller-retour dans la journée · {onsite} sur place · {dur} de trajet",
   trip_summary_oneway: "Aller simple · {date} · {dur}",
   trip_more_dates: "Voir toutes les dates",
 

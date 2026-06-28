@@ -146,9 +146,16 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
 /**
  * A direct or connecting journey card. `opts.saveable` (default true) adds a Save
  * button to the actions; it's turned off inside the trip modal, where a single
- * whole-trip Save already covers both legs.
+ * whole-trip Save already covers both legs. `opts.onPick` makes a click on the card
+ * select it (highlighting it among its siblings) and run the callback — used to
+ * pick the outbound for a round trip, or open a return directly. `opts.selected`
+ * pre-highlights the card.
  */
-export function journeyEl(j: Journey, ctx: RenderCtx, opts: { saveable?: boolean } = {}): HTMLElement {
+export function journeyEl(
+  j: Journey,
+  ctx: RenderCtx,
+  opts: { saveable?: boolean; onPick?: (journey: Journey) => void; selected?: boolean } = {},
+): HTMLElement {
   const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
   const legs = el("div", { class: "legs" });
@@ -224,6 +231,7 @@ export function journeyEl(j: Journey, ctx: RenderCtx, opts: { saveable?: boolean
   ]);
 
   const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
+  if (opts.selected) article.classList.add("is-selected");
 
   // Clicking the card (anywhere but the action buttons) draws this journey on
   // the map and marks it active among its siblings.
@@ -234,9 +242,18 @@ export function journeyEl(j: Journey, ctx: RenderCtx, opts: { saveable?: boolean
       .forEach((x) => x.classList.remove("is-active"));
     article.classList.add("is-active");
   }
+  // Pick mode: clicking selects this card among its siblings, then runs onPick.
+  function pick(): void {
+    article.parentElement
+      ?.querySelectorAll(".journey.is-selected")
+      .forEach((x) => x.classList.remove("is-selected"));
+    article.classList.add("is-selected");
+    opts.onPick!(j);
+  }
   article.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest(".actions")) return;
-    showOnMap();
+    if (opts.onPick) pick();
+    else showOnMap();
   });
 
   return article;
@@ -453,17 +470,33 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
   ]);
 }
 
-/** A ranked best-trip row ("best" mode); in all-days view it shows a month count. */
-export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx): HTMLElement {
-  const badge =
-    trip.days != null
-      ? el("span", {
-          class: "chip chip-soft month-chip",
-          text: t("ideas_days", { n: trip.days }),
-          attrs: { title: t("ideas_days_hint", { n: trip.days }) },
-        })
-      : undefined;
-  return reachTripRowEl(trip.destination, trip.journey, ctx, badge);
+/**
+ * A ranked best-trip row ("best" mode). Shows the month-long train count for the
+ * destination (like the "Where to?" list) plus, in the all-days view, how many
+ * days it's reachable.
+ */
+export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): HTMLElement {
+  const chips: HTMLElement[] = [];
+  if (trains != null && trains > 0) {
+    chips.push(
+      el("span", {
+        class: "stat-chip",
+        text: t("badge_trains", { n: trains }),
+        attrs: { title: t("stat_window_hint", { trains, days: trip.days ?? 0 }) },
+      }),
+    );
+  }
+  if (trip.days != null) {
+    chips.push(
+      el("span", {
+        class: "chip chip-soft month-chip",
+        text: t("ideas_days", { n: trip.days }),
+        attrs: { title: t("ideas_days_hint", { n: trip.days }) },
+      }),
+    );
+  }
+  const extra = chips.length ? el("span", { class: "row-chips" }, chips) : undefined;
+  return reachTripRowEl(trip.destination, trip.journey, ctx, extra);
 }
 
 /**
@@ -682,10 +715,13 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   let summary: string;
   if (inbound) {
     const nights = dayIndex(inbound.date) - dayIndex(outbound.date);
-    summary =
-      nights > 0
-        ? t("trip_summary", { n: nights, dur: formatDuration(totalTravel) })
-        : t("trip_summary_day", { dur: formatDuration(totalTravel) });
+    if (nights > 0) {
+      summary = t("trip_summary", { n: nights, dur: formatDuration(totalTravel) });
+    } else {
+      // Same-day round trip: surface how long you actually get in the city.
+      const onSite = Math.max(0, inbound.departMin - outbound.arriveMin);
+      summary = t("trip_summary_day", { onsite: formatDuration(onSite), dur: formatDuration(totalTravel) });
+    }
   } else {
     summary = t("trip_summary_oneway", { date: ctx.formatDate(outbound.date), dur: formatDuration(totalTravel) });
   }

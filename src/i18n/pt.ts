@@ -186,7 +186,7 @@ export const pt: Dict = {
   act_unsave: "Remover das viagens guardadas",
   saved_title: "Viagens guardadas",
   trip_summary: "{n} noite(s) · {dur} de viagem ida e volta",
-  trip_summary_day: "No mesmo dia · {dur} de viagem",
+  trip_summary_day: "No mesmo dia · {onsite} no local · {dur} de viagem",
   trip_summary_oneway: "Só ida · {date} · {dur}",
   trip_more_dates: "Ver todas as datas",
 
