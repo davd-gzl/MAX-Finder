@@ -198,4 +198,6 @@ export const zh: Dict = {
   flex_days: "天",
   cal_legend_count: "数字 = 当天列车数",
 
+  cal_legend_dest: "数字 = 当天目的地数",
+
 };

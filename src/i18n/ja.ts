@@ -198,4 +198,6 @@ export const ja: Dict = {
   flex_days: "日",
   cal_legend_count: "数字 = その日の列車数",
 
+  cal_legend_dest: "数字 = その日の目的地数",
+
 };

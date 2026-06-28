@@ -198,4 +198,6 @@ export const nl: Dict = {
   flex_days: "dagen",
   cal_legend_count: "getal = treinen die dag",
 
+  cal_legend_dest: "getal = bestemmingen die dag",
+
 };

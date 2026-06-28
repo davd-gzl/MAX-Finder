@@ -918,9 +918,9 @@ a {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;
 }
-/* The picked outbound for a round trip gets a soft accent wash, too. */
+/* The picked card gets a faint accent wash — just a hint, not a slab of green. */
 .journey.is-selected {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 .flash {
   animation: mf-flash 1.1s ease;
@@ -1577,7 +1577,12 @@ a {
 }
 .tour-leg .journey {
   border: 0;
-  padding: 0.2rem 0;
+  /* Horizontal padding (offset by a negative margin so text stays aligned) gives
+     the green selected/active frame room around the content instead of cutting
+     into it; the radius rounds that frame. */
+  padding: 0.45rem 0.6rem;
+  margin: 0 -0.6rem;
+  border-radius: var(--radius-sm);
 }
 .tour-leg .journey:hover {
   border: 0;
@@ -1816,8 +1821,13 @@ a {
 .trip-title {
   font-size: 1.1rem;
 }
+.trip-dates {
+  margin: -0.15rem 0 0;
+  font-weight: 640;
+  color: var(--accent);
+}
 .trip-summary {
-  margin: -0.25rem 0 0.35rem;
+  margin: 0 0 0.35rem;
 }
 .trip-leg {
   display: flex;

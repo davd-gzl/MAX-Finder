@@ -211,4 +211,6 @@ export const en: Dict = {
   flex_days: "days",
   cal_legend_count: "number = trains that day",
 
+  cal_legend_dest: "number = destinations that day",
+
 };

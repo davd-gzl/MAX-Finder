@@ -209,6 +209,8 @@ export const fr = {
   flex_days: "jours",
   cal_legend_count: "le nombre = trains ce jour",
 
+  cal_legend_dest: "le nombre = destinations ce jour",
+
 };
 
 export type Dict = typeof fr;

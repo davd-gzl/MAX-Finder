@@ -13,7 +13,7 @@ import { getaways } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
-import { availabilityCalendar, destinationCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
@@ -1041,9 +1041,18 @@ function runGetaways(c: RenderCtx, origin: string): void {
   // A calendar to pick a specific day (each cell coloured by availability), plus the
   // ±N "date flexibility" stepper to widen the search to a window around the day.
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  const dayCal = destinationCalendar(trains, origin, window, filterOpts());
+  // Connection-aware destinations reachable per day (a hint of how much is possible);
+  // the number is "destinations that day", including via stopovers.
+  const dayCal = reachableCountCalendar(trains, origin, window, {
+    ...filterOpts(),
+    maxConnections: query.maxConnections,
+  });
   refs.results.append(
-    render.calendarEl(dayCal, c, query.date, { title: t("getaway_cal_title"), showCount: false }),
+    render.calendarEl(dayCal, c, query.date, {
+      title: t("getaway_cal_title"),
+      count: (n) => t("best_cal_count", { n }),
+      countLegend: t("cal_legend_dest"),
+    }),
   );
   const opts = {
     maxConnections: query.maxConnections,
@@ -1160,13 +1169,21 @@ function runBestSearch(c: RenderCtx): void {
   const inRegion = (d: string): boolean =>
     !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  const cal = destinationCalendar(trains, query.origin, window, filterOpts(), inRegion);
+  // Count connection-aware destinations per day (matches the list, which includes
+  // places reached via a stopover), so the calendar number is "destinations that day".
+  const cal = reachableCountCalendar(
+    trains,
+    query.origin,
+    window,
+    { ...filterOpts(), maxConnections: query.maxConnections },
+    inRegion,
+  );
   refs.results.append(
     // In all-days mode no single day is "selected" — leave the strip unhighlighted.
     render.calendarEl(cal, c, allDays ? undefined : query.date, {
       title: t("best_cal_title"),
       count: (n) => t("best_cal_count", { n }),
-      showCount: false,
+      countLegend: t("cal_legend_dest"),
     }),
   );
   // Once a day is picked, offer a one-tap return to the full "all days" list.

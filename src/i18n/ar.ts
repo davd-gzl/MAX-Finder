@@ -198,4 +198,6 @@ export const ar: Dict = {
   flex_days: "أيام",
   cal_legend_count: "الرقم = القطارات في ذلك اليوم",
 
+  cal_legend_dest: "الرقم = الوجهات في ذلك اليوم",
+
 };

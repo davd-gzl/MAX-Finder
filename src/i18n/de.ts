@@ -199,4 +199,6 @@ export const de: Dict = {
   flex_days: "Tage",
   cal_legend_count: "Zahl = Züge an dem Tag",
 
+  cal_legend_dest: "Zahl = Ziele an dem Tag",
+
 };

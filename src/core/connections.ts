@@ -50,6 +50,20 @@ function journeyMemo(trains: MaxTrain[]): Map<string, Journey[]> {
   return m;
 }
 
+// Memoize reachableJourneys (multi-target) per (stable) trains array. The ideas
+// list and the destinations-per-day calendar both run it for the same days, so
+// the second sweep is a cache hit. Callers only read the returned Map.
+const reachCache = new WeakMap<MaxTrain[], Map<string, Map<string, Journey>>>();
+
+function reachMemo(trains: MaxTrain[]): Map<string, Map<string, Journey>> {
+  let m = reachCache.get(trains);
+  if (!m) {
+    m = new Map();
+    reachCache.set(trains, m);
+  }
+  return m;
+}
+
 function availableByDate(trains: MaxTrain[]): Map<string, MaxTrain[]> {
   const cached = byDateCache.get(trains);
   if (cached) return cached;
@@ -252,6 +266,11 @@ export function reachableJourneys(
   const baseMaxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
+  const memo = reachMemo(trains);
+  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${[...hubSet].join(",")}`;
+  const cached = memo.get(key);
+  if (cached) return cached;
+
   const idx = availableByDate(trains);
   let pool: MaxTrain[] = [];
   for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
@@ -314,6 +333,7 @@ export function reachableJourneys(
     path.pop();
   }
   best.delete(origin);
+  memo.set(key, best);
   return best;
 }
 

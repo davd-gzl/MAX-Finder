@@ -199,4 +199,6 @@ export const es: Dict = {
   flex_days: "días",
   cal_legend_count: "número = trenes ese día",
 
+  cal_legend_dest: "número = destinos ese día",
+
 };
