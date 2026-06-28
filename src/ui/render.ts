@@ -154,7 +154,15 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
 export function journeyEl(
   j: Journey,
   ctx: RenderCtx,
-  opts: { saveable?: boolean; onPick?: (journey: Journey) => void; selected?: boolean } = {},
+  opts: {
+    saveable?: boolean;
+    onPick?: (journey: Journey) => void;
+    selected?: boolean;
+    /** Container within which the active/selected highlight is exclusive (defaults
+     * to the card's parent). Use it when the cards aren't direct siblings — e.g. the
+     * trip modal, where the two legs live in separate sections. */
+    group?: HTMLElement;
+  } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
@@ -233,18 +241,21 @@ export function journeyEl(
   const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
   if (opts.selected) article.classList.add("is-selected");
 
+  // The scope within which only one card may be highlighted at a time.
+  const scope = (): HTMLElement | null => opts.group ?? article.parentElement;
   // Clicking the card (anywhere but the action buttons) draws this journey on
   // the map and marks it active among its siblings.
   function showOnMap(): void {
     ctx.onShowJourney(j);
-    article.parentElement
+    scope()
       ?.querySelectorAll(".journey.is-active")
       .forEach((x) => x.classList.remove("is-active"));
     article.classList.add("is-active");
   }
-  // Pick mode: clicking selects this card among its siblings, then runs onPick.
+  // Pick mode: clicking selects this card (exclusively within its scope), then
+  // runs onPick. Used to pick the round-trip outbound and to highlight one leg.
   function pick(): void {
-    article.parentElement
+    scope()
       ?.querySelectorAll(".journey.is-selected")
       .forEach((x) => x.classList.remove("is-selected"));
     article.classList.add("is-selected");
@@ -725,26 +736,30 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   } else {
     summary = t("trip_summary_oneway", { date: ctx.formatDate(outbound.date), dur: formatDuration(totalTravel) });
   }
-  const sections = [
-    el("section", { class: "trip-leg" }, [
-      ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),
-      journeyEl(outbound, ctx, { saveable: false }),
-    ]),
-  ];
-  if (inbound) {
-    sections.push(
-      el("section", { class: "trip-leg" }, [
-        el("h3", { class: "trip-leg-title", text: t("rt_inbound") }),
-        journeyEl(inbound, ctx, { saveable: false }),
-      ]),
-    );
-  }
-  return el("div", { class: "trip-view" }, [
+  // Build the container first so both legs can share it as their selection group:
+  // clicking one leg highlights it and clears the other, even though they sit in
+  // separate sections. `onPick` is a no-op — the highlight is the whole point, and
+  // it avoids journeyEl's default click (which would scroll to the map behind the modal).
+  const view = el("div", { class: "trip-view" });
+  const pickOpts = { saveable: false, group: view, onPick: () => {} };
+  view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
     el("p", { class: "muted trip-summary", text: summary }),
-    ...sections,
+    el("section", { class: "trip-leg" }, [
+      ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),
+      journeyEl(outbound, ctx, pickOpts),
+    ]),
+    ...(inbound
+      ? [
+          el("section", { class: "trip-leg" }, [
+            el("h3", { class: "trip-leg-title", text: t("rt_inbound") }),
+            journeyEl(inbound, ctx, pickOpts),
+          ]),
+        ]
+      : []),
     el("div", { class: "trip-view-actions" }, [tripSaveBtn(outbound, ctx, inbound)]),
-  ]);
+  );
+  return view;
 }
 
 /** A round-trip card. */

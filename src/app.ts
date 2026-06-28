@@ -1404,6 +1404,9 @@ const SHORTCUT_MODES = ["from", "to", "od", "tour", "best"] as const;
  */
 function onGlobalKey(e: KeyboardEvent): void {
   if (e.key === "Escape") {
+    // A modal <dialog> closes itself on Escape — bail before any page shortcut so
+    // we neither navigate the page behind it nor preventDefault its native close.
+    if (document.querySelector("dialog[open]")) return;
     const tgt = e.target as HTMLElement | null;
     // Escape the search bar first: blur whatever field is focused.
     if (tgt && /^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName)) {
