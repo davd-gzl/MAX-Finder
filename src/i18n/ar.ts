@@ -8,7 +8,7 @@ export const ar: Dict = {
   best_title: "أفضل الرحلات من {station} — {date}",
   best_title_all: "كل الوجهات من {station}",
   best_all_days: "عرض كل الأيام",
-  ideas_days: "{n} يوم",
+  ideas_days: "{n} يوم/شهر",
   ideas_days_hint: "متاح {n} يوم خلال الفترة",
   field_region: "المنطقة",
   region_any: "كل المناطق",

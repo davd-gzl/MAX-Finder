@@ -8,7 +8,7 @@ export const zh: Dict = {
   best_title: "从 {station} 出发的最佳行程 — {date}",
   best_title_all: "从{station}出发的所有目的地",
   best_all_days: "显示所有日期",
-  ideas_days: "{n} 天",
+  ideas_days: "每月 {n} 天",
   ideas_days_hint: "本期内 {n} 天可达",
   field_region: "地区",
   region_any: "所有地区",

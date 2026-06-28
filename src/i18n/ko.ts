@@ -8,7 +8,7 @@ export const ko: Dict = {
   best_title: "{station} 출발 최적 여정 — {date}",
   best_title_all: "{station}에서 갈 수 있는 모든 목적지",
   best_all_days: "모든 날짜 보기",
-  ideas_days: "{n}일",
+  ideas_days: "월 {n}일",
   ideas_days_hint: "이 기간 중 {n}일 이용 가능",
   field_region: "지역",
   region_any: "모든 지역",

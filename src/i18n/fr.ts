@@ -6,7 +6,7 @@ export const fr = {
   best_title: "Meilleurs trajets depuis {station} — {date}",
   best_title_all: "Toutes les destinations depuis {station}",
   best_all_days: "Voir tous les jours",
-  ideas_days: "{n} j",
+  ideas_days: "{n} j/mois",
   ideas_days_hint: "Accessible {n} jour(s) sur la période",
   field_region: "Région",
   region_any: "Toutes régions",
