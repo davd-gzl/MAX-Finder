@@ -1,4 +1,5 @@
 import type { SearchQuery, SearchMode, CardType, Journey } from "../types";
+import type { Tour } from "../core/tour";
 import { isLang, detectLang, type Lang } from "../i18n";
 
 export type Theme = "light" | "dark" | "auto";
@@ -96,22 +97,33 @@ export function toggleWatched(r: RoutePair): RoutePair[] {
 // --- saved trips ------------------------------------------------------------
 
 /**
- * A saved travel: a single journey ("one-way") or a round trip (outbound +
- * inbound). Stored as a snapshot of the chosen trains so it survives a data
- * refresh — a record of intent the traveller can re-check on SNCF Connect.
+ * A saved travel: a single journey ("one-way"), a round trip (outbound +
+ * inbound), or a multi-city "tour". Stored as a snapshot of the chosen trains so
+ * it survives a data refresh — a record of intent the traveller can re-check on
+ * SNCF Connect.
  */
 export interface SavedTrip {
   id: string;
-  kind: "one-way" | "round";
-  outbound: Journey;
+  kind: "one-way" | "round" | "tour";
+  outbound: Journey; // for a tour, its first leg (used for the rail label)
   inbound?: Journey;
+  tour?: Tour; // full itinerary when kind === "tour"
   savedAt: number; // epoch ms, for newest-first ordering
+}
+
+/** Key for one journey's legs (dates + train numbers). */
+function journeyKey(j: Journey): string {
+  return j.legs.map((l) => `${l.date}/${l.trainNo}`).join(">");
 }
 
 /** Stable identity for a trip: its legs' dates + train numbers (both directions). */
 export function tripId(outbound: Journey, inbound?: Journey): string {
-  const legs = (j: Journey): string => j.legs.map((l) => `${l.date}/${l.trainNo}`).join(">");
-  return inbound ? `${legs(outbound)}|${legs(inbound)}` : legs(outbound);
+  return inbound ? `${journeyKey(outbound)}|${journeyKey(inbound)}` : journeyKey(outbound);
+}
+
+/** Stable identity for a tour: every hop's legs, in order (prefixed to avoid clashes). */
+export function tourId(tour: Tour): string {
+  return `tour:${tour.legs.map(journeyKey).join("|")}`;
 }
 
 export function loadTrips(): SavedTrip[] {

@@ -1421,6 +1421,22 @@ a {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Tour header row: the clickable route fills the space, the Save button sits right. */
+.tour-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tour-top .tour-head {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.tour-save {
+  flex: none;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
 /* Each tour leg is one day. A continuous vertical timeline runs behind the legs,
    with a bold numbered badge per day, so days separate at a glance. */
 .tour-legs {

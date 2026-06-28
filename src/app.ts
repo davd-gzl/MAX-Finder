@@ -451,7 +451,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? store.queryFromParams(new URLSearchParams(location.search), today)
-    : { mode: "from", date: today, card: settings.card, maxConnections: 1 };
+    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
 
   rebuild();
   checkWatchedRoutes();
@@ -594,6 +594,22 @@ function ctx(): RenderCtx {
       renderSavedTrips();
     },
     onShowTrip: (out, inb) => showTripModal(out, inb),
+    isTourSaved: (tour) => store.isTripSaved(store.tourId(tour)),
+    onToggleTour: (tour) => {
+      store.toggleTrip(buildSavedTour(tour));
+      renderSavedTrips();
+    },
+  };
+}
+
+/** Snapshot a multi-city tour as a saved trip (its first leg labels the rail row). */
+function buildSavedTour(tour: Tour): store.SavedTrip {
+  return {
+    id: store.tourId(tour),
+    kind: "tour",
+    outbound: tour.legs[0]!,
+    tour,
+    savedAt: Date.now(),
   };
 }
 
@@ -635,6 +651,34 @@ function showTripModal(outbound: Journey, inbound?: Journey): void {
     el("div", { class: "modal-body" }, [
       render.tripViewEl(outbound, ctx(), inbound),
       el("div", { class: "modal-actions" }, [moreDates, closeBtn]),
+    ]),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
+/**
+ * A saved multi-city tour on one page (a modal): the full itinerary with every
+ * bookable leg and a Save toggle. Map actions are no-ops here — there's no map
+ * behind the dialog to draw on (and we don't want to scroll the page underneath).
+ */
+function showTourModal(tour: Tour): void {
+  const modalCtx: RenderCtx = { ...ctx(), onShowTour: () => {}, onShowJourney: () => {} };
+  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
+  const closeBtn = el("button", {
+    class: "btn btn-primary modal-close",
+    type: "button",
+    text: t("act_close"),
+    on: { click: () => dialog.close() },
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      render.tourEl(tour, modalCtx),
+      el("div", { class: "modal-actions" }, [closeBtn]),
     ]),
   );
   dialog.addEventListener("close", () => dialog.remove());
@@ -834,7 +878,20 @@ function filterOpts() {
   };
 }
 
+// Pending deferred-render frame, so an in-flight search can be cancelled (Escape).
+let pendingRaf = 0;
+
+/** Cancel a search that's still showing its spinner (before the compute runs). */
+function cancelLoading(): boolean {
+  if (!pendingRaf) return false;
+  cancelAnimationFrame(pendingRaf);
+  pendingRaf = 0;
+  clear(refs.results); // drop the spinner — the search is abandoned
+  return true;
+}
+
 function runSearch(): void {
+  if (pendingRaf) cancelAnimationFrame(pendingRaf);
   clear(refs.results);
   // Delayed spinner: CSS keeps it invisible for 150ms, so instant searches never
   // flash it, while heavy modes (best/tour on large data) show it. The compute is
@@ -846,8 +903,9 @@ function runSearch(): void {
   );
   // Two frames so the spinner actually paints before a heavy (connection-aware)
   // compute blocks the main thread — otherwise long searches show no feedback.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
+  pendingRaf = requestAnimationFrame(() => {
+    pendingRaf = requestAnimationFrame(() => {
+      pendingRaf = 0;
       clear(refs.results);
       renderSearch();
     });
@@ -1186,8 +1244,21 @@ function runOdSearch(c: RenderCtx): void {
   // The outbound chosen for the round trip — defaults to the fastest; clicking a
   // journey card picks it, so "come back?" pairs returns with the leg you want.
   let chosenOutbound: Journey | null = journeys[0] ?? null;
+  // Radius alternatives up front: when the exact route has no seat but a nearby
+  // station within the radius does, defer to that section instead of showing a
+  // bare "no MAX seat" message.
+  const radiusAlt = query.radiusKm
+    ? nearbyAlternatives(query.origin, query.destination, query.date, query.radiusKm, {
+        ...filterOpts(),
+        maxConnections: query.maxConnections,
+      })
+    : null;
+  const hasNearby =
+    !!radiusAlt &&
+    (radiusAlt.fromOrigin.length > 0 || radiusAlt.toDest.length > 0 || radiusAlt.bothEnds.length > 0);
   if (journeys.length === 0) {
-    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+    // Suppress the empty message when nearby alternatives will fill the gap below.
+    if (!hasNearby) refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
   } else {
     // A wide span can return dozens of itineraries — count them, and be honest when
     // the search hit its internal cap (more multi-day routes exist than shown).
@@ -1216,11 +1287,8 @@ function runOdSearch(c: RenderCtx): void {
   // exact route has none. Most useful with zero direct journeys, but always shown
   // when a radius is set. Their ids also feed the map circles below.
   let nearbyIds: string[] = [];
-  if (query.radiusKm) {
-    const alt = nearbyAlternatives(query.origin, query.destination, query.date, query.radiusKm, {
-      ...filterOpts(),
-      maxConnections: query.maxConnections,
-    });
+  if (query.radiusKm && radiusAlt) {
+    const alt = radiusAlt;
     nearbyIds = [
       ...alt.fromOrigin.map((x) => x.id),
       ...alt.toDest.map((x) => x.id),
@@ -1351,7 +1419,7 @@ function goBack(): void {
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
   navStack = [];
-  query = { mode: "from", date: today, card: settings.card, maxConnections: 1 };
+  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
   syncFormFromQuery();
   applyAndRun();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1407,6 +1475,11 @@ function onGlobalKey(e: KeyboardEvent): void {
     // A modal <dialog> closes itself on Escape — bail before any page shortcut so
     // we neither navigate the page behind it nor preventDefault its native close.
     if (document.querySelector("dialog[open]")) return;
+    // Cancel a search that's still loading (stop the spinner) before anything else.
+    if (cancelLoading()) {
+      e.preventDefault();
+      return;
+    }
     const tgt = e.target as HTMLElement | null;
     // Escape the search bar first: blur whatever field is focused.
     if (tgt && /^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName)) {
@@ -1979,10 +2052,11 @@ function buildForm(): FormBuild {
     overnight,
     el("span", { class: "field-label", text: t("field_overnight") }),
   ]);
-  // Night trains are included by default; unchecking drops trains that leave late
-  // or arrive past midnight, so you don't end up travelling through the night.
+  // Night trains are OFF by default (checkbox unchecked = trains that leave late or
+  // arrive past midnight are dropped); checking it includes them. The default query
+  // carries excludeNight, and syncFormFromQuery sets this from it.
   const night = el("input", { type: "checkbox" }) as HTMLInputElement;
-  night.checked = true;
+  night.checked = false;
   const nightField = el("label", { class: "field field-check" }, [
     night,
     el("span", { class: "field-label", text: t("field_night") }),
@@ -2384,15 +2458,30 @@ function renderSavedTrips(): void {
   for (const trip of trips) {
     const out = trip.outbound;
     const inb = trip.inbound;
-    const label = `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`;
-    const when = inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date);
+    const tour = trip.tour;
+    // Route + date label differ by kind: a tour chains every stop; a round trip
+    // uses ⇄ and a date range; a one-way is a single arrow + date.
+    let label: string;
+    let when: string;
+    let open: () => void;
+    if (tour) {
+      const stops = [tour.legs[0]?.origin ?? out.origin, ...tour.legs.map((l) => l.destination)];
+      label = stops.map((s) => deps.registry.label(s)).join(" → ");
+      const last = tour.legs[tour.legs.length - 1];
+      when = last ? `${formatDate(out.date)} – ${formatDate(last.date)}` : formatDate(out.date);
+      open = () => showTourModal(tour);
+    } else {
+      label = `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`;
+      when = inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date);
+      open = () => showTripModal(out, inb);
+    }
     const row = el("div", { class: "fav-row trip-row" }, [
       el(
         "button",
         {
           class: "fav-open trip-open",
           type: "button",
-          on: { click: () => showTripModal(out, inb) },
+          on: { click: open },
         },
         [el("span", { class: "trip-open-route", text: label }), el("span", { class: "muted small", text: when })],
       ),
