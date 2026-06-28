@@ -208,5 +208,12 @@ export const de: Dict = {
   cal_legend_count: "Zahl = Züge an dem Tag",
 
   cal_legend_dest: "Zahl = Ziele an dem Tag",
+  sort_label: "Sortieren",
+  sort_rec: "Empfohlen",
+  sort_trains: "Meiste Züge",
+  sort_days: "Meiste Tage",
+  sort_closest: "Nächste",
+  sort_fastest: "Schnellste",
+  sort_name: "A–Z",
 
 };

@@ -208,5 +208,12 @@ export const ko: Dict = {
   cal_legend_count: "숫자 = 그날의 열차 수",
 
   cal_legend_dest: "숫자 = 그날의 목적지 수",
+  sort_label: "정렬",
+  sort_rec: "추천",
+  sort_trains: "열차 많은 순",
+  sort_days: "일수 많은 순",
+  sort_closest: "가까운 순",
+  sort_fastest: "빠른 순",
+  sort_name: "가나다순",
 
 };

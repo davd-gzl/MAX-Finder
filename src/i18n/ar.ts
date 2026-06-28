@@ -207,5 +207,12 @@ export const ar: Dict = {
   cal_legend_count: "الرقم = القطارات في ذلك اليوم",
 
   cal_legend_dest: "الرقم = الوجهات في ذلك اليوم",
+  sort_label: "ترتيب",
+  sort_rec: "موصى به",
+  sort_trains: "الأكثر قطارات",
+  sort_days: "الأكثر أيامًا",
+  sort_closest: "الأقرب",
+  sort_fastest: "الأسرع",
+  sort_name: "أ–ي",
 
 };

@@ -207,5 +207,12 @@ export const ja: Dict = {
   cal_legend_count: "数字 = その日の列車数",
 
   cal_legend_dest: "数字 = その日の目的地数",
+  sort_label: "並べ替え",
+  sort_rec: "おすすめ",
+  sort_trains: "本数が多い順",
+  sort_days: "日数が多い順",
+  sort_closest: "近い順",
+  sort_fastest: "速い順",
+  sort_name: "A–Z",
 
 };

@@ -207,5 +207,12 @@ export const pt: Dict = {
   cal_legend_count: "número = comboios nesse dia",
 
   cal_legend_dest: "número = destinos nesse dia",
+  sort_label: "Ordenar",
+  sort_rec: "Recomendado",
+  sort_trains: "Mais comboios",
+  sort_days: "Mais dias",
+  sort_closest: "Mais perto",
+  sort_fastest: "Mais rápido",
+  sort_name: "A–Z",
 
 };
