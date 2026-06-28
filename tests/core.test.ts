@@ -323,18 +323,30 @@ describe("onlyNight (sleep aboard)", () => {
     expect(night.map((j) => j.legs[0]!.trainNo)).toEqual(["NIGHT"]);
   });
 
-  it("counts a connection as sleep-aboard when ANY leg is a night train", () => {
-    // PARIS -> LYON (night) -> MARSEILLE (day): the first leg is a sleeper, so the
-    // whole journey qualifies even though the onward hop is a day train.
+  it("requires the LAST leg to be a sleeper (arrive asleep)", () => {
     const reach = reachableJourneys(mixed, "PARIS (intramuros)", "2026-08-01", {
       maxConnections: 1,
       onlyNight: true,
     });
-    const marseille = reach.get("MARSEILLE ST CHARLES");
-    expect(marseille).toBeDefined();
-    expect(marseille!.legs.map((l) => l.trainNo)).toEqual(["NIGHT", "DAY2"]);
-    // LYON itself is still reachable — via the night train, not the day one.
+    // LYON is reachable directly by the sleeper.
     expect(reach.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("NIGHT");
+    // MARSEILLE arrives on a DAY hop after the sleeper, so it doesn't qualify.
+    expect(reach.get("MARSEILLE ST CHARLES")).toBeUndefined();
+  });
+
+  it("accepts a day hop to a hub then the sleeper in (last leg is the sleeper)", () => {
+    const lastLeg = normalizeRecords([
+      // Day to the LYON hub, then a sleeper onward to NICE → arrives on a sleeper.
+      { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "18:00", heure_arrivee: "20:00", train_no: "PD", od_happy_card: "OUI", axe: "SUD EST" },
+      { date: "2026-08-01", origine: "LYON (intramuros)", destination: "NICE VILLE", heure_depart: "21:00", heure_arrivee: "06:00", train_no: "LN", od_happy_card: "OUI", axe: "IC NUIT" },
+      // Sleeper to the hub, then a day hop onward → arrives on a day train.
+      { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:00", heure_arrivee: "06:00", train_no: "PN", od_happy_card: "OUI", axe: "IC NUIT" },
+      { date: "2026-08-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "07:00", heure_arrivee: "08:00", train_no: "LM", od_happy_card: "OUI", axe: "SUD EST" },
+    ] as RawRecord[]);
+    const toNice = findJourneys(lastLeg, "PARIS (intramuros)", "NICE VILLE", "2026-08-01", { maxConnections: 1, onlyNight: true });
+    expect(toNice.map((j) => j.legs.map((l) => l.trainNo))).toEqual([["PD", "LN"]]); // day then sleeper in
+    const toMars = findJourneys(lastLeg, "PARIS (intramuros)", "MARSEILLE ST CHARLES", "2026-08-01", { maxConnections: 1, onlyNight: true });
+    expect(toMars).toHaveLength(0); // sleeper then a day hop → not arriving on a sleeper
   });
 
   it("drops a destination reachable only by day trains", () => {
