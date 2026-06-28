@@ -489,10 +489,8 @@ a {
   align-self: start;
   padding-bottom: 0;
 }
-/* A checkbox nested under another (e.g. "only night trains" under "night trains"). */
-.field-sub {
-  margin-left: 1.25rem;
-}
+/* A checkbox that depends on another (e.g. "only night trains" under "night
+   trains"): aligned with its sibling, just a subtler label to hint the link. */
 .field-sub .field-label {
   color: var(--muted);
 }
