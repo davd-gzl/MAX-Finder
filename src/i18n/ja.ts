@@ -11,6 +11,7 @@ export const ja: Dict = {
   best_round_title: "{station} 発の往復 — {date}",
   best_round_cal_title: "日別の往復アイデア",
   best_round_count: "往復 {n} 件",
+  cal_legend_round: "数字 = その日の往復数",
   best_all_days: "すべての日を表示",
   ideas_days: "{n} 日",
   ideas_days_hint: "期間中 {n} 日利用可能",

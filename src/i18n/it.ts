@@ -11,6 +11,7 @@ export const it: Dict = {
   best_round_title: "Andata e ritorno da {station} — {date}",
   best_round_cal_title: "Idee di andata e ritorno per giorno",
   best_round_count: "{n} andata/e e ritorno",
+  cal_legend_round: "il numero = andata e ritorno quel giorno",
   best_all_days: "Mostra tutti i giorni",
   ideas_days: "{n} gg",
   ideas_days_hint: "Raggiungibile {n} giorno/i nel periodo",

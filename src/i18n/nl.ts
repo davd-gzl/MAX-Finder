@@ -11,6 +11,7 @@ export const nl: Dict = {
   best_round_title: "Retours vanaf {station} — {date}",
   best_round_cal_title: "Retour-ideeën per dag",
   best_round_count: "{n} retour(s)",
+  cal_legend_round: "getal = retours die dag",
   best_all_days: "Alle dagen tonen",
   ideas_days: "{n} dagen",
   ideas_days_hint: "{n} dag(en) bereikbaar in deze periode",

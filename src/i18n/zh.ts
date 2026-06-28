@@ -11,6 +11,7 @@ export const zh: Dict = {
   best_round_title: "从 {station} 出发的往返 — {date}",
   best_round_cal_title: "每日往返建议",
   best_round_count: "{n} 个往返",
+  cal_legend_round: "数字 = 当天往返数",
   best_all_days: "显示所有日期",
   ideas_days: "{n} 天",
   ideas_days_hint: "本期内 {n} 天可达",

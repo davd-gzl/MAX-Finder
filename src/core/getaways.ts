@@ -170,7 +170,8 @@ export function getawaysAcrossWindow(
  * forward ({@link reachableJourneys}) for the outbound to each destination, one
  * backward ({@link latestReturns}) for the latest feasible return from each — a
  * pass per day, not a search per destination. `accept` optionally filters
- * destinations. Sorted best-first (most nights, then time on site / least travel).
+ * destinations. Returns the best escape per destination (sorted best-first) plus,
+ * for the calendar, a per-day count of distinct round trips you can START each day.
  */
 export function getawayIdeas(
   trains: MaxTrain[],
@@ -178,7 +179,7 @@ export function getawayIdeas(
   dates: string[],
   opts: GetawayOptions = {},
   accept: (destination: string) => boolean = () => true,
-): Getaway[] {
+): { trips: Getaway[]; perDay: CalendarDay[] } {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
   const minOnSite = opts.minOnSiteMin ?? 240;
   const arriveCeil = opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
@@ -190,8 +191,10 @@ export function getawayIdeas(
         : [maxNights];
 
   const byDest = new Map<string, Getaway>();
+  const perDay: CalendarDay[] = [];
   for (const date of dates) {
     const outboundMap = reachableJourneys(trains, origin, date, opts);
+    const startable = new Set<string>(); // round-trippable destinations starting today
     for (const nights of nightChoices) {
       const returns = latestReturns(trains, origin, addDays(date, nights), arriveCeil, opts);
       if (returns.size === 0) continue;
@@ -201,6 +204,7 @@ export function getawayIdeas(
         if (!back) continue;
         // Same-day: the return must leave after you've had your time in the city.
         if (nights === 0 && back.departMin < outbound.arriveMin + minOnSite) continue;
+        startable.add(dest);
         const g: Getaway = {
           destination: dest,
           outbound,
@@ -213,6 +217,7 @@ export function getawayIdeas(
         if (!cur || betterGetaway(g, cur)) byDest.set(dest, g);
       }
     }
+    perDay.push({ date, available: startable.size > 0, count: startable.size });
   }
-  return [...byDest.values()].sort(sortGetaways);
+  return { trips: [...byDest.values()].sort(sortGetaways), perDay };
 }

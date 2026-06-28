@@ -11,6 +11,7 @@ export const de: Dict = {
   best_round_title: "Hin- und Rückfahrten ab {station} — {date}",
   best_round_cal_title: "Hin- und Rückfahrt-Ideen pro Tag",
   best_round_count: "{n} Hin- und Rückfahrt(en)",
+  cal_legend_round: "Zahl = Hin- und Rückfahrten an dem Tag",
   best_all_days: "Alle Tage anzeigen",
   ideas_days: "{n} Tage",
   ideas_days_hint: "An {n} Tag(en) im Zeitraum erreichbar",

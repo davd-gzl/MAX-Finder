@@ -1328,26 +1328,20 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
   const inRegion = (d: string): boolean => !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
   const opts = getawayOpts();
-  // Calendar: how many places you can reach each day (a "where you can go" hint).
-  // Cheap and connection-aware, shared with the one-way Ideas cache.
-  const cal = reachableCountCalendar(
-    trains,
-    origin,
-    window,
-    { ...filterOpts(), maxConnections: query.maxConnections },
-    inRegion,
-  );
+  // One whole-window scan drives the by-day calendar (round trips startable each
+  // day) so the calendar matches the round-trip list — a green day is one you can
+  // actually start a getaway on, and its number is how many.
+  const whole = getawayIdeas(trains, origin, window, opts, inRegion);
   refs.results.append(
-    render.calendarEl(cal, c, allDays ? undefined : query.date, {
+    render.calendarEl(whole.perDay, c, allDays ? undefined : query.date, {
       title: t("best_round_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
+      count: (n) => t("best_round_count", { n }),
+      countLegend: t("cal_legend_round"),
     }),
   );
-  // The list scans the whole month in all-days mode (best escape per destination),
-  // or just the picked day when a calendar cell is selected.
-  const dates = allDays ? window : [query.date];
-  const trips = getawayIdeas(trains, origin, dates, opts, inRegion);
+  // All-days lists the best escape per destination; a picked day lists just that
+  // day's round trips (a cheap single-day re-scan, mostly served from the cache).
+  const trips = allDays ? whole.trips : getawayIdeas(trains, origin, [query.date], opts, inRegion).trips;
   if (!allDays) {
     refs.results.append(
       el("p", { class: "best-alldays-row" }, [

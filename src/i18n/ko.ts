@@ -11,6 +11,7 @@ export const ko: Dict = {
   best_round_title: "{station} 출발 왕복 — {date}",
   best_round_cal_title: "날짜별 왕복 아이디어",
   best_round_count: "왕복 {n}개",
+  cal_legend_round: "숫자 = 그날 왕복 여행 수",
   best_all_days: "모든 날짜 보기",
   ideas_days: "{n}일",
   ideas_days_hint: "이 기간 중 {n}일 이용 가능",

@@ -11,6 +11,7 @@ export const en: Dict = {
   best_round_title: "Round trips from {station} — {date}",
   best_round_cal_title: "Round-trip ideas by day",
   best_round_count: "{n} round trip(s)",
+  cal_legend_round: "number = round trips that day",
   best_all_days: "Show all days",
   ideas_days: "{n} days",
   ideas_days_hint: "Reachable {n} day(s) this month",

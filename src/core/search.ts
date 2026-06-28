@@ -1,6 +1,5 @@
 import type { MaxTrain } from "../types";
 import { parseTimeToMinutes } from "../util/time";
-import { NIGHT_DEPART_MIN } from "../config";
 
 export interface FilterOptions {
   origin?: string;
@@ -18,9 +17,13 @@ export interface FilterOptions {
   onlyNight?: boolean;
 }
 
-/** A train that travels through the night: leaves late or arrives past midnight. */
+/**
+ * A real sleeper train — an "Intercités de Nuit" you actually spend the night on,
+ * not just any service that leaves late or rolls a little past midnight. The open
+ * dataset tags these with the `IC NUIT` axe.
+ */
 export function isNightTrain(t: MaxTrain): boolean {
-  return t.departMin >= NIGHT_DEPART_MIN || t.arriveMin >= 1440;
+  return (t.axe ?? "").includes("NUIT");
 }
 
 /** Filter + sort trains (by departure time) for a set of constraints. */
