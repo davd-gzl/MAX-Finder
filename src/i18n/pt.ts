@@ -8,7 +8,7 @@ export const pt: Dict = {
   best_title: "Melhores viagens de {station} — {date}",
   best_title_all: "Todos os destinos a partir de {station}",
   best_all_days: "Ver todos os dias",
-  ideas_days: "{n} dias",
+  ideas_days: "{n} dias/mês",
   ideas_days_hint: "Acessível {n} dia(s) no período",
   field_region: "Região",
   region_any: "Todas as regiões",
