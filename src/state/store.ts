@@ -184,6 +184,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxKm != null && q.maxKm > 0) p.set("maxkm", String(q.maxKm));
   if (q.maxLegKm != null && q.maxLegKm > 0) p.set("legkm", String(q.maxLegKm));
   if (q.maxLegDurationMin != null && q.maxLegDurationMin > 0) p.set("legdur", String(q.maxLegDurationMin));
+  if (q.minLegDurationMin != null && q.minLegDurationMin > 0) p.set("legdurmin", String(q.minLegDurationMin));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
   if (q.radiusKm != null && q.radiusKm > 0) p.set("rad", String(q.radiusKm));
   if (q.roundTrip) p.set("rt", "1");
@@ -210,6 +211,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const maxkm = Number(p.get("maxkm"));
   const legkm = Number(p.get("legkm"));
   const legdur = Number(p.get("legdur"));
+  const legdurmin = Number(p.get("legdurmin"));
   const span = Number(p.get("span"));
   const rad = Number(p.get("rad"));
   const nights = Number(p.get("nights"));
@@ -240,6 +242,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxLegKm: Number.isFinite(legkm) && legkm > 0 ? Math.floor(legkm) : undefined,
     // Per-train time cap (tour). readQueryFromForm re-gates it to tour mode.
     maxLegDurationMin: Number.isFinite(legdur) && legdur > 0 ? Math.max(30, Math.floor(legdur)) : undefined,
+    minLegDurationMin: Number.isFinite(legdurmin) && legdurmin > 0 ? Math.floor(legdurmin) : undefined,
     // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
     // od-only search radius (km) for nearby paid-connection alternatives.

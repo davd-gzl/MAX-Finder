@@ -84,6 +84,8 @@ export interface SearchQuery {
   maxLegKm?: number;
   /** Cap on each hop's travel time, in minutes ("tour" mode — time over distance). */
   maxLegDurationMin?: number;
+  /** Floor on each hop's travel time, in minutes ("tour" — e.g. require long legs / night trains). */
+  minLegDurationMin?: number;
   /**
    * Cap on a journey's total day-span ("exact trip" mode). Overnight stopovers
    * can chain trains across several days; this limits how many calendar days the

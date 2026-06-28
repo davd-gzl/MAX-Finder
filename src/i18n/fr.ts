@@ -118,6 +118,7 @@ export const fr = {
   keys_day: "[ et ] : jour précédent / suivant",
   keys_surprise: "s : au hasard",
   keys_nearest: "n : étape la plus proche",
+  keys_clear: "c : vider les villes du tour",
   keys_run: "g : lancer la recherche",
   keys_back: "Échap : retour",
   keys_help: "? : afficher cette aide",
@@ -177,6 +178,7 @@ export const fr = {
   field_maxKm: "Distance totale max. (km)",
   field_maxLegKm: "Distance max. / train (km)",
   field_maxLegDuration: "Durée max. / train (min)",
+  field_minLegDuration: "Durée min. / train (min)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 
   field_daytrip_hours: "Heures min. sur place",
