@@ -443,6 +443,11 @@ function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean)
   const first = j.legs[0];
   const last = j.legs[j.legs.length - 1];
   const via = j.legs.length > 1;
+  // Days the arrival lands after departure (a sleeper arrives "+1d" the next
+  // morning), so an overnight leg's arrival time isn't misread as same-day.
+  const arriveDayOffset = last
+    ? dayIndex(last.date) + Math.floor(last.arriveMin / 1440) - dayIndex(j.date)
+    : 0;
   return el("span", { class: "daytrip-leg" }, [
     el("span", { class: "daytrip-leg-label muted", text: label }),
     ...(withDay ? [el("span", { class: "daytrip-day muted", text: ctx.formatWeekday(j.date) })] : []),
@@ -450,6 +455,9 @@ function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean)
       el("strong", { text: first?.depart ?? "" }),
       icon(I.arrow),
       el("strong", { text: last?.arrive ?? "" }),
+      ...(arriveDayOffset > 0
+        ? [el("span", { class: "day-offset", text: t("lbl_dayoffset", { n: arriveDayOffset }) })]
+        : []),
     ]),
     ...(via
       ? [el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })]

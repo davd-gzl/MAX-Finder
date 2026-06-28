@@ -30,6 +30,10 @@ export interface GetawayOptions extends ConnectionOptions {
 
 const MIDNIGHT = 24 * 60;
 const LATE_RETURN_CEIL = 26 * 60; // ~02:00 next day
+// Sleeper round trips ("only night trains"): you ride overnight there AND back, so
+// the return arrives the MORNING after it departs — allow arrivals well into the
+// next day, and leave a day later than a day trip would.
+const NIGHT_RETURN_CEIL = 24 * 60 + 14 * 60; // ~14:00 the day after the return date
 
 /**
  * Round trips from `origin` starting on `date`: for every destination reachable by
@@ -73,15 +77,14 @@ export function bestGetawayTo(
 ): Getaway | null {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
   const minOnSite = opts.minOnSiteMin ?? 240;
-  const arriveCeil = opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
-  // Stay lengths to try, longest first. Same-day is always just [0]; a flexible
-  // search walks down from the max so the longest feasible getaway wins.
-  const nightChoices =
-    maxNights === 0
-      ? [0]
-      : opts.flexibleNights
-        ? Array.from({ length: maxNights }, (_, i) => maxNights - i)
-        : [maxNights];
+  // Sleeper round trip: you sleep on the train there AND back, arriving each
+  // morning — so returns arrive the day after they leave, and there's no same-day
+  // option (nights ≥ 1). A day trip keeps its morning-out / evening-back model.
+  const sleeper = Boolean(opts.onlyNight);
+  const arriveCeil = sleeper ? NIGHT_RETURN_CEIL : opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
+  // Stay lengths to try, longest first. A sleeper trip always has ≥ 1 night; a day
+  // trip can be same-day [0]; a flexible search walks down to the shortest stay.
+  const nightChoices = stayChoices(maxNights, Boolean(opts.flexibleNights), sleeper);
 
   // Earliest-arriving outbound on the start day (more time at the destination),
   // unless one was supplied by the caller.
@@ -95,12 +98,14 @@ export function bestGetawayTo(
   // The best return: latest feasible departure on the return day, home in time.
   // A flexible search prefers the longest stay, so the first match (largest N) wins.
   for (const nights of nightChoices) {
-    const returnDate = addDays(date, nights);
+    // A sleeper leaves the evening AFTER your last night (you arrived the morning
+    // after departing), so its return date is one day later than a day trip's.
+    const returnDate = addDays(date, sleeper ? nights + 1 : nights);
     let back: Journey | null = null;
     for (const j of findJourneys(trains, dest, origin, returnDate, opts)) {
       if (j.arriveMin > arriveCeil) continue; // gets home too late
-      // Same-day: leave enough time in the city; a multi-night stay needs no such gap.
-      if (nights === 0 && j.departMin < out.arriveMin + minOnSite) continue;
+      // Same-day: leave enough time in the city; a stay (or any sleeper) needs no gap.
+      if (!sleeper && nights === 0 && j.departMin < out.arriveMin + minOnSite) continue;
       if (!back || j.departMin > back.departMin) back = j; // keep the latest return
     }
     if (back) {
@@ -109,12 +114,28 @@ export function bestGetawayTo(
         outbound: out,
         back,
         nights,
-        onSiteMin: nights === 0 ? back.departMin - out.arriveMin : undefined,
+        onSiteMin: !sleeper && nights === 0 ? back.departMin - out.arriveMin : undefined,
         travelMin: out.totalDurationMin + back.totalDurationMin,
       };
     }
   }
   return null;
+}
+
+/**
+ * Stay lengths to try, longest first. A sleeper trip always has ≥ 1 night (you
+ * ride overnight, so same-day is impossible); a day trip allows same-day [0]. A
+ * flexible search walks down to the shortest stay so the longest feasible wins.
+ */
+function stayChoices(maxNights: number, flexible: boolean, sleeper: boolean): number[] {
+  // Descending [hi, hi-1, …, lo].
+  const range = (hi: number, lo: number): number[] => Array.from({ length: hi - lo + 1 }, (_, i) => hi - i);
+  if (sleeper) {
+    const top = Math.max(maxNights, 1); // overnight both ways → never same-day
+    return flexible ? range(top, 1) : [top];
+  }
+  if (maxNights === 0) return [0]; // a same-day day trip
+  return flexible ? range(maxNights, 1) : [maxNights];
 }
 
 /** Rank: most nights, then most time on site (same-day) / least travel (stays). */
@@ -182,13 +203,11 @@ export function getawayIdeas(
 ): { trips: Getaway[]; perDay: CalendarDay[] } {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
   const minOnSite = opts.minOnSiteMin ?? 240;
-  const arriveCeil = opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
-  const nightChoices =
-    maxNights === 0
-      ? [0]
-      : opts.flexibleNights
-        ? Array.from({ length: maxNights }, (_, i) => maxNights - i)
-        : [maxNights];
+  // Sleeper round trips arrive each morning, so the return lands the day after it
+  // leaves (later ceiling) and there's no same-day option (nights ≥ 1).
+  const sleeper = Boolean(opts.onlyNight);
+  const arriveCeil = sleeper ? NIGHT_RETURN_CEIL : opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
+  const nightChoices = stayChoices(maxNights, Boolean(opts.flexibleNights), sleeper);
 
   const byDest = new Map<string, Getaway>();
   const perDay: CalendarDay[] = [];
@@ -196,21 +215,22 @@ export function getawayIdeas(
     const outboundMap = reachableJourneys(trains, origin, date, opts);
     const startable = new Set<string>(); // round-trippable destinations starting today
     for (const nights of nightChoices) {
-      const returns = latestReturns(trains, origin, addDays(date, nights), arriveCeil, opts);
+      // A sleeper return leaves the evening after your last night — one day later.
+      const returns = latestReturns(trains, origin, addDays(date, sleeper ? nights + 1 : nights), arriveCeil, opts);
       if (returns.size === 0) continue;
       for (const [dest, outbound] of outboundMap) {
         if (dest === origin || !accept(dest)) continue;
         const back = returns.get(dest);
         if (!back) continue;
         // Same-day: the return must leave after you've had your time in the city.
-        if (nights === 0 && back.departMin < outbound.arriveMin + minOnSite) continue;
+        if (!sleeper && nights === 0 && back.departMin < outbound.arriveMin + minOnSite) continue;
         startable.add(dest);
         const g: Getaway = {
           destination: dest,
           outbound,
           back,
           nights,
-          onSiteMin: nights === 0 ? back.departMin - outbound.arriveMin : undefined,
+          onSiteMin: !sleeper && nights === 0 ? back.departMin - outbound.arriveMin : undefined,
           travelMin: outbound.totalDurationMin + back.totalDurationMin,
         };
         const cur = byDest.get(dest);
