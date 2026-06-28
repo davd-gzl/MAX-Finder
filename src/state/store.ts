@@ -1,4 +1,4 @@
-import type { SearchQuery, SearchMode, CardType } from "../types";
+import type { SearchQuery, SearchMode, CardType, Journey } from "../types";
 import { isLang, detectLang, type Lang } from "../i18n";
 
 export type Theme = "light" | "dark" | "auto";
@@ -18,6 +18,7 @@ const KEY = {
   settings: "mj.settings",
   favorites: "mj.favorites",
   watched: "mj.watched",
+  trips: "mj.trips",
 } as const;
 
 function readLS<T>(key: string, fallback: T): T {
@@ -90,6 +91,59 @@ export function toggleWatched(r: RoutePair): RoutePair[] {
   else list.push(r);
   writeLS(KEY.watched, list);
   return list;
+}
+
+// --- saved trips ------------------------------------------------------------
+
+/**
+ * A saved travel: a single journey ("one-way") or a round trip (outbound +
+ * inbound). Stored as a snapshot of the chosen trains so it survives a data
+ * refresh — a record of intent the traveller can re-check on SNCF Connect.
+ */
+export interface SavedTrip {
+  id: string;
+  kind: "one-way" | "round";
+  outbound: Journey;
+  inbound?: Journey;
+  savedAt: number; // epoch ms, for newest-first ordering
+}
+
+/** Stable identity for a trip: its legs' dates + train numbers (both directions). */
+export function tripId(outbound: Journey, inbound?: Journey): string {
+  const legs = (j: Journey): string => j.legs.map((l) => `${l.date}/${l.trainNo}`).join(">");
+  return inbound ? `${legs(outbound)}|${legs(inbound)}` : legs(outbound);
+}
+
+export function loadTrips(): SavedTrip[] {
+  return readLS<SavedTrip[]>(KEY.trips, []);
+}
+
+export function isTripSaved(id: string): boolean {
+  return loadTrips().some((t) => t.id === id);
+}
+
+/** Save a trip (no-op if already saved). Returns the updated, newest-first list. */
+export function saveTrip(trip: SavedTrip): SavedTrip[] {
+  const list = loadTrips();
+  if (!list.some((t) => t.id === trip.id)) list.unshift(trip);
+  writeLS(KEY.trips, list);
+  return list;
+}
+
+export function removeTrip(id: string): SavedTrip[] {
+  const list = loadTrips().filter((t) => t.id !== id);
+  writeLS(KEY.trips, list);
+  return list;
+}
+
+/** Save the trip if absent, else remove it. Returns whether it is now saved. */
+export function toggleTrip(trip: SavedTrip): boolean {
+  if (isTripSaved(trip.id)) {
+    removeTrip(trip.id);
+    return false;
+  }
+  saveTrip(trip);
+  return true;
 }
 
 // --- URL deep-links ---------------------------------------------------------

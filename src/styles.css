@@ -1667,6 +1667,74 @@ a {
   margin-top: 0.3rem;
 }
 
+/* ---- trip view (the whole trip on one page) ---- */
+.trip-modal {
+  max-width: 40rem;
+}
+.trip-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.trip-title {
+  font-size: 1.1rem;
+}
+.trip-summary {
+  margin: -0.25rem 0 0.35rem;
+}
+.trip-leg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.trip-leg-title {
+  font-size: 0.85rem;
+  font-weight: 640;
+  color: var(--muted);
+}
+.trip-view-actions {
+  display: flex;
+  margin-top: 0.1rem;
+}
+.trip-modal .modal-actions {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+.trip-more {
+  font-size: 0.86rem;
+}
+.btn.is-saved {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- saved trips rail ---- */
+.saved-trips {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.05rem;
+}
+.saved-trips h2 {
+  font-size: 0.95rem;
+  font-weight: 620;
+  margin-bottom: 0.7rem;
+}
+.trip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.trip-open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.trip-open-route {
+  font-weight: 560;
+}
+
 /* ---- od "come back?" return section ---- */
 .od-return {
   margin-top: 1rem;

@@ -194,4 +194,13 @@ export const en: Dict = {
   getaway_none: "No MAX round trips for these criteria.",
   getaway_none_hint: "Try fewer nights, more connections, or allow a late return.",
 
+  act_save: "Save",
+  act_saved: "Saved",
+  act_unsave: "Remove from saved trips",
+  saved_title: "Saved trips",
+  trip_summary: "{n} night(s) · {dur} round-trip travel",
+  trip_summary_day: "Day trip · {dur} travel",
+  trip_summary_oneway: "One-way · {date} · {dur}",
+  trip_more_dates: "See all dates",
+
 };
