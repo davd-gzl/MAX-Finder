@@ -1027,13 +1027,6 @@ a {
   gap: 0.35rem;
   flex: none;
 }
-/* The calendar glyph on the "N days/mo" chip: small + muted so it reads as a
-   "this many dates" marker, never as part of the trip duration. */
-.month-chip svg {
-  width: 0.85em;
-  height: 0.85em;
-  opacity: 0.75;
-}
 .chev {
   margin-left: auto;
   flex: none;

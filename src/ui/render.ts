@@ -541,14 +541,12 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
     );
   }
   if (trip.days != null) {
-    // A calendar icon + "/mo" wording make clear this is how many days the
-    // destination runs this month — not the trip's length (which is shown
-    // separately as the duration).
     chips.push(
-      el("span", { class: "chip chip-soft month-chip", attrs: { title: t("ideas_days_hint", { n: trip.days }) } }, [
-        icon(I.cal),
-        el("span", { text: t("ideas_days", { n: trip.days }) }),
-      ]),
+      el("span", {
+        class: "chip chip-soft month-chip",
+        text: t("ideas_days", { n: trip.days }),
+        attrs: { title: t("ideas_days_hint", { n: trip.days }) },
+      }),
     );
   }
   const extra = chips.length ? el("span", { class: "row-chips" }, chips) : undefined;

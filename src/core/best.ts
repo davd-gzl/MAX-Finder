@@ -42,9 +42,11 @@ export function bestTrips(
 
 /**
  * The best free-MAX trip to every destination reachable from `origin` on ANY day
- * across `dates` — the "ideas, all days" view. Each destination is kept once, on
- * the EARLIEST day it's reachable (so the result is the soonest way to reach each
- * place), and ranked by total travel time, fastest first.
+ * across `dates` — the "ideas, all days" view. Each destination is kept once, with
+ * the SHORTEST journey found on any day (so the headline duration matches the best
+ * real trip — the same one opening the route shows — not whatever the earliest day
+ * happened to offer, which can be a far slower overnight detour). Ranked by total
+ * travel time, fastest first.
  *
  * Connection-aware: one multi-target graph search per day finds the same connecting
  * destinations the single-day list does (not just direct ones), at roughly the cost
@@ -62,7 +64,11 @@ export function bestTripsAcrossWindow(
     for (const [destination, journey] of reachableJourneys(trains, origin, date, opts)) {
       if (destination === origin) continue;
       dayCount.set(destination, (dayCount.get(destination) ?? 0) + 1); // reachable that day
-      if (!found.has(destination)) found.set(destination, { destination, journey }); // earliest day
+      const cur = found.get(destination);
+      // Keep the fastest journey across the whole window, not the earliest day's.
+      if (!cur || journey.totalDurationMin < cur.journey.totalDurationMin) {
+        found.set(destination, { destination, journey });
+      }
     }
   }
   for (const trip of found.values()) trip.days = dayCount.get(trip.destination);
