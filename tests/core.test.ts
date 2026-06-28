@@ -221,7 +221,7 @@ describe("bestTrips", () => {
 });
 
 describe("bestTripsAcrossWindow (ideas, all days)", () => {
-  it("unions destinations across the window, keeping each on its earliest day", () => {
+  it("unions destinations across the window, once each, fastest-first", () => {
     const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
     const all = bestTripsAcrossWindow(trains, "PARIS (intramuros)", dates, { maxConnections: 1 });
     // Direct destinations from Paris across the window, once each, fastest-first.
@@ -232,10 +232,35 @@ describe("bestTripsAcrossWindow (ideas, all days)", () => {
       expect(all[i]!.journey.totalDurationMin).toBeGreaterThanOrEqual(all[i - 1]!.journey.totalDurationMin);
     }
     // A destination that only runs on a later sample day is still listed, dated to
-    // the earliest day it actually runs.
+    // a day it actually runs.
     const lyon = all.find((t) => t.destination === "LYON (intramuros)");
     expect(lyon).toBeDefined();
     expect(dates).toContain(lyon!.journey.date);
+  });
+
+  it("keeps the fastest journey across the window, not the earliest day's slow detour", () => {
+    // CHALON's only day-1 path is a slow overnight detour via the LYON hub; day 2
+    // has a quick direct PARIS -> CHALON. The ideas row must headline the fast
+    // trip (like opening the route would), not the earliest day's 24h detour.
+    const fixture = normalizeRecords([
+      // Day 1: PARIS -> LYON, then an overnight wait before LYON -> CHALON on day 2.
+      { date: "2026-09-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "09:30", train_no: "A1", od_happy_card: "OUI" },
+      { date: "2026-09-02", origine: "LYON (intramuros)", destination: "CHALON", heure_depart: "07:00", heure_arrivee: "07:40", train_no: "A2", od_happy_card: "OUI" },
+      // Day 2: a quick direct PARIS -> CHALON.
+      { date: "2026-09-02", origine: "PARIS (intramuros)", destination: "CHALON", heure_depart: "10:00", heure_arrivee: "11:00", train_no: "B1", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const dates = ["2026-09-01", "2026-09-02"];
+    // Overnight layovers allowed (as in the night-train scenario), so the slow
+    // day-1 detour is a valid candidate the old "earliest day" code would keep.
+    const all = bestTripsAcrossWindow(fixture, "PARIS (intramuros)", dates, {
+      maxConnections: 1,
+      maxConnectionMin: 2000,
+    });
+    const chalon = all.find((t) => t.destination === "CHALON");
+    expect(chalon).toBeDefined();
+    expect(chalon!.journey.legs).toHaveLength(1); // the direct hop, not the via-Lyon detour
+    expect(chalon!.journey.totalDurationMin).toBe(60);
+    expect(chalon!.days).toBe(2); // still counted as reachable on both days
   });
 });
 

@@ -8,7 +8,7 @@ export const nl: Dict = {
   best_title: "Beste reizen vanaf {station} — {date}",
   best_title_all: "Alle bestemmingen vanaf {station}",
   best_all_days: "Alle dagen tonen",
-  ideas_days: "{n} dgn/mnd",
+  ideas_days: "{n} dagen",
   ideas_days_hint: "{n} dag(en) bereikbaar in deze periode",
   field_region: "Regio",
   region_any: "Alle regio's",

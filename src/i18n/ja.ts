@@ -8,7 +8,7 @@ export const ja: Dict = {
   best_title: "{station} 発のベストな旅程 — {date}",
   best_title_all: "{station} から行ける全ての行き先",
   best_all_days: "すべての日を表示",
-  ideas_days: "月 {n} 日",
+  ideas_days: "{n} 日",
   ideas_days_hint: "期間中 {n} 日利用可能",
   field_region: "地域",
   region_any: "すべての地域",
