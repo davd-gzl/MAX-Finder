@@ -161,4 +161,17 @@ export const zh: Dict = {
   field_maxLegKm: "每趟列车最大距离（公里）",
   field_maxLegDuration: "每趟列车最长时间（分钟）",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
+  field_daytrip: "当日往返",
+  field_daytrip_hours: "当地最短停留（小时）",
+  field_late_return: "深夜返程（~02:00）",
+  daytrip_title: "从 {station} 出发的一日游 — {date}",
+  daytrip_count: "可行一日游 {n} 个",
+  daytrip_none: "在这些条件下没有当日 MAX 往返。",
+  daytrip_none_hint: "尝试增加换乘、减少停留时间，或允许深夜返程。",
+  daytrip_onsite: "当地 {dur}",
+  daytrip_onsite_hint: "在城市停留的时间，从到达至返程出发。",
+  daytrip_travel: "行程 {dur}",
+  daytrip_out: "去程",
+  daytrip_back: "返程",
+
 };

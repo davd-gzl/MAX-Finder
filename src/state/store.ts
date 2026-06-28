@@ -119,6 +119,9 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxLegDurationMin != null && q.maxLegDurationMin > 0) p.set("legdur", String(q.maxLegDurationMin));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
   if (q.radiusKm != null && q.radiusKm > 0) p.set("rad", String(q.radiusKm));
+  if (q.dayTrip) p.set("day", "1");
+  if (q.dayTripMinHours != null && q.dayTripMinHours > 0) p.set("dayh", String(q.dayTripMinHours));
+  if (q.lateReturn) p.set("late", "1");
   if (q.tourEndDate) p.set("by", q.tourEndDate);
   return p;
 }
@@ -137,6 +140,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
   const legdur = Number(p.get("legdur"));
   const span = Number(p.get("span"));
   const rad = Number(p.get("rad"));
+  const dayh = Number(p.get("dayh"));
   const clampDay = (n: number, fallback: number): number =>
     Number.isFinite(n) && n >= 1 ? Math.min(14, Math.floor(n)) : fallback;
   return {
@@ -166,6 +170,10 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
     // od-only search radius (km) for nearby paid-connection alternatives.
     radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
+    // "Day trip" (same-day round trips) — readQueryFromForm re-gates it to "from".
+    dayTrip: p.get("day") === "1" || undefined,
+    dayTripMinHours: Number.isFinite(dayh) && dayh >= 1 ? Math.min(12, Math.floor(dayh)) : undefined,
+    lateReturn: p.get("late") === "1" || undefined,
     tourEndDate: p.get("by") ?? undefined,
   };
 }

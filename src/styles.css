@@ -451,6 +451,31 @@ a {
   min-width: 0;
 }
 
+/* ---- day trip (same-day round trips) toggle + options ---- */
+.daytrip-group {
+  grid-column: 1 / -1;
+}
+.daytrip-toggle {
+  align-self: start;
+  padding-bottom: 0;
+}
+.daytrip-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem 0.9rem;
+  margin-top: 0.55rem;
+  padding-left: 1.6rem; /* line up under the toggle's label */
+}
+.daytrip-opts .field {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.daytrip-opts .field-check {
+  align-self: end;
+  padding-bottom: 0.55rem;
+}
+
 /* ---- tour cities chip input ---- */
 .cities-wrap {
   display: flex;
@@ -1026,6 +1051,61 @@ a {
 }
 .chip-soft {
   background: var(--surface-2);
+}
+.chip-onsite {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- day-trip result rows ---- */
+.daytrip-main {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.32rem;
+}
+.daytrip-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.daytrip-top .chip-onsite {
+  margin-left: auto; /* push the headline "X on site" to the right edge */
+  flex: none;
+}
+.daytrip-legs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.daytrip-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.daytrip-leg-label {
+  font-size: 0.72rem;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.daytrip-times {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.daytrip-travel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 /* ---- train rows / journeys ---- */

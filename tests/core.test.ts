@@ -7,6 +7,7 @@ import { findJourneys, bestJourney, reachableJourneys } from "../src/core/connec
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
+import { dayTrips } from "../src/core/daytrips";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -571,6 +572,48 @@ describe("haversineKm", () => {
     expect(d).toBeGreaterThan(388);
     expect(d).toBeLessThan(396);
     expect(haversineKm([48.8443, 2.3743], [48.8443, 2.3743])).toBe(0);
+  });
+});
+
+describe("dayTrips (same-day round trips)", () => {
+  // ARRAS: leave 09:00 (arrive 10:00), come back 22:00 (home 23:00) — a full day.
+  // REIMS: only a short window (arrive 11:00, last return departs 13:00) — 2h on site.
+  // DOUAI: a morning train out but NO return the same day — must be excluded.
+  const data = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "ARRAS", heure_depart: "09:00", heure_arrivee: "10:00", train_no: "A1", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "ARRAS", destination: "PARIS (intramuros)", heure_depart: "22:00", heure_arrivee: "23:00", train_no: "A2", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "REIMS", heure_depart: "10:00", heure_arrivee: "11:00", train_no: "R1", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "REIMS", destination: "PARIS (intramuros)", heure_depart: "13:00", heure_arrivee: "14:00", train_no: "R2", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "DOUAI", heure_depart: "09:30", heure_arrivee: "10:30", train_no: "D1", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("pairs a morning outbound with the latest feasible return, ranked by time on site", () => {
+    const trips = dayTrips(data, "PARIS (intramuros)", "2026-07-01", {
+      maxConnections: 0,
+      minOnSiteMin: 60, // 1 h, so the short Reims window still qualifies
+    });
+    expect(trips.map((t) => t.destination)).toEqual(["ARRAS", "REIMS"]); // Douai dropped, sorted by on-site
+    const arras = trips[0]!;
+    expect(arras.outbound.legs[0]!.trainNo).toBe("A1");
+    expect(arras.back.legs[0]!.trainNo).toBe("A2");
+    expect(arras.onSiteMin).toBe(12 * 60); // 10:00 arrival -> 22:00 return departure
+    expect(arras.travelMin).toBe(120); // 60 out + 60 back
+  });
+
+  it("respects the minimum time on site", () => {
+    const trips = dayTrips(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
+    expect(trips.map((t) => t.destination)).toEqual(["ARRAS"]); // Reims' 2 h window is now too short
+  });
+
+  it("excludes a past-midnight return unless lateReturn is set", () => {
+    const late = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "ARRAS", heure_depart: "09:00", heure_arrivee: "10:00", train_no: "A1", od_happy_card: "OUI" },
+      { date: "2026-07-01", origine: "ARRAS", destination: "PARIS (intramuros)", heure_depart: "23:30", heure_arrivee: "00:45", train_no: "A2", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    expect(dayTrips(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0 })).toHaveLength(0);
+    const ok = dayTrips(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, lateReturn: true });
+    expect(ok).toHaveLength(1);
+    expect(ok[0]!.back.legs[0]!.trainNo).toBe("A2");
   });
 });
 

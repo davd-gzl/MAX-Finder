@@ -161,4 +161,17 @@ export const nl: Dict = {
   field_maxLegKm: "Max. afstand / trein (km)",
   field_maxLegDuration: "Max. duur / trein (min)",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
+  field_daytrip: "Dagje weg (heen en terug)",
+  field_daytrip_hours: "Min. uren ter plaatse",
+  field_late_return: "Late terugreis (~02:00)",
+  daytrip_title: "Dagtrips vanaf {station} — {date}",
+  daytrip_count: "{n} dagtrip(s) mogelijk",
+  daytrip_none: "Geen MAX-dagretour voor deze criteria.",
+  daytrip_none_hint: "Probeer meer overstappen, minder uren ter plaatse, of sta een late terugreis toe.",
+  daytrip_onsite: "{dur} ter plaatse",
+  daytrip_onsite_hint: "Tijd in de stad, tussen aankomst en de terugreis.",
+  daytrip_travel: "{dur} reizen",
+  daytrip_out: "Heen",
+  daytrip_back: "Terug",
+
 };

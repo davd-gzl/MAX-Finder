@@ -161,4 +161,17 @@ export const ar: Dict = {
   field_maxLegKm: "أقصى مسافة / قطار (كم)",
   field_maxLegDuration: "أقصى مدة / قطار (دقيقة)",
   stat_window_hint: "{trains} قطار MAX إلى هذه الوجهة خلال {days} يومًا القادمة. افتح الرحلة المحددة لرؤية التواريخ.",
+  field_daytrip: "ذهاب وإياب في نفس اليوم",
+  field_daytrip_hours: "الحد الأدنى للساعات في الموقع",
+  field_late_return: "عودة متأخرة (~02:00)",
+  daytrip_title: "رحلات يوم واحد من {station} — {date}",
+  daytrip_count: "{n} رحلة يومية ممكنة",
+  daytrip_none: "لا توجد رحلات MAX ذهابًا وإيابًا في نفس اليوم بهذه المعايير.",
+  daytrip_none_hint: "جرّب المزيد من التوقفات، أو ساعات أقل في الموقع، أو اسمح بعودة متأخرة.",
+  daytrip_onsite: "{dur} في الموقع",
+  daytrip_onsite_hint: "الوقت في المدينة، بين الوصول ومغادرة العودة.",
+  daytrip_travel: "{dur} سفر",
+  daytrip_out: "ذهاب",
+  daytrip_back: "إياب",
+
 };

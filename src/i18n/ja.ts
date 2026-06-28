@@ -161,4 +161,17 @@ export const ja: Dict = {
   field_maxLegKm: "列車ごと距離の上限 (km)",
   field_maxLegDuration: "1列車あたり最大時間（分）",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
+  field_daytrip: "日帰り往復",
+  field_daytrip_hours: "現地の最低滞在時間",
+  field_late_return: "深夜帰着（~02:00）",
+  daytrip_title: "{station} からの日帰り旅 — {date}",
+  daytrip_count: "日帰り {n} 件が可能",
+  daytrip_none: "この条件では日帰りの MAX 往復がありません。",
+  daytrip_none_hint: "乗り換えを増やす、滞在時間を減らす、または深夜帰着を許可してみてください。",
+  daytrip_onsite: "現地 {dur}",
+  daytrip_onsite_hint: "到着から復路出発までの、街での滞在時間。",
+  daytrip_travel: "移動 {dur}",
+  daytrip_out: "往路",
+  daytrip_back: "復路",
+
 };

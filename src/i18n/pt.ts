@@ -161,4 +161,17 @@ export const pt: Dict = {
   field_maxLegKm: "Distância máx. / trem (km)",
   field_maxLegDuration: "Duração máx. / comboio (min)",
   stat_window_hint: "{trains} trens MAX para este destino em {days} dias à frente. Abra a viagem exata para ver as datas.",
+  field_daytrip: "Bate-volta no mesmo dia",
+  field_daytrip_hours: "Horas mín. no local",
+  field_late_return: "Volta tardia (~02:00)",
+  daytrip_title: "Bate-voltas a partir de {station} — {date}",
+  daytrip_count: "{n} bate-volta(s) possível(is)",
+  daytrip_none: "Nenhum ida e volta MAX no mesmo dia para estes critérios.",
+  daytrip_none_hint: "Tente mais conexões, menos horas no local, ou permita uma volta tardia.",
+  daytrip_onsite: "{dur} no local",
+  daytrip_onsite_hint: "Tempo na cidade, entre a chegada e a partida de volta.",
+  daytrip_travel: "{dur} de viagem",
+  daytrip_out: "Ida",
+  daytrip_back: "Volta",
+
 };
