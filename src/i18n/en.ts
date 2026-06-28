@@ -177,6 +177,7 @@ export const en: Dict = {
   nearest_hint: "Straight-line distance · adds the closest reachable station",
   field_stay_min: "Min days / city",
   field_stay_max: "Max days / city",
+  field_tour_count: "Cities to add",
   field_maxKm: "Max total distance (km)",
   field_maxLegKm: "Max distance / train (km)",
   field_maxLegDuration: "Max duration / train (min)",

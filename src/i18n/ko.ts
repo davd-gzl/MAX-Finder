@@ -165,6 +165,7 @@ export const ko: Dict = {
   nearest_hint: "직선 거리 · 도달 가능한 가장 가까운 역을 추가",
   field_stay_min: "도시당 최소 일수",
   field_stay_max: "도시당 최대 일수",
+  field_tour_count: "추가할 도시 수",
   field_maxKm: "최대 총 거리 (km)",
   field_maxLegKm: "열차당 최대 거리 (km)",
   field_maxLegDuration: "열차당 최대 시간 (분)",

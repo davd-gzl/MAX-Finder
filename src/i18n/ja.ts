@@ -164,6 +164,7 @@ export const ja: Dict = {
   nearest_hint: "直線距離 · 到達可能な最寄り駅を追加",
   field_stay_min: "都市ごと最小日数",
   field_stay_max: "都市ごと最大日数",
+  field_tour_count: "追加する都市数",
   field_maxKm: "合計距離の上限 (km)",
   field_maxLegKm: "列車ごと距離の上限 (km)",
   field_maxLegDuration: "1列車あたり最大時間（分）",

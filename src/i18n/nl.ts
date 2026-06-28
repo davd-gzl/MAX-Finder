@@ -164,6 +164,7 @@ export const nl: Dict = {
   nearest_hint: "Hemelsbrede afstand · voegt het dichtstbijzijnde bereikbare station toe",
   field_stay_min: "Min. dagen / stad",
   field_stay_max: "Max. dagen / stad",
+  field_tour_count: "Steden toevoegen",
   field_maxKm: "Max. totale afstand (km)",
   field_maxLegKm: "Max. afstand / trein (km)",
   field_maxLegDuration: "Max. duur / trein (min)",
