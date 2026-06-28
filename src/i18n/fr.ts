@@ -173,18 +173,25 @@ export const fr = {
   field_maxLegDuration: "Durée max. / train (min)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 
-  field_daytrip: "Aller-retour dans la journée",
   field_daytrip_hours: "Heures min. sur place",
   field_late_return: "Retour tardif (~02:00)",
-  daytrip_title: "Escapade d'un jour depuis {station} — {date}",
-  daytrip_count: "{n} escapade(s) possible(s)",
-  daytrip_none: "Aucun aller-retour MAX dans la journée pour ces critères.",
-  daytrip_none_hint: "Essayez plus de correspondances, moins d'heures sur place, ou autorisez un retour tardif.",
   daytrip_onsite: "{dur} sur place",
   daytrip_onsite_hint: "Temps dans la ville, entre l'arrivée et le départ du retour.",
   daytrip_travel: "{dur} de trajet",
   daytrip_out: "Aller",
   daytrip_back: "Retour",
+  field_roundtrip: "Aller-retour",
+  field_nights: "Nuits",
+  nights_sameday: "Journée",
+  nights_n: "{n} nuit(s)",
+  nights_flex: "Flexible (≤ 3)",
+  getaway_title: "Allers-retours depuis {station} — {date}",
+  getaway_count: "{n} aller(s)-retour(s) possible(s)",
+  getaway_nights: "{n} nuit(s) sur place",
+  getaway_nights_hint: "Nuits à destination avant le retour.",
+  getaway_none: "Aucun aller-retour MAX pour ces critères.",
+  getaway_none_hint: "Essayez moins de nuits, plus de correspondances, ou autorisez un retour tardif.",
+
 };
 
 export type Dict = typeof fr;

@@ -7,7 +7,7 @@ import { findJourneys, bestJourney, reachableJourneys } from "../src/core/connec
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
-import { dayTrips } from "../src/core/daytrips";
+import { getaways } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -575,7 +575,7 @@ describe("haversineKm", () => {
   });
 });
 
-describe("dayTrips (same-day round trips)", () => {
+describe("getaways (round trips: day trips + N-night stays)", () => {
   // ARRAS: leave 09:00 (arrive 10:00), come back 22:00 (home 23:00) — a full day.
   // REIMS: only a short window (arrive 11:00, last return departs 13:00) — 2h on site.
   // DOUAI: a morning train out but NO return the same day — must be excluded.
@@ -588,12 +588,13 @@ describe("dayTrips (same-day round trips)", () => {
   ] as RawRecord[]);
 
   it("pairs a morning outbound with the latest feasible return, ranked by time on site", () => {
-    const trips = dayTrips(data, "PARIS (intramuros)", "2026-07-01", {
+    const trips = getaways(data, "PARIS (intramuros)", "2026-07-01", {
       maxConnections: 0,
       minOnSiteMin: 60, // 1 h, so the short Reims window still qualifies
     });
     expect(trips.map((t) => t.destination)).toEqual(["ARRAS", "REIMS"]); // Douai dropped, sorted by on-site
     const arras = trips[0]!;
+    expect(arras.nights).toBe(0);
     expect(arras.outbound.legs[0]!.trainNo).toBe("A1");
     expect(arras.back.legs[0]!.trainNo).toBe("A2");
     expect(arras.onSiteMin).toBe(12 * 60); // 10:00 arrival -> 22:00 return departure
@@ -601,7 +602,7 @@ describe("dayTrips (same-day round trips)", () => {
   });
 
   it("respects the minimum time on site", () => {
-    const trips = dayTrips(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
+    const trips = getaways(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
     expect(trips.map((t) => t.destination)).toEqual(["ARRAS"]); // Reims' 2 h window is now too short
   });
 
@@ -610,10 +611,40 @@ describe("dayTrips (same-day round trips)", () => {
       { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "ARRAS", heure_depart: "09:00", heure_arrivee: "10:00", train_no: "A1", od_happy_card: "OUI" },
       { date: "2026-07-01", origine: "ARRAS", destination: "PARIS (intramuros)", heure_depart: "23:30", heure_arrivee: "00:45", train_no: "A2", od_happy_card: "OUI" },
     ] as RawRecord[]);
-    expect(dayTrips(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0 })).toHaveLength(0);
-    const ok = dayTrips(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, lateReturn: true });
+    expect(getaways(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0 })).toHaveLength(0);
+    const ok = getaways(late, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, lateReturn: true });
     expect(ok).toHaveLength(1);
     expect(ok[0]!.back.legs[0]!.trainNo).toBe("A2");
+  });
+
+  // ROUEN: out 01-Jul, return only on 03-Jul (2 nights). No same-day return exists.
+  const stay = normalizeRecords([
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "ROUEN", heure_depart: "09:00", heure_arrivee: "10:00", train_no: "X1", od_happy_card: "OUI" },
+    { date: "2026-07-02", origine: "ROUEN", destination: "PARIS (intramuros)", heure_depart: "18:00", heure_arrivee: "19:00", train_no: "X2", od_happy_card: "OUI" },
+    { date: "2026-07-03", origine: "ROUEN", destination: "PARIS (intramuros)", heure_depart: "20:00", heure_arrivee: "21:00", train_no: "X3", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("finds an N-night stay: outbound on the start day, return N days later", () => {
+    const none = getaways(stay, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0 }); // same day
+    expect(none).toHaveLength(0);
+    const twoNights = getaways(stay, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, nights: 2 });
+    expect(twoNights).toHaveLength(1);
+    expect(twoNights[0]!.nights).toBe(2);
+    expect(twoNights[0]!.outbound.legs[0]!.trainNo).toBe("X1");
+    expect(twoNights[0]!.back.legs[0]!.trainNo).toBe("X3"); // the 03-Jul return
+    expect(twoNights[0]!.onSiteMin).toBeUndefined(); // multi-night counts nights, not minutes
+  });
+
+  it("flexibleNights keeps the longest feasible stay up to the max", () => {
+    // With max 3 nights, the longest feasible stay is 2 (return on 03-Jul).
+    const flex = getaways(stay, "PARIS (intramuros)", "2026-07-01", {
+      maxConnections: 0,
+      nights: 3,
+      flexibleNights: true,
+    });
+    expect(flex).toHaveLength(1);
+    expect(flex[0]!.nights).toBe(2);
+    expect(flex[0]!.back.legs[0]!.trainNo).toBe("X3");
   });
 });
 
