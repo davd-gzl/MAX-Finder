@@ -69,7 +69,7 @@ interface Refs {
   roundTripField: HTMLElement;
   roundTripOpts: HTMLElement;
   via: HTMLInputElement;
-  flex: HTMLSelectElement;
+  flex: HTMLElement; // segmented button group (data-value holds the selection)
   flexField: HTMLElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
@@ -700,7 +700,7 @@ function syncFormFromQuery(): void {
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  refs.flex.value = String(query.flexDays ?? 0);
+  setSeg(refs.flex, String(query.flexDays ?? 0));
   refs.date.value = query.date;
   refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
@@ -746,7 +746,9 @@ function readQueryFromForm(): SearchQuery {
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
     via: resolveStation(refs.via.value),
-    flexDays: Number(refs.flex.value) || undefined,
+    // Flexible dates don't apply to the round-trip finder (it pivots on one start
+    // date), so they're cleared there; otherwise read the segmented control.
+    flexDays: roundTrip ? undefined : Number(getSeg(refs.flex)) || undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -1734,8 +1736,12 @@ function updateFieldVisibility(): void {
   // surfaces more places; in a tour it lets the departure slip a few days later to
   // find a feasible start. Exact trip already has the 30-day calendar (the flex list
   // would just duplicate it); best has its ideas-by-day calendar.
+  // Hidden for the round-trip finder: it pivots on one start date, so ±N days
+  // has no effect there (showing it would just be a dead control).
   refs.flexField.style.display =
-    query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
+    (query.mode === "from" && !refs.roundTrip.checked) || query.mode === "to" || query.mode === "tour"
+      ? ""
+      : "none";
 
   // Round trip (day trips + N-night getaways) is a "Where to?"-only toggle; its
   // options appear once the toggle is on, and "min hours on site" only for a
@@ -2098,18 +2104,25 @@ function buildForm(): FormBuild {
   const syncRoundTripOpts = (): void => {
     roundTripOpts.style.display = roundTrip.checked ? "" : "none";
     stayHoursField.style.display = nights.value === "0" ? "" : "none";
+    // ±N days doesn't apply to the round-trip finder — hide it while it's on.
+    refs.flexField.style.display = roundTrip.checked ? "none" : "";
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
   nights.addEventListener("change", syncRoundTripOpts);
-  // Flexible dates ("± N days") for the exact-trip search — find a MAX seat around
-  // the chosen date, not only on it.
-  const flex = el("select", { class: "input" }, [
-    optionEl("0", t("flex_exact"), true),
-    optionEl("1", "± 1", false),
-    optionEl("2", "± 2", false),
-    optionEl("3", "± 3", false),
-    optionEl("7", "± 7", false),
-  ]) as HTMLSelectElement;
+  // Flexible dates ("± N days"): a segmented button group (one tap per option,
+  // easier than a dropdown). Widens the browse to a window around the chosen date.
+  const flex = segmented(
+    [
+      ["0", t("flex_exact")],
+      ["1", "± 1"],
+      ["2", "± 2"],
+      ["3", "± 3"],
+      ["7", "± 7"],
+    ],
+    () => liveUpdate(),
+  );
+  flex.setAttribute("aria-label", t("field_flex"));
+  setSeg(flex, "0");
   const flexField = field(t("field_flex"), flex);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
@@ -2513,6 +2526,48 @@ function inputEl(type: string, list?: string): HTMLInputElement {
 
 function field(label: string, control: HTMLElement): HTMLElement {
   return el("label", { class: "field" }, [el("span", { class: "field-label", text: label }), control]);
+}
+
+/**
+ * A segmented button group (tap-to-pick chips, easier than a dropdown). Each option
+ * is a button carrying its value in `data-v`; the chosen value lives on the group's
+ * `data-value`. `onPick` runs after a click.
+ */
+function segmented(options: ReadonlyArray<readonly [string, string]>, onPick: () => void): HTMLElement {
+  const seg = el("div", { class: "seg", attrs: { role: "group" } });
+  for (const [v, label] of options) {
+    seg.append(
+      el("button", {
+        class: "seg-btn",
+        type: "button",
+        text: label,
+        dataset: { v },
+        on: {
+          click: () => {
+            setSeg(seg, v);
+            onPick();
+          },
+        },
+      }),
+    );
+  }
+  return seg;
+}
+
+/** Set the active option of a segmented group (and store it on `data-value`). */
+function setSeg(seg: HTMLElement, value: string): void {
+  seg.dataset.value = value;
+  for (const child of Array.from(seg.children)) {
+    const b = child as HTMLElement;
+    const active = b.dataset.v === value;
+    b.classList.toggle("is-active", active);
+    b.setAttribute("aria-pressed", String(active));
+  }
+}
+
+/** Read the chosen value of a segmented group. */
+function getSeg(seg: HTMLElement): string {
+  return seg.dataset.value ?? "0";
 }
 
 /**

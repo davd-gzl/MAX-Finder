@@ -317,6 +317,32 @@ a {
   color: var(--muted);
   letter-spacing: 0.02em;
 }
+/* Segmented button group (tap-to-pick, e.g. date flexibility) — easier than a select. */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.seg-btn {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.seg-btn:hover {
+  border-color: var(--accent);
+}
+.seg-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 640;
+}
 .field-check {
   flex-direction: row;
   align-items: center;
