@@ -130,6 +130,19 @@ function bookLink(
   );
 }
 
+/** External travel-guide link styled as a button (matches the Save button). */
+export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
+  return el(
+    "a",
+    {
+      class: "btn btn-ghost",
+      href: ctx.cityInfoUrl(stationId),
+      attrs: { target: "_blank", rel: "noopener noreferrer" },
+    },
+    [icon(I.external), el("span", { text: t("act_guide") }), el("span", { class: "sr-only", text: t("link_newtab") })],
+  );
+}
+
 /** External travel-guide (Wikivoyage) link for a station's city. */
 export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
   return el(
@@ -661,6 +674,12 @@ export function calendarEl(
         // Weekday above the day number, so each cell reads as a real date.
         el("span", { class: "cal-dow", text: ctx.formatWeekday(d.date), attrs: { "aria-hidden": "true" } }),
         el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
+        // A tiny count (trains / destinations that day) so each cell carries a
+        // little more at-a-glance info without crowding — shown only when there's
+        // something on the route that day.
+        ...(d.available && d.count > 0
+          ? [el("span", { class: "cal-count", text: String(d.count), attrs: { "aria-hidden": "true" } })]
+          : []),
       ],
     );
     grid.append(cell);
@@ -764,7 +783,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
     // Save the trip + a travel guide for the destination city (what to do once there).
     el("div", { class: "trip-view-actions" }, [
       tripSaveBtn(outbound, ctx, inbound),
-      guideLinkEl(ctx, outbound.destination),
+      guideButtonEl(ctx, outbound.destination),
     ]),
   );
   return view;

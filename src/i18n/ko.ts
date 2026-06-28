@@ -194,4 +194,6 @@ export const ko: Dict = {
   ret_cal_title: "귀가편 가능일",
   ret_view_round: "왕복 보기",
 
+  getaway_cal_title: "날짜별 왕복",
+
 };

@@ -193,4 +193,6 @@ export const pt: Dict = {
   ret_cal_title: "Disponibilidade de voltas",
   ret_view_round: "Ver ida e volta",
 
+  getaway_cal_title: "Idas e voltas por dia",
+
 };

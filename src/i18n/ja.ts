@@ -193,4 +193,6 @@ export const ja: Dict = {
   ret_cal_title: "復路の空き状況",
   ret_view_round: "往復を見る",
 
+  getaway_cal_title: "日付別の往復",
+
 };

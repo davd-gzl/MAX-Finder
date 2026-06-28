@@ -217,7 +217,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     origin: p.get("from") ?? undefined,
     destination: p.get("to") ?? undefined,
     via: p.get("via") ?? undefined,
-    flexDays: [1, 2, 3, 7].includes(Number(p.get("flex"))) ? Number(p.get("flex")) : undefined,
+    flexDays: Number(p.get("flex")) >= 1 && Number(p.get("flex")) <= 7 ? Math.floor(Number(p.get("flex"))) : undefined,
     date: p.get("date") ?? fallbackDate,
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,

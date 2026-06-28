@@ -194,4 +194,6 @@ export const it: Dict = {
   ret_cal_title: "Disponibilità dei ritorni",
   ret_view_round: "Vedi andata e ritorno",
 
+  getaway_cal_title: "Andata e ritorno per giorno",
+
 };
