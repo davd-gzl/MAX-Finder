@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
-import { getaways } from "./core/getaways";
+import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
@@ -60,7 +60,9 @@ interface Refs {
   maxConnections: HTMLSelectElement;
   connGroupField: HTMLElement;
   overnight: HTMLInputElement;
-  night: HTMLSelectElement;
+  night: HTMLInputElement;
+  onlyNight: HTMLInputElement;
+  onlyNightField: HTMLElement;
   roundTrip: HTMLInputElement;
   nights: HTMLSelectElement;
   stayHours: HTMLInputElement;
@@ -715,7 +717,8 @@ function syncFormFromQuery(): void {
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
-  refs.night.value = query.onlyNight ? "only" : query.excludeNight ? "no" : "yes";
+  refs.night.checked = !query.excludeNight; // checked = night trains included
+  refs.onlyNight.checked = Boolean(query.onlyNight);
   refs.roundTrip.checked = Boolean(query.roundTrip);
   refs.nights.value = query.flexNights ? "flex" : String(query.nights ?? 0);
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
@@ -740,8 +743,8 @@ function readQueryFromForm(): SearchQuery {
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
   const stayHours = Number(refs.stayHours.value.trim());
-  // Round trip is a "Where to?" feature only — gate it to `from` so it never leaks.
-  const roundTrip = query.mode === "from" && refs.roundTrip.checked;
+  // Round trip lives in "Where to?" and "Ideas" — gate it to those so it never leaks.
+  const roundTrip = (query.mode === "from" || query.mode === "best") && refs.roundTrip.checked;
   const flexNights = refs.nights.value === "flex";
   const nightsVal = flexNights ? 3 : Number(refs.nights.value) || 0;
   return {
@@ -758,9 +761,10 @@ function readQueryFromForm(): SearchQuery {
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
     overnight: refs.overnight.checked || undefined,
-    // Night trains: "no" drops them, "only" keeps sleep-aboard journeys, "yes" both.
-    excludeNight: refs.night.value === "no" || undefined,
-    onlyNight: refs.night.value === "only" || undefined,
+    // Night trains: unchecked drops them; checked includes them, and the nested
+    // "only" checkbox then narrows to sleep-aboard journeys.
+    excludeNight: !refs.night.checked || undefined,
+    onlyNight: (refs.night.checked && refs.onlyNight.checked) || undefined,
     region: refs.region.value || undefined,
     // Chips hold the committed cities; also fold in any text still in the input
     // (typed but not yet turned into a chip) so a pending entry isn't lost.
@@ -882,6 +886,18 @@ function filterOpts() {
     // Overnight stopovers: widen the layover ceiling so a journey can wait
     // overnight at a hub instead of being limited to a ~4h connection.
     ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
+  };
+}
+
+/** Round-trip ("getaway") search options from the form (shared by Where-to? and Ideas). */
+function getawayOpts() {
+  return {
+    maxConnections: query.maxConnections,
+    ...filterOpts(),
+    ...(query.nights ? { nights: query.nights } : {}),
+    ...(query.flexNights ? { flexibleNights: true } : {}),
+    ...(query.stayMinHours ? { minOnSiteMin: query.stayMinHours * 60 } : {}),
+    ...(query.lateReturn ? { lateReturn: true } : {}),
   };
 }
 
@@ -1058,14 +1074,6 @@ function runGetaways(c: RenderCtx, origin: string): void {
       countLegend: t("cal_legend_dest"),
     }),
   );
-  const opts = {
-    maxConnections: query.maxConnections,
-    ...filterOpts(),
-    ...(query.nights ? { nights: query.nights } : {}),
-    ...(query.flexNights ? { flexibleNights: true } : {}),
-    ...(query.stayMinHours ? { minOnSiteMin: query.stayMinHours * 60 } : {}),
-    ...(query.lateReturn ? { lateReturn: true } : {}),
-  };
   // Flexible dates: search every day in the ±N window and keep the best round trip
   // per destination (more nights, then more time on site / less travel) — so you
   // can do a round trip "around these days", not only on the exact one.
@@ -1076,25 +1084,7 @@ function runGetaways(c: RenderCtx, origin: string): void {
     const d = addDays(query.date, i);
     if (i === 0 || (d >= today && d <= lastBookable)) dates.push(d);
   }
-  const byDest = new Map<string, ReturnType<typeof getaways>[number]>();
-  for (const d of dates) {
-    for (const g of getaways(trains, origin, d, opts)) {
-      const cur = byDest.get(g.destination);
-      if (
-        !cur ||
-        g.nights > cur.nights ||
-        (g.nights === cur.nights &&
-          (g.nights === 0 ? (g.onSiteMin ?? 0) > (cur.onSiteMin ?? 0) : g.travelMin < cur.travelMin))
-      ) {
-        byDest.set(g.destination, g);
-      }
-    }
-  }
-  const trips = [...byDest.values()].sort(
-    (a, b) =>
-      b.nights - a.nights ||
-      (a.nights === 0 ? (b.onSiteMin ?? 0) - (a.onSiteMin ?? 0) : a.travelMin - b.travelMin),
-  );
+  const { trips } = getawaysAcrossWindow(trains, origin, dates, getawayOpts());
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
@@ -1161,6 +1151,8 @@ function runTourSearch(c: RenderCtx): void {
 function runBestSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
   if (!query.origin) return showHint(refs.origin);
+  // "Round trip" toggle → ideas of good there-and-back escapes for the month.
+  if (query.roundTrip) return runBestGetaways(c, query.origin);
   // No specific day picked → "all days": every destination reachable across the
   // whole window. Clicking a calendar day narrows to that day.
   const allDays = bestAllDays;
@@ -1230,6 +1222,69 @@ function runBestSearch(c: RenderCtx): void {
   for (const tr of trips)
     refs.results.append(render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
   showMap(query.origin, trips.map((tr) => tr.destination));
+}
+
+/**
+ * "Ideas" round trips: the best there-and-back escape to every destination,
+ * scanned across the whole booking month (or a single picked day). Pairs the
+ * round-trip toggle with best mode so you can discover good getaways for the
+ * month, not just a one-way list. Ranked by nights, then time on site / travel.
+ */
+function runBestGetaways(c: RenderCtx, origin: string): void {
+  const { trains, registry } = deps;
+  const allDays = bestAllDays;
+  refs.title.textContent = allDays
+    ? t("best_round_title_all", { station: registry.label(origin) })
+    : t("best_round_title", { station: registry.label(origin), date: formatDate(query.date) });
+  const inRegion = (d: string): boolean => !query.region || registry.get(d)?.region === query.region;
+  const window = dateRange(today, BOOKING_WINDOW_DAYS);
+  const opts = getawayOpts();
+  // Calendar: how many places you can reach each day (a "where you can go" hint).
+  // Cheap and connection-aware, shared with the one-way Ideas cache.
+  const cal = reachableCountCalendar(
+    trains,
+    origin,
+    window,
+    { ...filterOpts(), maxConnections: query.maxConnections },
+    inRegion,
+  );
+  refs.results.append(
+    render.calendarEl(cal, c, allDays ? undefined : query.date, {
+      title: t("best_round_cal_title"),
+      count: (n) => t("best_cal_count", { n }),
+      countLegend: t("cal_legend_dest"),
+    }),
+  );
+  // The list scans the whole month in all-days mode (best escape per destination),
+  // or just the picked day when a calendar cell is selected.
+  const dates = allDays ? window : [query.date];
+  const trips = getawayIdeas(trains, origin, dates, opts, inRegion);
+  if (!allDays) {
+    refs.results.append(
+      el("p", { class: "best-alldays-row" }, [
+        el("button", {
+          class: "linklike best-alldays",
+          type: "button",
+          text: t("best_all_days"),
+          on: {
+            click: () => {
+              bestAllDays = true;
+              refreshInPlace();
+            },
+          },
+        }),
+      ]),
+    );
+  }
+  if (trips.length === 0) {
+    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
+    showMap(origin, []);
+    return;
+  }
+  refs.results.append(el("p", { class: "muted count", text: t("best_round_count", { n: trips.length }) }));
+  // Trips fall on different start days across the month, so each row shows its date.
+  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  showMap(origin, trips.map((trip) => trip.destination));
 }
 
 function runOdSearch(c: RenderCtx): void {
@@ -1799,12 +1854,15 @@ function updateFieldVisibility(): void {
   refs.flexField.style.display =
     query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
-  // Round trip (day trips + N-night getaways) is a "Where to?"-only toggle; its
-  // options appear once the toggle is on, and "min hours on site" only for a
-  // same-day (0-night) trip.
-  refs.roundTripField.style.display = query.mode === "from" ? "" : "none";
-  refs.roundTripOpts.style.display = query.mode === "from" && refs.roundTrip.checked ? "" : "none";
+  // Round trip (day trips + N-night getaways) is offered in "Where to?" and in
+  // "Ideas" (discover good month-long escapes); its options appear once the toggle
+  // is on, and "min hours on site" only for a same-day (0-night) trip.
+  const canRound = query.mode === "from" || query.mode === "best";
+  refs.roundTripField.style.display = canRound ? "" : "none";
+  refs.roundTripOpts.style.display = canRound && refs.roundTrip.checked ? "" : "none";
   refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
+  // "Only night trains" is a sub-option of the night-trains checkbox.
+  refs.onlyNightField.style.display = refs.night.checked ? "" : "none";
 
   // Field placement per mode: every mode now promotes Connections (with
   // Overnight/Night) into the prominent main form — they're central to where you
@@ -2113,16 +2171,26 @@ function buildForm(): FormBuild {
     overnight,
     el("span", { class: "field-label", text: t("field_overnight") }),
   ]);
-  // Night trains: a 3-way choice. Default "no" drops trains that leave late or
-  // arrive past midnight; "yes" includes them; "only" keeps just journeys you can
-  // sleep aboard (at least one night leg). The default query carries excludeNight,
-  // and syncFormFromQuery sets the select from excludeNight/onlyNight.
-  const night = el("select", { class: "input" }, [
-    optionEl("no", t("night_no"), true),
-    optionEl("yes", t("night_yes"), false),
-    optionEl("only", t("night_only"), false),
-  ]) as HTMLSelectElement;
-  const nightField = field(t("field_night"), night);
+  // Night trains: a checkbox to include them (off by default → trains that leave
+  // late or arrive past midnight are dropped). When it's on, a second checkbox
+  // narrows to ONLY journeys you can sleep aboard. syncFormFromQuery sets both from
+  // the query's excludeNight / onlyNight; the default query carries excludeNight.
+  const night = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const nightField = el("label", { class: "field field-check" }, [
+    night,
+    el("span", { class: "field-label", text: t("field_night") }),
+  ]);
+  const onlyNight = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const onlyNightField = el("label", { class: "field field-check field-sub" }, [
+    onlyNight,
+    el("span", { class: "field-label", text: t("night_only") }),
+  ]);
+  // The "only night trains" choice only makes sense once night trains are on.
+  const syncNightOpts = (): void => {
+    onlyNightField.style.display = night.checked ? "" : "none";
+    if (!night.checked) onlyNight.checked = false;
+  };
+  night.addEventListener("change", syncNightOpts);
   // "Round trip" controls — shown only in "Where to?" mode. The toggle flips the
   // destinations list into round trips (out and back, both free MAX); its options
   // (nights away, min hours on site for a day trip, a late ~02:00 return) appear
@@ -2296,6 +2364,7 @@ function buildForm(): FormBuild {
     field(t("field_connections"), maxConnections),
     overnightField,
     nightField,
+    onlyNightField,
   ]);
 
   const advanced = el("details", { class: "advanced" }, [
@@ -2401,6 +2470,8 @@ function buildForm(): FormBuild {
       connGroupField,
       overnight,
       night,
+      onlyNight,
+      onlyNightField,
       roundTrip,
       nights,
       stayHours,

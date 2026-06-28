@@ -3,11 +3,11 @@ import type { RawRecord } from "../src/types";
 import { normalizeRecords, normalizeRecord } from "../src/data/dataset";
 import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
-import { findJourneys, bestJourney, reachableJourneys } from "../src/core/connections";
+import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
-import { getaways } from "../src/core/getaways";
+import { getaways, getawayIdeas, getawaysAcrossWindow } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -713,6 +713,53 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
     expect(flex).toHaveLength(1);
     expect(flex[0]!.nights).toBe(2);
     expect(flex[0]!.back.legs[0]!.trainNo).toBe("X3");
+  });
+});
+
+describe("latestReturns (backward multi-source sweep)", () => {
+  const data = normalizeRecords([
+    { date: "2026-09-10", origine: "LYON (intramuros)", destination: "PARIS (intramuros)", heure_depart: "10:00", heure_arrivee: "12:00", train_no: "R1", od_happy_card: "OUI" },
+    { date: "2026-09-10", origine: "LYON (intramuros)", destination: "PARIS (intramuros)", heure_depart: "18:00", heure_arrivee: "20:00", train_no: "R2", od_happy_card: "OUI" },
+    { date: "2026-09-10", origine: "LYON (intramuros)", destination: "PARIS (intramuros)", heure_depart: "23:30", heure_arrivee: "01:30", train_no: "LATE", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("keeps the latest-departing return that arrives by the ceiling", () => {
+    const r = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 24 * 60, { maxConnections: 0 });
+    // R2 (18:00) is the latest that's home by midnight; LATE arrives 01:30 next day.
+    expect(r.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("R2");
+  });
+
+  it("admits a past-midnight arrival when the ceiling is later", () => {
+    const r = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 26 * 60, { maxConnections: 0 });
+    expect(r.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("LATE"); // 23:30 now fits
+  });
+});
+
+describe("getawayIdeas (month-wide round-trip ideas)", () => {
+  const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
+
+  it("produces only valid round trips (out to dest, back to origin)", () => {
+    const ideas = getawayIdeas(trains, "PARIS (intramuros)", dates, { maxConnections: 1, nights: 1 });
+    expect(ideas.length).toBeGreaterThan(0);
+    for (const g of ideas) {
+      expect(g.outbound.origin).toBe("PARIS (intramuros)");
+      expect(g.outbound.destination).toBe(g.destination);
+      expect(g.back.origin).toBe(g.destination);
+      expect(g.back.destination).toBe("PARIS (intramuros)");
+      expect(g.nights).toBe(1);
+    }
+  });
+
+  it("matches the precise per-day scan's destinations for an N-night stay", () => {
+    // For a multi-night stay the outbound's arrival doesn't gate the return, so the
+    // fast two-sweep ideas and the exhaustive per-day getaways agree on which
+    // destinations are round-trippable.
+    const opts = { maxConnections: 1, nights: 1 } as const;
+    const ideas = new Set(getawayIdeas(trains, "PARIS (intramuros)", dates, opts).map((g) => g.destination));
+    const precise = new Set(
+      getawaysAcrossWindow(trains, "PARIS (intramuros)", dates, opts).trips.map((g) => g.destination),
+    );
+    expect(ideas).toEqual(precise);
   });
 });
 

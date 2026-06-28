@@ -1,5 +1,5 @@
-import type { MaxTrain, Journey } from "../types";
-import { findJourneys, type ConnectionOptions } from "./connections";
+import type { MaxTrain, Journey, CalendarDay } from "../types";
+import { findJourneys, reachableJourneys, latestReturns, type ConnectionOptions } from "./connections";
 import { stationsOnDate } from "./best";
 import { addDays } from "../util/time";
 
@@ -46,6 +46,31 @@ export function getaways(
   date: string,
   opts: GetawayOptions = {},
 ): Getaway[] {
+  const out: Getaway[] = [];
+  for (const dest of stationsOnDate(trains, date)) {
+    if (dest === origin) continue;
+    const g = bestGetawayTo(trains, origin, dest, date, opts);
+    if (g) out.push(g);
+  }
+  // Most nights first; then most time on site (same-day) or least travel (multi-night).
+  return out.sort(sortGetaways);
+}
+
+/**
+ * The best round trip (out + back, both free MAX) from `origin` to one `dest`
+ * starting on `date`: the earliest-arriving outbound (maximises time there) and
+ * the latest feasible return that still gets home by the ceiling. Returns null if
+ * no there-and-back works. Pass `outbound` to reuse a journey already found (e.g.
+ * from a multi-target sweep) and skip re-searching the outbound leg.
+ */
+export function bestGetawayTo(
+  trains: MaxTrain[],
+  origin: string,
+  dest: string,
+  date: string,
+  opts: GetawayOptions = {},
+  outbound?: Journey,
+): Getaway | null {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
   const minOnSite = opts.minOnSiteMin ?? 240;
   const arriveCeil = opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
@@ -58,46 +83,136 @@ export function getaways(
         ? Array.from({ length: maxNights }, (_, i) => maxNights - i)
         : [maxNights];
 
-  const out: Getaway[] = [];
-  for (const dest of stationsOnDate(trains, date)) {
-    if (dest === origin) continue;
-    // Earliest-arriving outbound on the start day (more time at the destination).
-    let outbound: Journey | null = null;
+  // Earliest-arriving outbound on the start day (more time at the destination),
+  // unless one was supplied by the caller.
+  let out = outbound ?? null;
+  if (!out) {
     for (const j of findJourneys(trains, origin, dest, date, opts)) {
-      if (!outbound || j.arriveMin < outbound.arriveMin) outbound = j;
+      if (!out || j.arriveMin < out.arriveMin) out = j;
     }
-    if (!outbound) continue;
-    // The best return: latest feasible departure on the return day, home in time.
-    // A flexible search prefers the longest stay, so the first match (largest N) wins.
-    let chosen: { back: Journey; nights: number } | null = null;
-    for (const nights of nightChoices) {
-      const returnDate = addDays(date, nights);
-      let back: Journey | null = null;
-      for (const j of findJourneys(trains, dest, origin, returnDate, opts)) {
-        if (j.arriveMin > arriveCeil) continue; // gets home too late
-        // Same-day: leave enough time in the city; a multi-night stay needs no such gap.
-        if (nights === 0 && j.departMin < outbound.arriveMin + minOnSite) continue;
-        if (!back || j.departMin > back.departMin) back = j; // keep the latest return
-      }
-      if (back) {
-        chosen = { back, nights };
-        break;
-      }
-    }
-    if (!chosen) continue;
-    out.push({
-      destination: dest,
-      outbound,
-      back: chosen.back,
-      nights: chosen.nights,
-      onSiteMin: chosen.nights === 0 ? chosen.back.departMin - outbound.arriveMin : undefined,
-      travelMin: outbound.totalDurationMin + chosen.back.totalDurationMin,
-    });
   }
-  // Most nights first; then most time on site (same-day) or least travel (multi-night).
-  return out.sort(
-    (a, b) =>
-      b.nights - a.nights ||
-      (a.nights === 0 ? (b.onSiteMin ?? 0) - (a.onSiteMin ?? 0) : a.travelMin - b.travelMin),
+  if (!out) return null;
+  // The best return: latest feasible departure on the return day, home in time.
+  // A flexible search prefers the longest stay, so the first match (largest N) wins.
+  for (const nights of nightChoices) {
+    const returnDate = addDays(date, nights);
+    let back: Journey | null = null;
+    for (const j of findJourneys(trains, dest, origin, returnDate, opts)) {
+      if (j.arriveMin > arriveCeil) continue; // gets home too late
+      // Same-day: leave enough time in the city; a multi-night stay needs no such gap.
+      if (nights === 0 && j.departMin < out.arriveMin + minOnSite) continue;
+      if (!back || j.departMin > back.departMin) back = j; // keep the latest return
+    }
+    if (back) {
+      return {
+        destination: dest,
+        outbound: out,
+        back,
+        nights,
+        onSiteMin: nights === 0 ? back.departMin - out.arriveMin : undefined,
+        travelMin: out.totalDurationMin + back.totalDurationMin,
+      };
+    }
+  }
+  return null;
+}
+
+/** Rank: most nights, then most time on site (same-day) / least travel (stays). */
+function sortGetaways(a: Getaway, b: Getaway): number {
+  return (
+    b.nights - a.nights ||
+    (a.nights === 0 ? (b.onSiteMin ?? 0) - (a.onSiteMin ?? 0) : a.travelMin - b.travelMin)
   );
+}
+
+/** Is `a` a better round trip to the same place than `b` (more nights, etc.)? */
+function betterGetaway(a: Getaway, b: Getaway): boolean {
+  return (
+    a.nights > b.nights ||
+    (a.nights === b.nights &&
+      (a.nights === 0 ? (a.onSiteMin ?? 0) > (b.onSiteMin ?? 0) : a.travelMin < b.travelMin))
+  );
+}
+
+/**
+ * Round-trip "ideas" across a whole set of `dates`: run {@link getaways} for each
+ * day and keep the single best escape per destination (whichever day offers more
+ * nights / time on site / less travel). `accept` optionally filters destinations
+ * (e.g. by region). Also returns a per-day count of distinct round-trip
+ * destinations startable that day, for the ideas calendar. Sorted best-first.
+ */
+export function getawaysAcrossWindow(
+  trains: MaxTrain[],
+  origin: string,
+  dates: string[],
+  opts: GetawayOptions = {},
+  accept: (destination: string) => boolean = () => true,
+): { trips: Getaway[]; perDay: CalendarDay[] } {
+  const byDest = new Map<string, Getaway>();
+  const perDay: CalendarDay[] = [];
+  for (const date of dates) {
+    let count = 0;
+    for (const g of getaways(trains, origin, date, opts)) {
+      if (!accept(g.destination)) continue;
+      count++;
+      const cur = byDest.get(g.destination);
+      if (!cur || betterGetaway(g, cur)) byDest.set(g.destination, g);
+    }
+    perDay.push({ date, available: count > 0, count });
+  }
+  return { trips: [...byDest.values()].sort(sortGetaways), perDay };
+}
+
+/**
+ * Round-trip "ideas" for a whole month: the best there-and-back to every
+ * destination reachable across `dates`. Built for scale — a per-station search on
+ * every day is far too slow, so this pairs TWO multi-target sweeps per day: one
+ * forward ({@link reachableJourneys}) for the outbound to each destination, one
+ * backward ({@link latestReturns}) for the latest feasible return from each — a
+ * pass per day, not a search per destination. `accept` optionally filters
+ * destinations. Sorted best-first (most nights, then time on site / least travel).
+ */
+export function getawayIdeas(
+  trains: MaxTrain[],
+  origin: string,
+  dates: string[],
+  opts: GetawayOptions = {},
+  accept: (destination: string) => boolean = () => true,
+): Getaway[] {
+  const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
+  const minOnSite = opts.minOnSiteMin ?? 240;
+  const arriveCeil = opts.lateReturn ? LATE_RETURN_CEIL : MIDNIGHT;
+  const nightChoices =
+    maxNights === 0
+      ? [0]
+      : opts.flexibleNights
+        ? Array.from({ length: maxNights }, (_, i) => maxNights - i)
+        : [maxNights];
+
+  const byDest = new Map<string, Getaway>();
+  for (const date of dates) {
+    const outboundMap = reachableJourneys(trains, origin, date, opts);
+    for (const nights of nightChoices) {
+      const returns = latestReturns(trains, origin, addDays(date, nights), arriveCeil, opts);
+      if (returns.size === 0) continue;
+      for (const [dest, outbound] of outboundMap) {
+        if (dest === origin || !accept(dest)) continue;
+        const back = returns.get(dest);
+        if (!back) continue;
+        // Same-day: the return must leave after you've had your time in the city.
+        if (nights === 0 && back.departMin < outbound.arriveMin + minOnSite) continue;
+        const g: Getaway = {
+          destination: dest,
+          outbound,
+          back,
+          nights,
+          onSiteMin: nights === 0 ? back.departMin - outbound.arriveMin : undefined,
+          travelMin: outbound.totalDurationMin + back.totalDurationMin,
+        };
+        const cur = byDest.get(dest);
+        if (!cur || betterGetaway(g, cur)) byDest.set(dest, g);
+      }
+    }
+  }
+  return [...byDest.values()].sort(sortGetaways);
 }
