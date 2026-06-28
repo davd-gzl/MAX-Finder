@@ -162,4 +162,17 @@ export const it: Dict = {
   field_maxLegKm: "Distanza max / treno (km)",
   field_maxLegDuration: "Durata max / treno (min)",
   stat_window_hint: "{trains} treni MAX verso questa destinazione in {days} giorni a venire. Apri il viaggio esatto per vedere le date.",
+  field_daytrip: "Andata e ritorno in giornata",
+  field_daytrip_hours: "Ore min. sul posto",
+  field_late_return: "Ritorno tardivo (~02:00)",
+  daytrip_title: "Gite in giornata da {station} — {date}",
+  daytrip_count: "{n} gita/e possibile/i",
+  daytrip_none: "Nessun andata e ritorno MAX in giornata per questi criteri.",
+  daytrip_none_hint: "Prova con più coincidenze, meno ore sul posto o consenti un ritorno tardivo.",
+  daytrip_onsite: "{dur} sul posto",
+  daytrip_onsite_hint: "Tempo in città, tra l'arrivo e la partenza del ritorno.",
+  daytrip_travel: "{dur} di viaggio",
+  daytrip_out: "Andata",
+  daytrip_back: "Ritorno",
+
 };

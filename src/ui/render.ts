@@ -1,6 +1,7 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
 import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
+import type { DayTrip } from "../core/daytrips";
 import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
@@ -331,6 +332,69 @@ export function reachTripRowEl(
     ],
   );
   return el("article", { class: "group-card", dataset: { station } }, [
+    el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
+  ]);
+}
+
+/** A from→to→from time span ("09:51 → 10:40"), with a via chip when it changes. */
+function legTimesEl(label: string, j: Journey, ctx: RenderCtx): HTMLElement {
+  const first = j.legs[0];
+  const last = j.legs[j.legs.length - 1];
+  const via = j.legs.length > 1;
+  return el("span", { class: "daytrip-leg" }, [
+    el("span", { class: "daytrip-leg-label muted", text: label }),
+    el("span", { class: "daytrip-times" }, [
+      el("strong", { text: first?.depart ?? "" }),
+      icon(I.arrow),
+      el("strong", { text: last?.arrive ?? "" }),
+    ]),
+    ...(via
+      ? [el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })]
+      : []),
+  ]);
+}
+
+/**
+ * A same-day round-trip ("day trip") card: the city, how long you get there
+ * (the headline), the total round-trip travel time, and the morning-out /
+ * evening-back times. Clicking opens the exact route, where the 30-day calendar
+ * and the "come back?" section let you pick and book both legs.
+ */
+export function dayTripRowEl(trip: DayTrip, ctx: RenderCtx): HTMLElement {
+  const origin = trip.outbound.origin;
+  const route: RoutePair = { origin, destination: trip.destination };
+  const onSite = el("span", {
+    class: "chip chip-onsite",
+    text: t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin) }),
+    attrs: { title: t("daytrip_onsite_hint") },
+  });
+  const travel = el("span", { class: "daytrip-travel muted" }, [
+    icon(I.clock),
+    el("bdi", { text: t("daytrip_travel", { dur: formatDuration(trip.travelMin) }) }),
+  ]);
+  const main = el(
+    "button",
+    {
+      class: "dest-main daytrip-main",
+      type: "button",
+      attrs: {
+        "aria-label": `${ctx.label(trip.destination)} — ${t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin) })}`,
+      },
+      on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
+    },
+    [
+      el("span", { class: "daytrip-top" }, [
+        el("span", { class: "dest-name", text: ctx.label(trip.destination) }),
+        onSite,
+      ]),
+      el("span", { class: "daytrip-legs" }, [
+        legTimesEl(t("daytrip_out"), trip.outbound, ctx),
+        legTimesEl(t("daytrip_back"), trip.back, ctx),
+        travel,
+      ]),
+    ],
+  );
+  return el("article", { class: "group-card daytrip-card", dataset: { station: trip.destination } }, [
     el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
   ]);
 }

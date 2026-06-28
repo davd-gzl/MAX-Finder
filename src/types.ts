@@ -97,6 +97,16 @@ export interface SearchQuery {
    * station that does have a free train when the exact route has none.
    */
   radiusKm?: number;
+  /**
+   * "Day trip" toggle for "Where to?" mode: instead of the plain destinations
+   * list, show same-day round trips from the origin (leave in the morning, home
+   * the same evening — both free MAX), ranked by how long you get in each city.
+   */
+  dayTrip?: boolean;
+  /** Minimum hours to spend in the city for a day trip to count (default 4). */
+  dayTripMinHours?: number;
+  /** Allow a day-trip return arriving up to ~02:00 the next morning (else by midnight). */
+  lateReturn?: boolean;
 }
 
 /** A direct or multi-leg (1..3 legs) journey. */

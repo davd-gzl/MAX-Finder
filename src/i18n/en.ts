@@ -174,4 +174,17 @@ export const en: Dict = {
   field_maxLegKm: "Max distance / train (km)",
   field_maxLegDuration: "Max duration / train (min)",
   stat_window_hint: "{trains} MAX trains to this destination across {days} upcoming days. Open the exact trip to see which dates.",
+  field_daytrip: "Same-day round trip",
+  field_daytrip_hours: "Min. hours on site",
+  field_late_return: "Late return (~02:00)",
+  daytrip_title: "Day trips from {station} — {date}",
+  daytrip_count: "{n} day trip(s) possible",
+  daytrip_none: "No same-day MAX round trips for these criteria.",
+  daytrip_none_hint: "Try more connections, fewer hours on site, or allow a late return.",
+  daytrip_onsite: "{dur} on site",
+  daytrip_onsite_hint: "Time in the city, between arrival and the return departure.",
+  daytrip_travel: "{dur} travel",
+  daytrip_out: "Out",
+  daytrip_back: "Back",
+
 };

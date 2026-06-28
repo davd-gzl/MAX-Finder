@@ -162,4 +162,17 @@ export const de: Dict = {
   field_maxLegKm: "Max. Distanz / Zug (km)",
   field_maxLegDuration: "Max. Dauer / Zug (Min.)",
   stat_window_hint: "{trains} MAX-Züge zu diesem Ziel an {days} kommenden Tagen. Öffnen Sie die genaue Reise, um die Daten zu sehen.",
+  field_daytrip: "Tagesausflug (hin und zurück)",
+  field_daytrip_hours: "Min. Stunden vor Ort",
+  field_late_return: "Späte Rückfahrt (~02:00)",
+  daytrip_title: "Tagesausflüge ab {station} — {date}",
+  daytrip_count: "{n} Tagesausflug/-ausflüge möglich",
+  daytrip_none: "Keine MAX-Tagesrückfahrten für diese Kriterien.",
+  daytrip_none_hint: "Versuchen Sie mehr Umstiege, weniger Stunden vor Ort oder erlauben Sie eine späte Rückfahrt.",
+  daytrip_onsite: "{dur} vor Ort",
+  daytrip_onsite_hint: "Zeit in der Stadt, zwischen Ankunft und Rückfahrt.",
+  daytrip_travel: "{dur} Fahrt",
+  daytrip_out: "Hin",
+  daytrip_back: "Zurück",
+
 };
