@@ -31,6 +31,12 @@ export interface RenderCtx {
   onBookSteps: (journey: Journey) => void;
   isFavorite: (route: RoutePair) => boolean;
   onToggleFavorite: (route: RoutePair) => void;
+  /** Whether this trip (one-way, or a round trip with `inbound`) is saved. */
+  isTripSaved: (outbound: Journey, inbound?: Journey) => boolean;
+  /** Save the trip if absent, else remove it. */
+  onToggleTrip: (outbound: Journey, inbound?: Journey) => void;
+  /** Open the consolidated one-page view of a trip (round trip when `inbound` is set). */
+  onShowTrip: (outbound: Journey, inbound?: Journey) => void;
 }
 
 function icon(path: string): HTMLElement {
@@ -49,7 +55,38 @@ const I = {
   external: '<path d="M14 4h6v6M20 4l-9 9M19 13v6H5V5h6"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   pin: '<path d="M12 21s-6-5.2-6-10a6 6 0 0 1 12 0c0 4.8-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
+  bookmark: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/>',
 };
+
+/**
+ * A Save button that toggles whether a trip is kept in "Saved trips". Used both on
+ * a single journey card (one-way) and in the round-trip view (`inbound` set). Keeps
+ * its own label/pressed state in sync on click.
+ */
+function tripSaveBtn(outbound: Journey, ctx: RenderCtx, inbound?: Journey): HTMLElement {
+  const saved = (): boolean => ctx.isTripSaved(outbound, inbound);
+  const lbl = el("span", { text: saved() ? t("act_saved") : t("act_save") });
+  const btn = el(
+    "button",
+    {
+      class: saved() ? "btn btn-ghost is-saved" : "btn btn-ghost",
+      type: "button",
+      attrs: { "aria-pressed": String(saved()), title: saved() ? t("act_unsave") : t("act_save") },
+      on: {
+        click: () => {
+          ctx.onToggleTrip(outbound, inbound);
+          const now = saved();
+          btn.classList.toggle("is-saved", now);
+          btn.setAttribute("aria-pressed", String(now));
+          btn.title = now ? t("act_unsave") : t("act_save");
+          lbl.textContent = now ? t("act_saved") : t("act_save");
+        },
+      },
+    },
+    [icon(I.bookmark), lbl],
+  );
+  return btn;
+}
 
 /** One train as a compact row. (Every shown train is MAX-reservable by definition.) */
 export function trainRowEl(train: MaxTrain): HTMLElement {
@@ -106,8 +143,13 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
   );
 }
 
-/** A direct or connecting journey card. */
-export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
+/**
+ * A direct or connecting journey card. `opts.saveable` (default true) adds a Save
+ * button to the actions; it's turned off inside the trip modal, where a single
+ * whole-trip Save already covers both legs.
+ */
+export function journeyEl(j: Journey, ctx: RenderCtx, opts: { saveable?: boolean } = {}): HTMLElement {
+  const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
   const legs = el("div", { class: "legs" });
   j.legs.forEach((leg, i) => {
@@ -178,6 +220,7 @@ export function journeyEl(j: Journey, ctx: RenderCtx): HTMLElement {
       { class: "btn btn-ghost", type: "button", on: { click: () => showOnMap() } },
       [icon(I.pin), el("span", { text: t("act_map") })],
     ),
+    ...(saveable ? [tripSaveBtn(j, ctx)] : []),
   ]);
 
   const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
@@ -389,7 +432,9 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
       class: "dest-main daytrip-main",
       type: "button",
       attrs: { "aria-label": `${ctx.label(trip.destination)} — ${headlineText}` },
-      on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
+      // The getaway already names exact trains both ways — open the whole round trip
+      // on one page (book both legs, save it) rather than the generic route calendar.
+      on: { click: () => ctx.onShowTrip(trip.outbound, trip.back) },
     },
     [
       el("span", { class: "daytrip-top" }, [
@@ -622,6 +667,48 @@ export function flexDayEl(
         : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
     ],
   );
+}
+
+/**
+ * The whole trip on one page: a single journey (one-way) or a round trip
+ * (outbound + inbound) with a title, a nights/total-travel summary, each leg as a
+ * full bookable journey card, and a Save button. Used in the trip modal and shown
+ * when a getaway row or a saved trip is opened.
+ */
+export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey): HTMLElement {
+  const round = Boolean(inbound);
+  const title = `${ctx.label(outbound.origin)} ${round ? "⇄" : "→"} ${ctx.label(outbound.destination)}`;
+  const totalTravel = outbound.totalDurationMin + (inbound?.totalDurationMin ?? 0);
+  let summary: string;
+  if (inbound) {
+    const nights = dayIndex(inbound.date) - dayIndex(outbound.date);
+    summary =
+      nights > 0
+        ? t("trip_summary", { n: nights, dur: formatDuration(totalTravel) })
+        : t("trip_summary_day", { dur: formatDuration(totalTravel) });
+  } else {
+    summary = t("trip_summary_oneway", { date: ctx.formatDate(outbound.date), dur: formatDuration(totalTravel) });
+  }
+  const sections = [
+    el("section", { class: "trip-leg" }, [
+      ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),
+      journeyEl(outbound, ctx, { saveable: false }),
+    ]),
+  ];
+  if (inbound) {
+    sections.push(
+      el("section", { class: "trip-leg" }, [
+        el("h3", { class: "trip-leg-title", text: t("rt_inbound") }),
+        journeyEl(inbound, ctx, { saveable: false }),
+      ]),
+    );
+  }
+  return el("div", { class: "trip-view" }, [
+    el("h2", { class: "modal-title trip-title", text: title }),
+    el("p", { class: "muted trip-summary", text: summary }),
+    ...sections,
+    el("div", { class: "trip-view-actions" }, [tripSaveBtn(outbound, ctx, inbound)]),
+  ]);
 }
 
 /** A round-trip card. */

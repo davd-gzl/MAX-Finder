@@ -182,4 +182,13 @@ export const ko: Dict = {
   getaway_none: "이 조건으로 가능한 MAX 왕복이 없습니다.",
   getaway_none_hint: "숙박 수를 줄이거나, 환승을 늘리거나, 늦은 귀가를 허용해 보세요.",
 
+  act_save: "저장",
+  act_saved: "저장됨",
+  act_unsave: "저장한 여행에서 제거",
+  saved_title: "저장한 여행",
+  trip_summary: "{n}박 · 왕복 {dur}",
+  trip_summary_day: "당일치기 · {dur} 이동",
+  trip_summary_oneway: "편도 · {date} · {dur}",
+  trip_more_dates: "모든 날짜 보기",
+
 };

@@ -181,4 +181,13 @@ export const pt: Dict = {
   getaway_none: "Nenhuma ida e volta MAX para estes critérios.",
   getaway_none_hint: "Tente menos noites, mais conexões, ou permita uma volta tardia.",
 
+  act_save: "Guardar",
+  act_saved: "Guardado",
+  act_unsave: "Remover das viagens guardadas",
+  saved_title: "Viagens guardadas",
+  trip_summary: "{n} noite(s) · {dur} de viagem ida e volta",
+  trip_summary_day: "No mesmo dia · {dur} de viagem",
+  trip_summary_oneway: "Só ida · {date} · {dur}",
+  trip_more_dates: "Ver todas as datas",
+
 };

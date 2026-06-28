@@ -181,4 +181,13 @@ export const nl: Dict = {
   getaway_none: "Geen MAX-retours voor deze criteria.",
   getaway_none_hint: "Probeer minder nachten, meer overstappen, of sta een late terugreis toe.",
 
+  act_save: "Opslaan",
+  act_saved: "Opgeslagen",
+  act_unsave: "Verwijderen uit opgeslagen reizen",
+  saved_title: "Opgeslagen reizen",
+  trip_summary: "{n} nacht(en) · {dur} retourreis",
+  trip_summary_day: "Dagtrip · {dur} reizen",
+  trip_summary_oneway: "Enkele reis · {date} · {dur}",
+  trip_more_dates: "Alle datums bekijken",
+
 };

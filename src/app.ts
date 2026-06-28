@@ -93,6 +93,7 @@ interface Refs {
   results: HTMLElement;
   mapEl: HTMLElement;
   favList: HTMLElement;
+  tripList: HTMLElement;
 }
 
 let deps: Deps;
@@ -587,7 +588,61 @@ function ctx(): RenderCtx {
       store.toggleFavorite(route);
       renderFavorites();
     },
+    isTripSaved: (out, inb) => store.isTripSaved(store.tripId(out, inb)),
+    onToggleTrip: (out, inb) => {
+      store.toggleTrip(buildSavedTrip(out, inb));
+      renderSavedTrips();
+    },
+    onShowTrip: (out, inb) => showTripModal(out, inb),
   };
+}
+
+/** Snapshot a journey (one-way) or a round trip (with `inbound`) as a saved trip. */
+function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
+  return {
+    id: store.tripId(outbound, inbound),
+    kind: inbound ? "round" : "one-way",
+    outbound,
+    ...(inbound ? { inbound } : {}),
+    savedAt: Date.now(),
+  };
+}
+
+/**
+ * The whole trip on one page (a modal): a single journey or a round trip, with both
+ * legs bookable, a Save toggle, and a shortcut to the route's full calendar.
+ */
+function showTripModal(outbound: Journey, inbound?: Journey): void {
+  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
+  const closeBtn = el("button", {
+    class: "btn btn-primary modal-close",
+    type: "button",
+    text: t("act_close"),
+    on: { click: () => dialog.close() },
+  });
+  const moreDates = el("button", {
+    class: "linklike trip-more",
+    type: "button",
+    text: t("trip_more_dates"),
+    on: {
+      click: () => {
+        dialog.close();
+        ctx().onOpenRoute(outbound.origin, outbound.destination);
+      },
+    },
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      render.tripViewEl(outbound, ctx(), inbound),
+      el("div", { class: "modal-actions" }, [moreDates, closeBtn]),
+    ]),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
 }
 
 // --- query <-> form ---------------------------------------------------------
@@ -1746,6 +1801,12 @@ function buildLayout(root: HTMLElement): void {
   const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
   const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
 
+  const tripList = el("div", { class: "trip-list" });
+  const savedAside = el("aside", { class: "saved-trips" }, [
+    el("h2", { text: t("saved_title") }),
+    tripList,
+  ]);
+
   const favList = el("div", { class: "fav-list" });
   const aside = el("aside", { class: "favorites" }, [
     el("h2", { text: t("fav_title") }),
@@ -1777,7 +1838,7 @@ function buildLayout(root: HTMLElement): void {
   ]);
   const layout = el("div", { class: "layout" }, [
     el("div", { class: "main-col" }, [built.form, title, results]),
-    el("div", { class: "side-col" }, [aside, mapSection]),
+    el("div", { class: "side-col" }, [savedAside, aside, mapSection]),
   ]);
 
   root.append(header, layout, footer);
@@ -1788,15 +1849,17 @@ function buildLayout(root: HTMLElement): void {
     results,
     mapEl,
     favList,
+    tripList,
     card: cardSel,
   };
   map = null;
   renderFavorites();
+  renderSavedTrips();
 }
 
 interface FormBuild {
   form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "card">;
+  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "tripList" | "card">;
 }
 
 function buildForm(): FormBuild {
@@ -2278,6 +2341,45 @@ function renderFavorites(): void {
       }),
     ]);
     refs.favList.append(row);
+  }
+}
+
+/** Render the "Saved trips" rail card from localStorage (newest first). */
+function renderSavedTrips(): void {
+  clear(refs.tripList);
+  const trips = store.loadTrips();
+  // Hide the whole card while empty so it doesn't take prime space in the rail.
+  refs.tripList.parentElement?.toggleAttribute("hidden", trips.length === 0);
+  if (trips.length === 0) return;
+  for (const trip of trips) {
+    const out = trip.outbound;
+    const inb = trip.inbound;
+    const label = `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`;
+    const when = inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date);
+    const row = el("div", { class: "fav-row trip-row" }, [
+      el(
+        "button",
+        {
+          class: "fav-open trip-open",
+          type: "button",
+          on: { click: () => showTripModal(out, inb) },
+        },
+        [el("span", { class: "trip-open-route", text: label }), el("span", { class: "muted small", text: when })],
+      ),
+      el("button", {
+        class: "iconbtn",
+        type: "button",
+        text: "✕",
+        title: t("act_unsave"),
+        on: {
+          click: () => {
+            store.removeTrip(trip.id);
+            renderSavedTrips();
+          },
+        },
+      }),
+    ]);
+    refs.tripList.append(row);
   }
 }
 

@@ -182,4 +182,13 @@ export const de: Dict = {
   getaway_none: "Keine MAX-Hin-und-Rückfahrten für diese Kriterien.",
   getaway_none_hint: "Versuchen Sie weniger Nächte, mehr Umstiege oder erlauben Sie eine späte Rückfahrt.",
 
+  act_save: "Speichern",
+  act_saved: "Gespeichert",
+  act_unsave: "Aus gespeicherten Reisen entfernen",
+  saved_title: "Gespeicherte Reisen",
+  trip_summary: "{n} Nacht/Nächte · {dur} Hin- und Rückfahrt",
+  trip_summary_day: "Tagesausflug · {dur} Fahrt",
+  trip_summary_oneway: "Einfache Fahrt · {date} · {dur}",
+  trip_more_dates: "Alle Daten anzeigen",
+
 };

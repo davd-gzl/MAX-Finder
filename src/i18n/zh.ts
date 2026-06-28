@@ -181,4 +181,13 @@ export const zh: Dict = {
   getaway_none: "在这些条件下没有 MAX 往返。",
   getaway_none_hint: "尝试减少晚数、增加换乘，或允许深夜返程。",
 
+  act_save: "保存",
+  act_saved: "已保存",
+  act_unsave: "从已保存行程中移除",
+  saved_title: "已保存行程",
+  trip_summary: "{n} 晚 · 往返 {dur}",
+  trip_summary_day: "当日往返 · 行程 {dur}",
+  trip_summary_oneway: "单程 · {date} · {dur}",
+  trip_more_dates: "查看所有日期",
+
 };

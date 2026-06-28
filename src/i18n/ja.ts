@@ -181,4 +181,13 @@ export const ja: Dict = {
   getaway_none: "この条件では MAX 往復がありません。",
   getaway_none_hint: "泊数を減らす、乗り換えを増やす、または深夜帰着を許可してみてください。",
 
+  act_save: "保存",
+  act_saved: "保存済み",
+  act_unsave: "保存した旅程から削除",
+  saved_title: "保存した旅程",
+  trip_summary: "{n}泊 · 往復 {dur}",
+  trip_summary_day: "日帰り · 移動 {dur}",
+  trip_summary_oneway: "片道 · {date} · {dur}",
+  trip_more_dates: "すべての日付を見る",
+
 };

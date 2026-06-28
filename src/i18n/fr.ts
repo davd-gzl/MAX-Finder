@@ -192,6 +192,15 @@ export const fr = {
   getaway_none: "Aucun aller-retour MAX pour ces critères.",
   getaway_none_hint: "Essayez moins de nuits, plus de correspondances, ou autorisez un retour tardif.",
 
+  act_save: "Enregistrer",
+  act_saved: "Enregistré",
+  act_unsave: "Retirer des trajets enregistrés",
+  saved_title: "Trajets enregistrés",
+  trip_summary: "{n} nuit(s) · {dur} de trajet aller-retour",
+  trip_summary_day: "Aller-retour dans la journée · {dur} de trajet",
+  trip_summary_oneway: "Aller simple · {date} · {dur}",
+  trip_more_dates: "Voir toutes les dates",
+
 };
 
 export type Dict = typeof fr;

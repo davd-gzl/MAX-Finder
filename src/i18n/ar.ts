@@ -181,4 +181,13 @@ export const ar: Dict = {
   getaway_none: "لا توجد رحلات MAX ذهابًا وإيابًا بهذه المعايير.",
   getaway_none_hint: "جرّب ليالي أقل، أو مزيدًا من التوقفات، أو اسمح بعودة متأخرة.",
 
+  act_save: "حفظ",
+  act_saved: "محفوظ",
+  act_unsave: "إزالة من الرحلات المحفوظة",
+  saved_title: "الرحلات المحفوظة",
+  trip_summary: "{n} ليلة/ليالٍ · {dur} ذهابًا وإيابًا",
+  trip_summary_day: "في نفس اليوم · {dur} سفر",
+  trip_summary_oneway: "ذهاب فقط · {date} · {dur}",
+  trip_more_dates: "عرض كل التواريخ",
+
 };
