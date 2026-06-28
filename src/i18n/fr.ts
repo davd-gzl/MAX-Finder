@@ -204,6 +204,8 @@ export const fr = {
   ret_cal_title: "Disponibilité des retours",
   ret_view_round: "Voir l'aller-retour",
 
+  getaway_cal_title: "Aller-retours par jour",
+
 };
 
 export type Dict = typeof fr;

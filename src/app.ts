@@ -700,7 +700,7 @@ function syncFormFromQuery(): void {
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  setSeg(refs.flex, String(query.flexDays ?? 0));
+  setStepper(refs.flex, query.flexDays ?? 0);
   refs.date.value = query.date;
   refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
@@ -747,8 +747,8 @@ function readQueryFromForm(): SearchQuery {
     destination: resolveStation(refs.destination.value),
     via: resolveStation(refs.via.value),
     // Flexible dates don't apply to the round-trip finder (it pivots on one start
-    // date), so they're cleared there; otherwise read the segmented control.
-    flexDays: roundTrip ? undefined : Number(getSeg(refs.flex)) || undefined,
+    // date), so they're cleared there; otherwise read the stepper.
+    flexDays: roundTrip ? undefined : getStepper(refs.flex) || undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -1037,6 +1037,17 @@ function runGetaways(c: RenderCtx, origin: string): void {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
+  // A calendar to be flexible on dates: each day shows how many destinations run
+  // (a hint of how much is possible), and clicking re-runs the round trips for that
+  // day. This is the round-trip way to look "around these days" without a ±N field.
+  const window = dateRange(today, BOOKING_WINDOW_DAYS);
+  const dayCal = destinationCalendar(trains, origin, window, filterOpts());
+  refs.results.append(
+    render.calendarEl(dayCal, c, query.date, {
+      title: t("getaway_cal_title"),
+      count: (n) => t("best_cal_count", { n }),
+    }),
+  );
   const trips = getaways(trains, origin, query.date, {
     maxConnections: query.maxConnections,
     ...filterOpts(),
@@ -1750,13 +1761,14 @@ function updateFieldVisibility(): void {
   refs.roundTripOpts.style.display = query.mode === "from" && refs.roundTrip.checked ? "" : "none";
   refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
 
-  // Field placement per mode: a tour AND an exact trip promote Connections (with
-  // Overnight/Night) into the prominent main form; the other modes keep it in
-  // Advanced. The exact trip also promotes its search radius. Single elements moved
-  // between the main fields grid and Advanced, never duplicated.
+  // Field placement per mode: every mode except "best" (Ideas) promotes Connections
+  // (with Overnight/Night) into the prominent main form — they're central to where
+  // you can actually get. The exact trip also promotes its search radius. Single
+  // elements moved between the main fields grid and Advanced, never duplicated.
   const tour = query.mode === "tour";
   const od = query.mode === "od";
-  if (tour || od) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
+  const promoteConn = query.mode !== "best";
+  if (promoteConn) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
   else refs.trainTypeField.parentElement?.insertBefore(refs.connGroupField, refs.trainTypeField);
   if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
   else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
@@ -2109,20 +2121,9 @@ function buildForm(): FormBuild {
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
   nights.addEventListener("change", syncRoundTripOpts);
-  // Flexible dates ("± N days"): a segmented button group (one tap per option,
-  // easier than a dropdown). Widens the browse to a window around the chosen date.
-  const flex = segmented(
-    [
-      ["0", t("flex_exact")],
-      ["1", "± 1"],
-      ["2", "± 2"],
-      ["3", "± 3"],
-      ["7", "± 7"],
-    ],
-    () => liveUpdate(),
-  );
-  flex.setAttribute("aria-label", t("field_flex"));
-  setSeg(flex, "0");
+  // Flexible dates ("± N days"): a compact −/+ stepper (fewer controls than a row
+  // of buttons). Widens the browse to a window around the chosen date.
+  const flex = buildStepper(t("field_flex"), () => liveUpdate());
   const flexField = field(t("field_flex"), flex);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
@@ -2528,46 +2529,41 @@ function field(label: string, control: HTMLElement): HTMLElement {
   return el("label", { class: "field" }, [el("span", { class: "field-label", text: label }), control]);
 }
 
+const FLEX_MAX = 7;
+
 /**
- * A segmented button group (tap-to-pick chips, easier than a dropdown). Each option
- * is a button carrying its value in `data-v`; the chosen value lives on the group's
- * `data-value`. `onPick` runs after a click.
+ * A compact −/+ stepper (used for date flexibility): two small buttons around a
+ * readout, easier than a row of option buttons. The value lives on `data-value`.
  */
-function segmented(options: ReadonlyArray<readonly [string, string]>, onPick: () => void): HTMLElement {
-  const seg = el("div", { class: "seg", attrs: { role: "group" } });
-  for (const [v, label] of options) {
-    seg.append(
-      el("button", {
-        class: "seg-btn",
-        type: "button",
-        text: label,
-        dataset: { v },
-        on: {
-          click: () => {
-            setSeg(seg, v);
-            onPick();
-          },
-        },
-      }),
-    );
-  }
-  return seg;
+function buildStepper(ariaLabel: string, onChange: () => void): HTMLElement {
+  const stepper = el("div", { class: "stepper", attrs: { role: "group", "aria-label": ariaLabel } });
+  const val = el("span", { class: "step-val" });
+  const minus = el("button", { class: "step-btn", type: "button", text: "−", attrs: { "aria-label": "−1" } });
+  const plus = el("button", { class: "step-btn", type: "button", text: "+", attrs: { "aria-label": "+1" } });
+  minus.addEventListener("click", () => {
+    setStepper(stepper, getStepper(stepper) - 1);
+    onChange();
+  });
+  plus.addEventListener("click", () => {
+    setStepper(stepper, getStepper(stepper) + 1);
+    onChange();
+  });
+  stepper.append(minus, val, plus);
+  setStepper(stepper, 0);
+  return stepper;
 }
 
-/** Set the active option of a segmented group (and store it on `data-value`). */
-function setSeg(seg: HTMLElement, value: string): void {
-  seg.dataset.value = value;
-  for (const child of Array.from(seg.children)) {
-    const b = child as HTMLElement;
-    const active = b.dataset.v === value;
-    b.classList.toggle("is-active", active);
-    b.setAttribute("aria-pressed", String(active));
-  }
+/** Set the stepper value (0..FLEX_MAX) and update its readout. */
+function setStepper(stepper: HTMLElement, n: number): void {
+  const v = Math.max(0, Math.min(FLEX_MAX, Math.floor(n)));
+  stepper.dataset.value = String(v);
+  const val = stepper.querySelector(".step-val");
+  if (val) val.textContent = v === 0 ? t("flex_exact") : `± ${v}`;
 }
 
-/** Read the chosen value of a segmented group. */
-function getSeg(seg: HTMLElement): string {
-  return seg.dataset.value ?? "0";
+/** Read the stepper value. */
+function getStepper(stepper: HTMLElement): number {
+  return Number(stepper.dataset.value ?? 0);
 }
 
 /**

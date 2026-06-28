@@ -194,4 +194,6 @@ export const es: Dict = {
   ret_cal_title: "Disponibilidad de vueltas",
   ret_view_round: "Ver ida y vuelta",
 
+  getaway_cal_title: "Idas y vueltas por día",
+
 };

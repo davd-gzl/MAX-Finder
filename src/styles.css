@@ -317,31 +317,39 @@ a {
   color: var(--muted);
   letter-spacing: 0.02em;
 }
-/* Segmented button group (tap-to-pick, e.g. date flexibility) — easier than a select. */
-.seg {
+/* Compact −/+ stepper (e.g. date flexibility) — fewer controls than option buttons. */
+.stepper {
   display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-.seg-btn {
-  padding: 0.4rem 0.7rem;
+  align-items: stretch;
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  width: fit-content;
+}
+.step-btn {
+  border: 0;
   background: var(--surface);
   color: var(--text);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
+  width: 2.1rem;
+  font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
-.seg-btn:hover {
-  border-color: var(--accent);
-}
-.seg-btn.is-active {
+.step-btn:hover {
   background: var(--accent-soft);
-  border-color: var(--accent);
   color: var(--accent);
-  font-weight: 640;
+}
+.step-val {
+  min-width: 5.5rem;
+  padding: 0.45rem 0.5rem;
+  text-align: center;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .field-check {
   flex-direction: row;
@@ -1295,6 +1303,14 @@ a {
   font-weight: inherit;
   line-height: 1;
 }
+/* A tiny count under the day number (trains / destinations) — kept small and faint
+   so it adds info without crowding the cell. */
+.cal-count {
+  font-size: 0.56rem;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.75;
+}
 .cal-cell.ok {
   background: var(--accent-soft);
   color: var(--accent);
@@ -1748,7 +1764,11 @@ a {
 }
 .trip-view-actions {
   display: flex;
-  margin-top: 0.1rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
 }
 .trip-modal .modal-actions {
   justify-content: space-between;
