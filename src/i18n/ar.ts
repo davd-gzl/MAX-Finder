@@ -11,6 +11,7 @@ export const ar: Dict = {
   best_round_title: "رحلات ذهاب وإياب من {station} — {date}",
   best_round_cal_title: "أفكار ذهاب وإياب حسب اليوم",
   best_round_count: "{n} ذهاب وإياب",
+  cal_legend_round: "الرقم = رحلات الذهاب والإياب في ذلك اليوم",
   best_all_days: "عرض كل الأيام",
   ideas_days: "{n} يوم",
   ideas_days_hint: "متاح {n} يوم خلال الفترة",

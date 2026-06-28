@@ -305,11 +305,12 @@ describe("findJourneys across midnight", () => {
 
 describe("onlyNight (sleep aboard)", () => {
   const mixed = normalizeRecords([
-    // Direct day train and a direct night train (departs 22:30, arrives 06:00+1) to LYON.
-    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "10:00", heure_arrivee: "12:00", train_no: "DAY", od_happy_card: "OUI" },
-    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:30", heure_arrivee: "06:00", train_no: "NIGHT", od_happy_card: "OUI" },
+    // A day train and a real sleeper (IC NUIT, departs 22:30, arrives 06:00+1) to LYON.
+    // A late non-sleeper (22:30 but a regular axe) must NOT count as a night train.
+    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "10:00", heure_arrivee: "12:00", train_no: "DAY", od_happy_card: "OUI", axe: "SUD EST" },
+    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:30", heure_arrivee: "06:00", train_no: "NIGHT", od_happy_card: "OUI", axe: "IC NUIT" },
     // A next-morning day hop onward, reachable after stepping off the sleeper.
-    { date: "2026-08-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "08:00", heure_arrivee: "09:00", train_no: "DAY2", od_happy_card: "OUI" },
+    { date: "2026-08-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "08:00", heure_arrivee: "09:00", train_no: "DAY2", od_happy_card: "OUI", axe: "SUD EST" },
   ] as RawRecord[]);
 
   it("keeps only journeys that include a night leg", () => {
@@ -362,19 +363,21 @@ describe("reachableJourneys (multi-target)", () => {
 
 describe("excludeNight", () => {
   const data = normalizeRecords([
-    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "day", od_happy_card: "OUI" },
-    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "23:00", heure_arrivee: "01:00", train_no: "night", od_happy_card: "OUI" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "day", od_happy_card: "OUI", axe: "SUD EST" },
+    // A real sleeper (IC NUIT) — and a late non-sleeper that must NOT be dropped.
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "23:00", heure_arrivee: "07:00", train_no: "sleeper", od_happy_card: "OUI", axe: "IC NUIT" },
+    { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:30", heure_arrivee: "23:55", train_no: "late", od_happy_card: "OUI", axe: "SUD EST" },
   ] as RawRecord[]);
 
-  it("drops night trains (late departure / past-midnight arrival) when set", () => {
+  it("drops only real sleeper (IC NUIT) trains, not ordinary late ones", () => {
     const all = findJourneys(data, "PARIS (intramuros)", "LYON (intramuros)", "2026-07-01", { maxConnections: 0 });
-    expect(all).toHaveLength(2);
+    expect(all).toHaveLength(3);
     const noNight = findJourneys(data, "PARIS (intramuros)", "LYON (intramuros)", "2026-07-01", {
       maxConnections: 0,
       excludeNight: true,
     });
-    expect(noNight).toHaveLength(1);
-    expect(noNight[0]!.legs[0]!.trainNo).toBe("day");
+    // The sleeper is dropped; the day train and the late (non-sleeper) train remain.
+    expect(noNight.map((j) => j.legs[0]!.trainNo).sort()).toEqual(["day", "late"]);
   });
 });
 
@@ -739,8 +742,12 @@ describe("getawayIdeas (month-wide round-trip ideas)", () => {
   const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
 
   it("produces only valid round trips (out to dest, back to origin)", () => {
-    const ideas = getawayIdeas(trains, "PARIS (intramuros)", dates, { maxConnections: 1, nights: 1 });
+    const { trips: ideas, perDay } = getawayIdeas(trains, "PARIS (intramuros)", dates, {
+      maxConnections: 1,
+      nights: 1,
+    });
     expect(ideas.length).toBeGreaterThan(0);
+    expect(perDay).toHaveLength(dates.length); // one calendar entry per day
     for (const g of ideas) {
       expect(g.outbound.origin).toBe("PARIS (intramuros)");
       expect(g.outbound.destination).toBe(g.destination);
@@ -755,7 +762,7 @@ describe("getawayIdeas (month-wide round-trip ideas)", () => {
     // fast two-sweep ideas and the exhaustive per-day getaways agree on which
     // destinations are round-trippable.
     const opts = { maxConnections: 1, nights: 1 } as const;
-    const ideas = new Set(getawayIdeas(trains, "PARIS (intramuros)", dates, opts).map((g) => g.destination));
+    const ideas = new Set(getawayIdeas(trains, "PARIS (intramuros)", dates, opts).trips.map((g) => g.destination));
     const precise = new Set(
       getawaysAcrossWindow(trains, "PARIS (intramuros)", dates, opts).trips.map((g) => g.destination),
     );

@@ -11,6 +11,7 @@ export const pt: Dict = {
   best_round_title: "Idas e voltas de {station} — {date}",
   best_round_cal_title: "Ideias de ida e volta por dia",
   best_round_count: "{n} ida(s) e volta(s)",
+  cal_legend_round: "o número = idas e voltas nesse dia",
   best_all_days: "Ver todos os dias",
   ideas_days: "{n} dias",
   ideas_days_hint: "Acessível {n} dia(s) no período",

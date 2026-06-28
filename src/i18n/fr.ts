@@ -9,6 +9,7 @@ export const fr = {
   best_round_title: "Aller-retours depuis {station} — {date}",
   best_round_cal_title: "Idées d'aller-retour par jour",
   best_round_count: "{n} aller(s)-retour(s)",
+  cal_legend_round: "le nombre = aller-retours ce jour",
   best_all_days: "Voir tous les jours",
   ideas_days: "{n} j",
   ideas_days_hint: "Accessible {n} jour(s) sur la période",
