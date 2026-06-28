@@ -1104,7 +1104,11 @@ function runBestSearch(c: RenderCtx): void {
   refs.results.append(
     el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
   );
-  for (const tr of trips) refs.results.append(render.bestTripRowEl(tr, c));
+  // Month-long train count per destination (same figure as the "Where to?" list),
+  // so an idea shows how well-served it is before you drill in.
+  const stats = windowStats(trains, query.origin, "from", filterOpts());
+  for (const tr of trips)
+    refs.results.append(render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
   showMap(query.origin, trips.map((tr) => tr.destination));
 }
 
@@ -1179,6 +1183,9 @@ function runOdSearch(c: RenderCtx): void {
     .filter(passesVia)
     .filter(withinSpan)
     .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
+  // The outbound chosen for the round trip — defaults to the fastest; clicking a
+  // journey card picks it, so "come back?" pairs returns with the leg you want.
+  let chosenOutbound: Journey | null = journeys[0] ?? null;
   if (journeys.length === 0) {
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
   } else {
@@ -1192,7 +1199,16 @@ function runOdSearch(c: RenderCtx): void {
         refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
       }
     }
-    for (const j of journeys) refs.results.append(render.journeyEl(j, c));
+    for (const j of journeys)
+      refs.results.append(
+        render.journeyEl(j, c, {
+          selected: j === chosenOutbound,
+          onPick: (jj) => {
+            chosenOutbound = jj;
+            c.onShowJourney(jj);
+          },
+        }),
+      );
   }
 
   // Nearby paid-connection alternatives (radius search): surface nearby stations
@@ -1244,7 +1260,6 @@ function runOdSearch(c: RenderCtx): void {
   if (journeys.length > 0) {
     const origin = query.origin;
     const destination = query.destination;
-    const bestOutbound = journeys[0]!; // fastest outbound shown above
     const proposed =
       odReturnDate ?? (addDays(query.date, 2) > lastBookable ? lastBookable : addDays(query.date, 2));
     const returnOpts = {
@@ -1278,19 +1293,10 @@ function runOdSearch(c: RenderCtx): void {
         retList.append(render.emptyEl(t("ret_none")));
         return;
       }
-      // Open the whole round trip (best outbound + this day's fastest return) on
-      // one page, ready to book both legs and save.
-      retList.append(
-        el("div", { class: "ret-actions" }, [
-          el("button", {
-            class: "btn btn-primary",
-            type: "button",
-            text: t("ret_view_round"),
-            on: { click: () => showTripModal(bestOutbound, back[0]!) },
-          }),
-        ]),
-      );
-      for (const j of back) retList.append(render.journeyEl(j, c));
+      // Clicking a return opens the whole round trip (the chosen outbound + this
+      // return) on one page, ready to book both legs and save.
+      for (const j of back)
+        retList.append(render.journeyEl(j, c, { onPick: (rj) => showTripModal(chosenOutbound!, rj) }));
     };
     selectReturn = (retDate: string): void => {
       odReturnDate = retDate;
@@ -1298,22 +1304,8 @@ function runOdSearch(c: RenderCtx): void {
       retCal.append(render.calendarEl(cal, retCtx, retDate, { title: t("ret_cal_title") }));
       renderReturns(retDate);
     };
-    // Stay-N-nights quick pick (clamped to the booking window).
-    const quick = el("div", { class: "ret-quick" }, [
-      el("span", { class: "field-label", text: t("field_nights") }),
-      ...[1, 2, 3].map((n) =>
-        el("button", {
-          class: "btn btn-ghost ret-quick-btn",
-          type: "button",
-          text: t("nights_n", { n }),
-          on: {
-            click: () => selectReturn(addDays(query.date, n) > lastBookable ? lastBookable : addDays(query.date, n)),
-          },
-        }),
-      ),
-    ]);
     selectReturn(proposed);
-    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), quick, retCal, retList]));
+    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retCal, retList]));
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),

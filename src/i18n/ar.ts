@@ -186,7 +186,7 @@ export const ar: Dict = {
   act_unsave: "إزالة من الرحلات المحفوظة",
   saved_title: "الرحلات المحفوظة",
   trip_summary: "{n} ليلة/ليالٍ · {dur} ذهابًا وإيابًا",
-  trip_summary_day: "في نفس اليوم · {dur} سفر",
+  trip_summary_day: "في نفس اليوم · {onsite} في الموقع · {dur} سفر",
   trip_summary_oneway: "ذهاب فقط · {date} · {dur}",
   trip_more_dates: "عرض كل التواريخ",
 

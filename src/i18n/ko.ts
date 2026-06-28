@@ -187,7 +187,7 @@ export const ko: Dict = {
   act_unsave: "저장한 여행에서 제거",
   saved_title: "저장한 여행",
   trip_summary: "{n}박 · 왕복 {dur}",
-  trip_summary_day: "당일치기 · {dur} 이동",
+  trip_summary_day: "당일치기 · 현지 {onsite} · 이동 {dur}",
   trip_summary_oneway: "편도 · {date} · {dur}",
   trip_more_dates: "모든 날짜 보기",
 

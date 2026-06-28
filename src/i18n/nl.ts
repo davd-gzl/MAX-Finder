@@ -186,7 +186,7 @@ export const nl: Dict = {
   act_unsave: "Verwijderen uit opgeslagen reizen",
   saved_title: "Opgeslagen reizen",
   trip_summary: "{n} nacht(en) · {dur} retourreis",
-  trip_summary_day: "Dagtrip · {dur} reizen",
+  trip_summary_day: "Dagtrip · {onsite} ter plaatse · {dur} reizen",
   trip_summary_oneway: "Enkele reis · {date} · {dur}",
   trip_more_dates: "Alle datums bekijken",
 

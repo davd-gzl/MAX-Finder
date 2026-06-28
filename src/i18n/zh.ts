@@ -186,7 +186,7 @@ export const zh: Dict = {
   act_unsave: "从已保存行程中移除",
   saved_title: "已保存行程",
   trip_summary: "{n} 晚 · 往返 {dur}",
-  trip_summary_day: "当日往返 · 行程 {dur}",
+  trip_summary_day: "当日往返 · 当地 {onsite} · 行程 {dur}",
   trip_summary_oneway: "单程 · {date} · {dur}",
   trip_more_dates: "查看所有日期",
 

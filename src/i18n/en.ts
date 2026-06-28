@@ -199,7 +199,7 @@ export const en: Dict = {
   act_unsave: "Remove from saved trips",
   saved_title: "Saved trips",
   trip_summary: "{n} night(s) · {dur} round-trip travel",
-  trip_summary_day: "Day trip · {dur} travel",
+  trip_summary_day: "Day trip · {onsite} on site · {dur} round-trip travel",
   trip_summary_oneway: "One-way · {date} · {dur}",
   trip_more_dates: "See all dates",
 

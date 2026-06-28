@@ -186,7 +186,7 @@ export const ja: Dict = {
   act_unsave: "保存した旅程から削除",
   saved_title: "保存した旅程",
   trip_summary: "{n}泊 · 往復 {dur}",
-  trip_summary_day: "日帰り · 移動 {dur}",
+  trip_summary_day: "日帰り · 現地 {onsite} · 移動 {dur}",
   trip_summary_oneway: "片道 · {date} · {dur}",
   trip_more_dates: "すべての日付を見る",
 
