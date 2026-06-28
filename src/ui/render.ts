@@ -455,21 +455,22 @@ function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean)
 export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
   const origin = trip.outbound.origin;
   const route: RoutePair = { origin, destination: trip.destination };
-  const headlineText =
-    trip.nights > 0
-      ? t("getaway_nights", { n: trip.nights })
-      : t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin ?? 0) });
+  // The headline chip shows the figure that actually VARIES between rows: time on
+  // site for same-day trips, round-trip travel time for N-night stays (the nights
+  // are fixed for the whole search, so they're stated once in the section header,
+  // not repeated as an identical chip on every row).
+  const sameDay = trip.nights === 0;
+  const headlineText = sameDay
+    ? t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin ?? 0) })
+    : t("daytrip_travel", { dur: formatDuration(trip.travelMin) });
   const headline = el("span", {
     class: "chip chip-onsite",
     text: headlineText,
-    attrs: { title: trip.nights > 0 ? t("getaway_nights_hint") : t("daytrip_onsite_hint") },
+    attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
   });
-  const travel = el("span", { class: "daytrip-travel muted" }, [
-    icon(I.clock),
-    el("bdi", { text: t("daytrip_travel", { dur: formatDuration(trip.travelMin) }) }),
-  ]);
   // A multi-night stay departs and returns on different days, so stamp each leg
-  // with its weekday; a same-day trip needs no date.
+  // with its weekday; a same-day trip needs no date. Same-day also shows the
+  // round-trip travel time inline (its headline is on-site, not travel).
   const multiDay = trip.outbound.date !== trip.back.date;
   const main = el(
     "button",
@@ -489,7 +490,17 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
       el("span", { class: "daytrip-legs" }, [
         legTimesEl(t("daytrip_out"), trip.outbound, ctx, multiDay),
         legTimesEl(t("daytrip_back"), trip.back, ctx, multiDay),
-        travel,
+        // Trailing secondary metric: travel time for same-day (its headline is on
+        // site), or the night count for a stay (its headline is travel) — kept quiet
+        // so it supports rather than competes with the destination name.
+        sameDay
+          ? el("span", { class: "daytrip-travel muted" }, [
+              icon(I.clock),
+              el("bdi", { text: t("daytrip_travel", { dur: formatDuration(trip.travelMin) }) }),
+            ])
+          : el("span", { class: "daytrip-travel muted" }, [
+              el("bdi", { text: t("getaway_nights", { n: trip.nights }) }),
+            ]),
       ]),
     ],
   );

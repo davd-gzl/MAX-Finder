@@ -631,7 +631,7 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 function showTripModal(outbound: Journey, inbound?: Journey): void {
   const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
   const closeBtn = el("button", {
-    class: "btn btn-primary modal-close",
+    class: "btn btn-ghost modal-close",
     type: "button",
     text: t("act_close"),
     on: { click: () => dialog.close() },
@@ -647,9 +647,12 @@ function showTripModal(outbound: Journey, inbound?: Journey): void {
       },
     },
   });
+  // "Show on map" makes no sense behind a modal (it would scroll the page under
+  // the dialog), so neutralise the map action for the cards shown here.
+  const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
   dialog.append(
     el("div", { class: "modal-body" }, [
-      render.tripViewEl(outbound, ctx(), inbound),
+      render.tripViewEl(outbound, modalCtx, inbound),
       el("div", { class: "modal-actions" }, [moreDates, closeBtn]),
     ]),
   );
@@ -670,7 +673,7 @@ function showTourModal(tour: Tour): void {
   const modalCtx: RenderCtx = { ...ctx(), onShowTour: () => {}, onShowJourney: () => {} };
   const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
   const closeBtn = el("button", {
-    class: "btn btn-primary modal-close",
+    class: "btn btn-ghost modal-close",
     type: "button",
     text: t("act_close"),
     on: { click: () => dialog.close() },
