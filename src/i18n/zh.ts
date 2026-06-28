@@ -195,4 +195,7 @@ export const zh: Dict = {
 
   getaway_cal_title: "每日往返",
 
+  flex_days: "天",
+  cal_legend_count: "数字 = 当天列车数",
+
 };

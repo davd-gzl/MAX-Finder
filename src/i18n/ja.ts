@@ -195,4 +195,7 @@ export const ja: Dict = {
 
   getaway_cal_title: "日付別の往復",
 
+  flex_days: "日",
+  cal_legend_count: "数字 = その日の列車数",
+
 };

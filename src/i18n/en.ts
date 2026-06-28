@@ -208,4 +208,7 @@ export const en: Dict = {
 
   getaway_cal_title: "Round trips by day",
 
+  flex_days: "days",
+  cal_legend_count: "number = trains that day",
+
 };

@@ -749,9 +749,7 @@ function readQueryFromForm(): SearchQuery {
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
     via: resolveStation(refs.via.value),
-    // Flexible dates don't apply to the round-trip finder (it pivots on one start
-    // date), so they're cleared there; otherwise read the stepper.
-    flexDays: roundTrip ? undefined : getStepper(refs.flex) || undefined,
+    flexDays: getStepper(refs.flex) || undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -1040,32 +1038,58 @@ function runGetaways(c: RenderCtx, origin: string): void {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
-  // A calendar to be flexible on dates: each day shows how many destinations run
-  // (a hint of how much is possible), and clicking re-runs the round trips for that
-  // day. This is the round-trip way to look "around these days" without a ±N field.
+  // A calendar to pick a specific day (each cell coloured by availability), plus the
+  // ±N "date flexibility" stepper to widen the search to a window around the day.
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
   const dayCal = destinationCalendar(trains, origin, window, filterOpts());
   refs.results.append(
-    render.calendarEl(dayCal, c, query.date, {
-      title: t("getaway_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-    }),
+    render.calendarEl(dayCal, c, query.date, { title: t("getaway_cal_title"), showCount: false }),
   );
-  const trips = getaways(trains, origin, query.date, {
+  const opts = {
     maxConnections: query.maxConnections,
     ...filterOpts(),
     ...(query.nights ? { nights: query.nights } : {}),
     ...(query.flexNights ? { flexibleNights: true } : {}),
     ...(query.stayMinHours ? { minOnSiteMin: query.stayMinHours * 60 } : {}),
     ...(query.lateReturn ? { lateReturn: true } : {}),
-  });
+  };
+  // Flexible dates: search every day in the ±N window and keep the best round trip
+  // per destination (more nights, then more time on site / less travel) — so you
+  // can do a round trip "around these days", not only on the exact one.
+  const flex = query.flexDays ?? 0;
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  const dates: string[] = [];
+  for (let i = -flex; i <= flex; i++) {
+    const d = addDays(query.date, i);
+    if (i === 0 || (d >= today && d <= lastBookable)) dates.push(d);
+  }
+  const byDest = new Map<string, ReturnType<typeof getaways>[number]>();
+  for (const d of dates) {
+    for (const g of getaways(trains, origin, d, opts)) {
+      const cur = byDest.get(g.destination);
+      if (
+        !cur ||
+        g.nights > cur.nights ||
+        (g.nights === cur.nights &&
+          (g.nights === 0 ? (g.onSiteMin ?? 0) > (cur.onSiteMin ?? 0) : g.travelMin < cur.travelMin))
+      ) {
+        byDest.set(g.destination, g);
+      }
+    }
+  }
+  const trips = [...byDest.values()].sort(
+    (a, b) =>
+      b.nights - a.nights ||
+      (a.nights === 0 ? (b.onSiteMin ?? 0) - (a.onSiteMin ?? 0) : a.travelMin - b.travelMin),
+  );
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
     return;
   }
   refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }));
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c));
+  // With flexible dates the trips fall on different start days, so each row shows its date.
+  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: flex > 0 }));
   showMap(
     origin,
     trips.map((trip) => trip.destination),
@@ -1142,6 +1166,7 @@ function runBestSearch(c: RenderCtx): void {
     render.calendarEl(cal, c, allDays ? undefined : query.date, {
       title: t("best_cal_title"),
       count: (n) => t("best_cal_count", { n }),
+      showCount: false,
     }),
   );
   // Once a day is picked, offer a one-tap return to the full "all days" list.
@@ -1750,12 +1775,8 @@ function updateFieldVisibility(): void {
   // surfaces more places; in a tour it lets the departure slip a few days later to
   // find a feasible start. Exact trip already has the 30-day calendar (the flex list
   // would just duplicate it); best has its ideas-by-day calendar.
-  // Hidden for the round-trip finder: it pivots on one start date, so ±N days
-  // has no effect there (showing it would just be a dead control).
   refs.flexField.style.display =
-    (query.mode === "from" && !refs.roundTrip.checked) || query.mode === "to" || query.mode === "tour"
-      ? ""
-      : "none";
+    query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
   // Round trip (day trips + N-night getaways) is a "Where to?"-only toggle; its
   // options appear once the toggle is on, and "min hours on site" only for a
@@ -1764,15 +1785,13 @@ function updateFieldVisibility(): void {
   refs.roundTripOpts.style.display = query.mode === "from" && refs.roundTrip.checked ? "" : "none";
   refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
 
-  // Field placement per mode: every mode except "best" (Ideas) promotes Connections
-  // (with Overnight/Night) into the prominent main form — they're central to where
-  // you can actually get. The exact trip also promotes its search radius. Single
+  // Field placement per mode: every mode now promotes Connections (with
+  // Overnight/Night) into the prominent main form — they're central to where you
+  // can actually get. The exact trip also promotes its search radius. Single
   // elements moved between the main fields grid and Advanced, never duplicated.
   const tour = query.mode === "tour";
   const od = query.mode === "od";
-  const promoteConn = query.mode !== "best";
-  if (promoteConn) refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
-  else refs.trainTypeField.parentElement?.insertBefore(refs.connGroupField, refs.trainTypeField);
+  refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
   if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
   else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
 
@@ -2119,8 +2138,6 @@ function buildForm(): FormBuild {
   const syncRoundTripOpts = (): void => {
     roundTripOpts.style.display = roundTrip.checked ? "" : "none";
     stayHoursField.style.display = nights.value === "0" ? "" : "none";
-    // ±N days doesn't apply to the round-trip finder — hide it while it's on.
-    refs.flexField.style.display = roundTrip.checked ? "none" : "";
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
   nights.addEventListener("change", syncRoundTripOpts);
@@ -2318,9 +2335,9 @@ function buildForm(): FormBuild {
       destinationField,
       viaField,
       field(t("field_date"), date),
+      flexField,
       endDateField,
       roundTripField,
-      flexField,
       regionField,
       citiesField,
       stayField,
@@ -2535,12 +2552,17 @@ function field(label: string, control: HTMLElement): HTMLElement {
 const FLEX_MAX = 7;
 
 /**
- * A compact −/+ stepper (used for date flexibility): two small buttons around a
- * readout, easier than a row of option buttons. The value lives on `data-value`.
+ * A compact −/+ stepper with a writable number in the middle (used for date
+ * flexibility): nudge with the buttons or just type the number of ± days. The
+ * value lives on `data-value`.
  */
 function buildStepper(ariaLabel: string, onChange: () => void): HTMLElement {
   const stepper = el("div", { class: "stepper", attrs: { role: "group", "aria-label": ariaLabel } });
-  const val = el("span", { class: "step-val" });
+  const input = el("input", {
+    class: "step-input",
+    type: "number",
+    attrs: { min: "0", max: String(FLEX_MAX), inputmode: "numeric", "aria-label": ariaLabel },
+  }) as HTMLInputElement;
   const minus = el("button", { class: "step-btn", type: "button", text: "−", attrs: { "aria-label": "−1" } });
   const plus = el("button", { class: "step-btn", type: "button", text: "+", attrs: { "aria-label": "+1" } });
   minus.addEventListener("click", () => {
@@ -2551,17 +2573,21 @@ function buildStepper(ariaLabel: string, onChange: () => void): HTMLElement {
     setStepper(stepper, getStepper(stepper) + 1);
     onChange();
   });
-  stepper.append(minus, val, plus);
+  input.addEventListener("change", () => {
+    setStepper(stepper, Number(input.value));
+    onChange();
+  });
+  stepper.append(minus, input, el("span", { class: "step-unit muted", text: t("flex_days") }), plus);
   setStepper(stepper, 0);
   return stepper;
 }
 
-/** Set the stepper value (0..FLEX_MAX) and update its readout. */
+/** Set the stepper value (0..FLEX_MAX), clamping, and update its number field. */
 function setStepper(stepper: HTMLElement, n: number): void {
-  const v = Math.max(0, Math.min(FLEX_MAX, Math.floor(n)));
+  const v = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
   stepper.dataset.value = String(v);
-  const val = stepper.querySelector(".step-val");
-  if (val) val.textContent = v === 0 ? t("flex_exact") : `± ${v}`;
+  const input = stepper.querySelector<HTMLInputElement>(".step-input");
+  if (input) input.value = String(v);
 }
 
 /** Read the stepper value. */

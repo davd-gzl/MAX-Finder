@@ -340,15 +340,31 @@ a {
   background: var(--accent-soft);
   color: var(--accent);
 }
-.step-val {
-  min-width: 5.5rem;
-  padding: 0.55rem 0.5rem;
+.step-input {
+  width: 2.6rem;
+  padding: 0.55rem 0.3rem;
   text-align: center;
+  border: 0;
   border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
   font-weight: 560;
   font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.step-input::-webkit-outer-spin-button,
+.step-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.step-unit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-right: 1px solid var(--border);
+  font-size: 0.82rem;
   white-space: nowrap;
 }
 .field-check {
@@ -1150,6 +1166,12 @@ a {
 .daytrip-day {
   font-size: 0.78rem;
   font-weight: 600;
+}
+/* The trip's start date, shown on flexible-date round-trip rows (they span days). */
+.daytrip-date {
+  font-size: 0.8rem;
+  font-weight: 640;
+  color: var(--accent);
 }
 .daytrip-times {
   display: inline-flex;
