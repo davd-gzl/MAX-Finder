@@ -2499,42 +2499,60 @@ function renderFavorites(): void {
   }
 }
 
-/** Render the "Saved trips" rail card from localStorage (newest first). */
+// The rail (sidebar) only shows the few most recent saved trips; the rest live
+// on the dedicated "Saved trips" page reached via the "See all" link.
+const SAVED_RAIL_LIMIT = 3;
+
+/**
+ * Route label, date label, and an "open" action for a saved trip, shared by the
+ * rail and the dedicated saved-trips page. A tour chains every stop; a round
+ * trip uses ⇄ and a date range; a one-way is a single arrow + date.
+ */
+function savedTripInfo(trip: store.SavedTrip): { label: string; when: string; open: () => void } {
+  const out = trip.outbound;
+  const inb = trip.inbound;
+  const tour = trip.tour;
+  if (tour) {
+    const stops = [tour.legs[0]?.origin ?? out.origin, ...tour.legs.map((l) => l.destination)];
+    const last = tour.legs[tour.legs.length - 1];
+    return {
+      label: stops.map((s) => deps.registry.label(s)).join(" → "),
+      when: last ? `${formatDate(out.date)} – ${formatDate(last.date)}` : formatDate(out.date),
+      open: () => showTourModal(tour),
+    };
+  }
+  return {
+    label: `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`,
+    when: inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date),
+    open: () => showTripModal(out, inb),
+  };
+}
+
+/**
+ * Render the "Saved trips" rail card from localStorage (newest first), capped at
+ * the last few. When more exist (or any do), a "See all (N)" link opens the
+ * dedicated saved-trips page.
+ */
 function renderSavedTrips(): void {
   clear(refs.tripList);
   const trips = store.loadTrips();
   // Hide the whole card while empty so it doesn't take prime space in the rail.
   refs.tripList.parentElement?.toggleAttribute("hidden", trips.length === 0);
   if (trips.length === 0) return;
-  for (const trip of trips) {
-    const out = trip.outbound;
-    const inb = trip.inbound;
-    const tour = trip.tour;
-    // Route + date label differ by kind: a tour chains every stop; a round trip
-    // uses ⇄ and a date range; a one-way is a single arrow + date.
-    let label: string;
-    let when: string;
-    let open: () => void;
-    if (tour) {
-      const stops = [tour.legs[0]?.origin ?? out.origin, ...tour.legs.map((l) => l.destination)];
-      label = stops.map((s) => deps.registry.label(s)).join(" → ");
-      const last = tour.legs[tour.legs.length - 1];
-      when = last ? `${formatDate(out.date)} – ${formatDate(last.date)}` : formatDate(out.date);
-      open = () => showTourModal(tour);
-    } else {
-      label = `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`;
-      when = inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date);
-      open = () => showTripModal(out, inb);
-    }
+  for (const trip of trips.slice(0, SAVED_RAIL_LIMIT)) {
+    const info = savedTripInfo(trip);
     const row = el("div", { class: "fav-row trip-row" }, [
       el(
         "button",
         {
           class: "fav-open trip-open",
           type: "button",
-          on: { click: open },
+          on: { click: info.open },
         },
-        [el("span", { class: "trip-open-route", text: label }), el("span", { class: "muted small", text: when })],
+        [
+          el("span", { class: "trip-open-route", text: info.label }),
+          el("span", { class: "muted small", text: info.when }),
+        ],
       ),
       el("button", {
         class: "iconbtn",
@@ -2550,6 +2568,68 @@ function renderSavedTrips(): void {
       }),
     ]);
     refs.tripList.append(row);
+  }
+  // Always offer the dedicated page (it holds the full history + remove controls).
+  refs.tripList.append(
+    el("button", {
+      class: "saved-see-all",
+      type: "button",
+      text: t("saved_see_all", { n: trips.length }),
+      on: { click: openSavedPage },
+    }),
+  );
+}
+
+/** Open the dedicated saved-trips page (full list), remembering where we were. */
+function openSavedPage(): void {
+  navStack.push({ ...query }); // so the page's Back returns to the current list
+  if (pendingRaf) cancelAnimationFrame(pendingRaf);
+  pendingRaf = 0;
+  clear(refs.results);
+  renderSavedPage();
+  refs.title.focus({ preventScroll: true });
+  refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Full saved-trips list: back button, count, then a card per trip with remove. */
+function renderSavedPage(): void {
+  clear(refs.results);
+  refs.title.textContent = t("saved_title");
+  refs.results.append(
+    el("button", { class: "back-btn", type: "button", text: `← ${t("act_back")}`, on: { click: goBack } }),
+  );
+  const trips = store.loadTrips();
+  if (trips.length === 0) {
+    refs.results.append(render.emptyEl(t("saved_none")));
+    return;
+  }
+  refs.results.append(el("p", { class: "muted count", text: t("saved_count", { n: trips.length }) }));
+  for (const trip of trips) {
+    const info = savedTripInfo(trip);
+    const card = el("div", { class: "saved-page-card" }, [
+      el(
+        "button",
+        { class: "fav-open trip-open", type: "button", on: { click: info.open } },
+        [
+          el("span", { class: "trip-open-route", text: info.label }),
+          el("span", { class: "muted small", text: info.when }),
+        ],
+      ),
+      el("button", {
+        class: "iconbtn",
+        type: "button",
+        text: "✕",
+        title: t("act_unsave"),
+        on: {
+          click: () => {
+            store.removeTrip(trip.id);
+            renderSavedTrips();
+            renderSavedPage(); // refresh the page in place (may now be empty)
+          },
+        },
+      }),
+    ]);
+    refs.results.append(card);
   }
 }
 

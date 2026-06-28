@@ -1888,6 +1888,48 @@ a {
 .trip-open-route {
   font-weight: 560;
 }
+/* "See all (N)" link under the capped rail → opens the full saved-trips page. */
+.saved-see-all {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 560;
+  color: var(--accent);
+  cursor: pointer;
+}
+.saved-see-all:hover {
+  text-decoration: underline;
+}
+.saved-see-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- dedicated saved-trips page (full list) ---- */
+.saved-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+}
+.saved-page-card .trip-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.saved-page-card .trip-open-route {
+  font-size: 1.02rem;
+}
 
 /* ---- od "come back?" return section ---- */
 .od-return {
