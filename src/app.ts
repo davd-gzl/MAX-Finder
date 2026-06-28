@@ -60,7 +60,7 @@ interface Refs {
   maxConnections: HTMLSelectElement;
   connGroupField: HTMLElement;
   overnight: HTMLInputElement;
-  night: HTMLInputElement;
+  night: HTMLSelectElement;
   roundTrip: HTMLInputElement;
   nights: HTMLSelectElement;
   stayHours: HTMLInputElement;
@@ -715,7 +715,7 @@ function syncFormFromQuery(): void {
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
-  refs.night.checked = !query.excludeNight; // checked = night trains included
+  refs.night.value = query.onlyNight ? "only" : query.excludeNight ? "no" : "yes";
   refs.roundTrip.checked = Boolean(query.roundTrip);
   refs.nights.value = query.flexNights ? "flex" : String(query.nights ?? 0);
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
@@ -758,7 +758,9 @@ function readQueryFromForm(): SearchQuery {
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
     overnight: refs.overnight.checked || undefined,
-    excludeNight: !refs.night.checked || undefined, // unchecked = drop night trains
+    // Night trains: "no" drops them, "only" keeps sleep-aboard journeys, "yes" both.
+    excludeNight: refs.night.value === "no" || undefined,
+    onlyNight: refs.night.value === "only" || undefined,
     region: refs.region.value || undefined,
     // Chips hold the committed cities; also fold in any text still in the input
     // (typed but not yet turned into a chip) so a pending entry isn't lost.
@@ -865,6 +867,7 @@ function tourPlanOpts() {
     maxConnections: query.maxConnections,
     ...(query.maxLegDurationMin ? { maxDurationMin: query.maxLegDurationMin } : {}),
     ...(query.excludeNight ? { excludeNight: true } : {}),
+    ...(query.onlyNight ? { onlyNight: true } : {}),
   };
 }
 
@@ -875,6 +878,7 @@ function filterOpts() {
     maxDurationMin: query.maxDurationMin,
     trainType: query.trainType,
     ...(query.excludeNight ? { excludeNight: true } : {}),
+    ...(query.onlyNight ? { onlyNight: true } : {}),
     // Overnight stopovers: widen the layover ceiling so a journey can wait
     // overnight at a hub instead of being limited to a ~4h connection.
     ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
@@ -2109,15 +2113,16 @@ function buildForm(): FormBuild {
     overnight,
     el("span", { class: "field-label", text: t("field_overnight") }),
   ]);
-  // Night trains are OFF by default (checkbox unchecked = trains that leave late or
-  // arrive past midnight are dropped); checking it includes them. The default query
-  // carries excludeNight, and syncFormFromQuery sets this from it.
-  const night = el("input", { type: "checkbox" }) as HTMLInputElement;
-  night.checked = false;
-  const nightField = el("label", { class: "field field-check" }, [
-    night,
-    el("span", { class: "field-label", text: t("field_night") }),
-  ]);
+  // Night trains: a 3-way choice. Default "no" drops trains that leave late or
+  // arrive past midnight; "yes" includes them; "only" keeps just journeys you can
+  // sleep aboard (at least one night leg). The default query carries excludeNight,
+  // and syncFormFromQuery sets the select from excludeNight/onlyNight.
+  const night = el("select", { class: "input" }, [
+    optionEl("no", t("night_no"), true),
+    optionEl("yes", t("night_yes"), false),
+    optionEl("only", t("night_only"), false),
+  ]) as HTMLSelectElement;
+  const nightField = field(t("field_night"), night);
   // "Round trip" controls — shown only in "Where to?" mode. The toggle flips the
   // destinations list into round trips (out and back, both free MAX); its options
   // (nights away, min hours on site for a day trip, a late ~02:00 return) appear

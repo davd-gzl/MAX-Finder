@@ -303,6 +303,49 @@ describe("findJourneys across midnight", () => {
   });
 });
 
+describe("onlyNight (sleep aboard)", () => {
+  const mixed = normalizeRecords([
+    // Direct day train and a direct night train (departs 22:30, arrives 06:00+1) to LYON.
+    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "10:00", heure_arrivee: "12:00", train_no: "DAY", od_happy_card: "OUI" },
+    { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:30", heure_arrivee: "06:00", train_no: "NIGHT", od_happy_card: "OUI" },
+    // A next-morning day hop onward, reachable after stepping off the sleeper.
+    { date: "2026-08-02", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "08:00", heure_arrivee: "09:00", train_no: "DAY2", od_happy_card: "OUI" },
+  ] as RawRecord[]);
+
+  it("keeps only journeys that include a night leg", () => {
+    const all = findJourneys(mixed, "PARIS (intramuros)", "LYON (intramuros)", "2026-08-01", { maxConnections: 0 });
+    expect(all.map((j) => j.legs[0]!.trainNo).sort()).toEqual(["DAY", "NIGHT"]);
+    const night = findJourneys(mixed, "PARIS (intramuros)", "LYON (intramuros)", "2026-08-01", {
+      maxConnections: 0,
+      onlyNight: true,
+    });
+    expect(night.map((j) => j.legs[0]!.trainNo)).toEqual(["NIGHT"]);
+  });
+
+  it("counts a connection as sleep-aboard when ANY leg is a night train", () => {
+    // PARIS -> LYON (night) -> MARSEILLE (day): the first leg is a sleeper, so the
+    // whole journey qualifies even though the onward hop is a day train.
+    const reach = reachableJourneys(mixed, "PARIS (intramuros)", "2026-08-01", {
+      maxConnections: 1,
+      onlyNight: true,
+    });
+    const marseille = reach.get("MARSEILLE ST CHARLES");
+    expect(marseille).toBeDefined();
+    expect(marseille!.legs.map((l) => l.trainNo)).toEqual(["NIGHT", "DAY2"]);
+    // LYON itself is still reachable — via the night train, not the day one.
+    expect(reach.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("NIGHT");
+  });
+
+  it("drops a destination reachable only by day trains", () => {
+    const dayOnly = normalizeRecords([
+      { date: "2026-08-01", origine: "PARIS (intramuros)", destination: "TOURS", heure_depart: "09:00", heure_arrivee: "10:00", train_no: "D", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    expect(
+      findJourneys(dayOnly, "PARIS (intramuros)", "TOURS", "2026-08-01", { maxConnections: 0, onlyNight: true }),
+    ).toHaveLength(0);
+  });
+});
+
 describe("reachableJourneys (multi-target)", () => {
   it("finds every destination — direct and connection-only — in one pass", () => {
     const r = reachableJourneys(trains, "PARIS (intramuros)", "2026-06-25", { maxConnections: 1 });

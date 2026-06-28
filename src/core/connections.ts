@@ -15,6 +15,8 @@ export interface ConnectionOptions {
   trainType?: string;
   /** Drop night trains (leave late or arrive past midnight) from the search. */
   excludeNight?: boolean;
+  /** Only keep journeys that include at least one night train (sleep aboard). */
+  onlyNight?: boolean;
   /**
    * How many calendar days of trains to pool, so a journey may chain hops with
    * multi-day stopovers at hubs ("trip over up to N days"). Default 2 — the chosen
@@ -146,7 +148,7 @@ export function findJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = journeyMemo(trains);
-  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -189,7 +191,8 @@ export function findJourneys(
     const last = path[path.length - 1];
     if (!last) return;
     if (last.destination === destination) {
-      results.push(toJourney([...path]));
+      // "Only night trains": keep the journey only if you'd sleep on a leg.
+      if (!opts.onlyNight || path.some(isNightTrain)) results.push(toJourney([...path]));
       return;
     }
     if (path.length - 1 >= maxConn) return; // used all allowed changes
@@ -267,7 +270,7 @@ export function reachableJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = reachMemo(trains);
-  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -304,7 +307,9 @@ export function reachableJourneys(
     // Every station reached is itself a candidate destination — record the best
     // (shortest) journey to it.
     const j = toJourney([...path]);
-    if (maxDur == null || j.totalDurationMin <= maxDur) {
+    // "Only night trains": a destination counts only via a journey you sleep on.
+    const okNight = !opts.onlyNight || path.some(isNightTrain);
+    if (okNight && (maxDur == null || j.totalDurationMin <= maxDur)) {
       const cur = best.get(j.destination);
       if (!cur || j.totalDurationMin < cur.totalDurationMin) best.set(j.destination, j);
     }

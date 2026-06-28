@@ -176,6 +176,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.maxConnections !== 1) p.set("conn", String(q.maxConnections));
   if (q.overnight) p.set("night", "1");
   if (q.excludeNight) p.set("nonight", "1");
+  if (q.onlyNight) p.set("onlynight", "1");
   if (q.region) p.set("rg", q.region);
   if (q.cities && q.cities.length > 0) p.set("cities", q.cities.join("~"));
   if (q.minDays != null && q.minDays !== 1) p.set("dmin", String(q.minDays));
@@ -227,6 +228,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 6 ? conn : 1,
     overnight: p.get("night") === "1" || undefined,
     excludeNight: p.get("nonight") === "1" || undefined,
+    onlyNight: p.get("onlynight") === "1" || undefined,
     region: p.get("rg") ?? undefined,
     cities: cities ? cities.split("~").filter(Boolean) : undefined,
     minDays: p.has("dmin") ? clampDay(dmin, 1) : undefined,
