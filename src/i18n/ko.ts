@@ -196,4 +196,7 @@ export const ko: Dict = {
 
   getaway_cal_title: "날짜별 왕복",
 
+  flex_days: "일",
+  cal_legend_count: "숫자 = 그날의 열차 수",
+
 };

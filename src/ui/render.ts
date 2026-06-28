@@ -179,6 +179,8 @@ export function journeyEl(
      * to the card's parent). Use it when the cards aren't direct siblings — e.g. the
      * trip modal, where the two legs live in separate sections. */
     group?: HTMLElement;
+    /** Hide the "Show on map" action (e.g. inside a modal, where the map is hidden). */
+    hideMap?: boolean;
   } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
@@ -247,11 +249,15 @@ export function journeyEl(
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
       [icon(I.cal), el("span", { text: t("act_ics") })],
     ),
-    el(
-      "button",
-      { class: "btn btn-ghost", type: "button", on: { click: () => showOnMap() } },
-      [icon(I.pin), el("span", { text: t("act_map") })],
-    ),
+    ...(opts.hideMap
+      ? []
+      : [
+          el(
+            "button",
+            { class: "btn btn-ghost", type: "button", on: { click: () => showOnMap() } },
+            [icon(I.pin), el("span", { text: t("act_map") })],
+          ),
+        ]),
     ...(saveable ? [tripSaveBtn(j, ctx)] : []),
   ]);
 
@@ -452,7 +458,7 @@ function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean)
  * time, and the out / back times. Clicking opens the exact route, where the 30-day
  * calendar and the "come back?" section let you pick and book both legs.
  */
-export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
+export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: boolean } = {}): HTMLElement {
   const origin = trip.outbound.origin;
   const route: RoutePair = { origin, destination: trip.destination };
   // The headline chip shows the figure that actually VARIES between rows: time on
@@ -488,6 +494,10 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
         headline,
       ]),
       el("span", { class: "daytrip-legs" }, [
+        // With flexible dates the rows fall on different days, so lead with the date.
+        ...(opts.showDate
+          ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
+          : []),
         legTimesEl(t("daytrip_out"), trip.outbound, ctx, multiDay),
         legTimesEl(t("daytrip_back"), trip.back, ctx, multiDay),
         // Trailing secondary metric: travel time for same-day (its headline is on
@@ -619,9 +629,13 @@ export function calendarEl(
   days: CalendarDay[],
   ctx: RenderCtx,
   selected?: string,
-  opts?: { title?: string; count?: (n: number) => string },
+  opts?: { title?: string; count?: (n: number) => string; showCount?: boolean },
 ): HTMLElement {
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
+  // Show the per-cell number only where it exactly matches what clicking the day
+  // reveals (a route's trains / returns). It's hidden on the ideas + round-trip
+  // strips, where the day's actual result count differs from a cheap proxy.
+  const showCount = opts?.showCount !== false;
   const grid = el("div", { class: "cal-grid" });
   // Arrow-key navigation: move focus between day cells (←/→ a day, ↑/↓ a row,
   // Home/End to the ends). The grid is a linear sequence of days, so the row size
@@ -685,10 +699,8 @@ export function calendarEl(
         // Weekday above the day number, so each cell reads as a real date.
         el("span", { class: "cal-dow", text: ctx.formatWeekday(d.date), attrs: { "aria-hidden": "true" } }),
         el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
-        // A tiny count (trains / destinations that day) so each cell carries a
-        // little more at-a-glance info without crowding — shown only when there's
-        // something on the route that day.
-        ...(d.available && d.count > 0
+        // A tiny per-day count, shown only where it's exact (route / return strips).
+        ...(showCount && d.available && d.count > 0
           ? [el("span", { class: "cal-count", text: String(d.count), attrs: { "aria-hidden": "true" } })]
           : []),
       ],
@@ -697,6 +709,7 @@ export function calendarEl(
   }
   const legend = [
     t("cal_legend"),
+    ...(showCount ? [t("cal_legend_count")] : []),
     ...(anyNearby ? [t("cal_legend_nearby")] : []),
     ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
   ].join(" · ");
@@ -775,7 +788,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   // separate sections. `onPick` is a no-op — the highlight is the whole point, and
   // it avoids journeyEl's default click (which would scroll to the map behind the modal).
   const view = el("div", { class: "trip-view" });
-  const pickOpts = { saveable: false, group: view, onPick: () => {} };
+  const pickOpts = { saveable: false, group: view, onPick: () => {}, hideMap: true };
   view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
     el("p", { class: "muted trip-summary", text: summary }),

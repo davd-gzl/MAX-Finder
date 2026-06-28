@@ -195,4 +195,7 @@ export const ar: Dict = {
 
   getaway_cal_title: "رحلات الذهاب والإياب حسب اليوم",
 
+  flex_days: "أيام",
+  cal_legend_count: "الرقم = القطارات في ذلك اليوم",
+
 };

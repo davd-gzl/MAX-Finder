@@ -196,4 +196,7 @@ export const de: Dict = {
 
   getaway_cal_title: "Hin- und Rückfahrten pro Tag",
 
+  flex_days: "Tage",
+  cal_legend_count: "Zahl = Züge an dem Tag",
+
 };

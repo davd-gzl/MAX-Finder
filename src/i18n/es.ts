@@ -196,4 +196,7 @@ export const es: Dict = {
 
   getaway_cal_title: "Idas y vueltas por día",
 
+  flex_days: "días",
+  cal_legend_count: "número = trenes ese día",
+
 };

@@ -206,6 +206,9 @@ export const fr = {
 
   getaway_cal_title: "Aller-retours par jour",
 
+  flex_days: "jours",
+  cal_legend_count: "le nombre = trains ce jour",
+
 };
 
 export type Dict = typeof fr;
