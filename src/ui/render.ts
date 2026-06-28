@@ -37,6 +37,10 @@ export interface RenderCtx {
   onToggleTrip: (outbound: Journey, inbound?: Journey) => void;
   /** Open the consolidated one-page view of a trip (round trip when `inbound` is set). */
   onShowTrip: (outbound: Journey, inbound?: Journey) => void;
+  /** Whether this multi-city tour is saved. */
+  isTourSaved: (tour: Tour) => boolean;
+  /** Save the tour if absent, else remove it. */
+  onToggleTour: (tour: Tour) => void;
 }
 
 function icon(path: string): HTMLElement {
@@ -791,6 +795,9 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
   const stops = first ? [first.origin, ...tour.legs.map((l) => l.destination)] : [];
   // Total straight-line distance across every hop ("as the crow flies").
   const totalKm = tour.legs.reduce((s, j) => s + (legKm(j, ctx) ?? 0), 0);
+  // Build the article first so each leg can share it as a selection group: clicking
+  // a leg highlights only that one across the whole tour (not one per day band).
+  const article = el("article", { class: "tour" });
   // The header is a button: clicking it draws the whole tour (every stop) on the
   // map, so after inspecting a single leg you can get the overview back.
   const head = el("button", {
@@ -830,10 +837,40 @@ export function tourEl(tour: Tour, ctx: RenderCtx): HTMLElement {
           ? [el("span", { class: "leg-km muted", attrs: { title: t("nearest_hint") }, text: `${km} km` })]
           : []),
       ]),
-      journeyEl(j, ctx),
+      journeyEl(j, ctx, { group: article }),
     ]);
   });
-  return el("article", { class: "tour" }, [head, el("div", { class: "tour-legs" }, legs)]);
+  article.append(
+    el("div", { class: "tour-top" }, [head, tourSaveBtn(tour, ctx)]),
+    el("div", { class: "tour-legs" }, legs),
+  );
+  return article;
+}
+
+/** A Save button for a whole multi-city tour (mirrors the journey Save button). */
+function tourSaveBtn(tour: Tour, ctx: RenderCtx): HTMLElement {
+  const saved = (): boolean => ctx.isTourSaved(tour);
+  const lbl = el("span", { text: saved() ? t("act_saved") : t("act_save") });
+  const btn = el(
+    "button",
+    {
+      class: saved() ? "btn btn-ghost tour-save is-saved" : "btn btn-ghost tour-save",
+      type: "button",
+      attrs: { "aria-pressed": String(saved()), title: saved() ? t("act_unsave") : t("act_save") },
+      on: {
+        click: () => {
+          ctx.onToggleTour(tour);
+          const now = saved();
+          btn.classList.toggle("is-saved", now);
+          btn.setAttribute("aria-pressed", String(now));
+          btn.title = now ? t("act_unsave") : t("act_save");
+          lbl.textContent = now ? t("act_saved") : t("act_save");
+        },
+      },
+    },
+    [icon(I.bookmark), lbl],
+  );
+  return btn;
 }
 
 export function emptyEl(message: string): HTMLElement {
