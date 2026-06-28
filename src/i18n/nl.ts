@@ -207,5 +207,12 @@ export const nl: Dict = {
   cal_legend_count: "getal = treinen die dag",
 
   cal_legend_dest: "getal = bestemmingen die dag",
+  sort_label: "Sorteren",
+  sort_rec: "Aanbevolen",
+  sort_trains: "Meeste treinen",
+  sort_days: "Meeste dagen",
+  sort_closest: "Dichtstbij",
+  sort_fastest: "Snelste",
+  sort_name: "A–Z",
 
 };

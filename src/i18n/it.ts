@@ -208,5 +208,12 @@ export const it: Dict = {
   cal_legend_count: "numero = treni quel giorno",
 
   cal_legend_dest: "numero = destinazioni quel giorno",
+  sort_label: "Ordina",
+  sort_rec: "Consigliato",
+  sort_trains: "Più treni",
+  sort_days: "Più giorni",
+  sort_closest: "Più vicino",
+  sort_fastest: "Più veloce",
+  sort_name: "A–Z",
 
 };

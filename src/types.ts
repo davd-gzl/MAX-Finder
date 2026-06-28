@@ -113,7 +113,12 @@ export interface SearchQuery {
   stayMinHours?: number;
   /** Allow a round-trip return arriving up to ~02:00 the next morning (else by midnight). */
   lateReturn?: boolean;
+  /** How to order the results list (browse / ideas). "rec" = the mode's default rank. */
+  sort?: SortKey;
 }
+
+/** Result ordering for the destination / ideas lists. */
+export type SortKey = "rec" | "trains" | "days" | "closest" | "fastest" | "name";
 
 /** A direct or multi-leg (1..3 legs) journey. */
 export interface Journey {

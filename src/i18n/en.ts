@@ -220,5 +220,12 @@ export const en: Dict = {
   cal_legend_count: "number = trains that day",
 
   cal_legend_dest: "number = destinations that day",
+  sort_label: "Sort",
+  sort_rec: "Recommended",
+  sort_trains: "Most trains",
+  sort_days: "Most days",
+  sort_closest: "Closest",
+  sort_fastest: "Fastest",
+  sort_name: "A–Z",
 
 };

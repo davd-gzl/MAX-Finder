@@ -1,4 +1,4 @@
-import type { SearchQuery, SearchMode, CardType, Journey } from "../types";
+import type { SearchQuery, SearchMode, CardType, Journey, SortKey } from "../types";
 import type { Tour } from "../core/tour";
 import { isLang, detectLang, type Lang } from "../i18n";
 
@@ -192,8 +192,11 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.stayMinHours != null && q.stayMinHours > 0) p.set("stayh", String(q.stayMinHours));
   if (q.lateReturn) p.set("late", "1");
   if (q.tourEndDate) p.set("by", q.tourEndDate);
+  if (q.sort && q.sort !== "rec") p.set("sort", q.sort);
   return p;
 }
+
+const SORT_KEYS = ["rec", "trains", "days", "closest", "fastest", "name"] as const;
 
 export function queryFromParams(p: URLSearchParams, fallbackDate: string): SearchQuery {
   const rawMode = p.get("mode") ?? "from";
@@ -248,7 +251,13 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     stayMinHours: Number.isFinite(stayh) && stayh >= 1 ? Math.min(12, Math.floor(stayh)) : undefined,
     lateReturn: p.get("late") === "1" || undefined,
     tourEndDate: p.get("by") ?? undefined,
+    sort: parseSort(p.get("sort")),
   };
+}
+
+/** Validate a URL sort value against the known keys (undefined = the default rank). */
+function parseSort(raw: string | null): SortKey | undefined {
+  return raw && (SORT_KEYS as readonly string[]).includes(raw) ? (raw as SortKey) : undefined;
 }
 
 export function updateUrl(q: SearchQuery): void {

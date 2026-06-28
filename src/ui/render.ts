@@ -1,4 +1,4 @@
-import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
+import type { MaxTrain, Journey, SearchMode, CalendarDay, SortKey } from "../types";
 import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
@@ -521,6 +521,32 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
   );
   return el("article", { class: "group-card daytrip-card", dataset: { station: trip.destination } }, [
     el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
+  ]);
+}
+
+/**
+ * The header above a result list: the result count on the left, a "Sort" picker on
+ * the right. Selecting a key calls `onSort`, which re-renders the list in place.
+ */
+export function listToolbarEl(
+  count: string,
+  current: SortKey,
+  options: { value: SortKey; label: string }[],
+  onSort: (key: SortKey) => void,
+): HTMLElement {
+  const sel = el(
+    "select",
+    { class: "sort-select", attrs: { "aria-label": t("sort_label") } },
+    options.map((o) => el("option", { value: o.value, text: o.label })),
+  ) as HTMLSelectElement;
+  sel.value = current;
+  sel.addEventListener("change", () => onSort(sel.value as SortKey));
+  return el("div", { class: "list-toolbar" }, [
+    el("span", { class: "muted count", text: count }),
+    el("label", { class: "sort-field" }, [
+      el("span", { class: "sort-label muted small", text: `${t("sort_label")}:` }),
+      sel,
+    ]),
   ]);
 }
 

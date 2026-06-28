@@ -1,6 +1,6 @@
 import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
-import type { SearchQuery, MaxTrain, Journey } from "./types";
+import type { SearchQuery, MaxTrain, Journey, SortKey } from "./types";
 import {
   reachableDestinations,
   reachableOrigins,
@@ -808,6 +808,8 @@ function readQueryFromForm(): SearchQuery {
     // Tour finish-by date — only meaningful with a tour destination set.
     tourEndDate:
       query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
+    // The sort lives in the results toolbar, not the form — carry it through.
+    sort: query.sort,
   };
 }
 
@@ -887,6 +889,65 @@ function filterOpts() {
     // overnight at a hub instead of being limited to a ~4h connection.
     ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
   };
+}
+
+// --- result sorting ---------------------------------------------------------
+
+const SORT_LABEL = {
+  rec: "sort_rec",
+  trains: "sort_trains",
+  days: "sort_days",
+  closest: "sort_closest",
+  fastest: "sort_fastest",
+  name: "sort_name",
+} as const;
+
+/** Build the sort-picker option list for a mode from its applicable keys. */
+function sortOptions(keys: SortKey[]): { value: SortKey; label: string }[] {
+  return keys.map((k) => ({ value: k, label: t(SORT_LABEL[k]) }));
+}
+
+/** Re-rank the current list to the chosen key (no recompute) and refresh in place. */
+function onSort(key: SortKey): void {
+  query = { ...query, sort: key === "rec" ? undefined : key };
+  refreshInPlace();
+}
+
+interface SortAccessors<T> {
+  name: (x: T) => string;
+  trains?: (x: T) => number;
+  days?: (x: T) => number;
+  distanceKm?: (x: T) => number;
+  durationMin?: (x: T) => number;
+}
+
+/**
+ * Re-order a list by the active sort key, leaving the mode's natural rank (and the
+ * default "rec") untouched. A key with no accessor for this list is a no-op, so
+ * each mode can offer just the keys that make sense. Sorts a copy.
+ */
+function applySort<T>(items: T[], acc: SortAccessors<T>): T[] {
+  const key = query.sort;
+  if (!key || key === "rec") return items;
+  const arr = [...items];
+  switch (key) {
+    case "trains":
+      if (acc.trains) arr.sort((a, b) => acc.trains!(b) - acc.trains!(a));
+      break;
+    case "days":
+      if (acc.days) arr.sort((a, b) => acc.days!(b) - acc.days!(a));
+      break;
+    case "closest":
+      if (acc.distanceKm) arr.sort((a, b) => acc.distanceKm!(a) - acc.distanceKm!(b));
+      break;
+    case "fastest":
+      if (acc.durationMin) arr.sort((a, b) => acc.durationMin!(a) - acc.durationMin!(b));
+      break;
+    case "name":
+      arr.sort((a, b) => acc.name(a).localeCompare(acc.name(b)));
+      break;
+  }
+  return arr;
 }
 
 /** Round-trip ("getaway") search options from the form (shared by Where-to? and Ideas). */
@@ -1037,8 +1098,22 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
     showMap(anchor, []);
     return;
   }
-  refs.results.append(el("p", { class: "muted count", text: t(countKey, { n: total }) }));
-  for (const g of groups)
+  // Sort applies to the direct destinations (the rich cards); "rec" keeps the
+  // most-served default. Via rows stay appended after, in their duration order.
+  const sortedGroups = applySort(groups, {
+    name: (g) => registry.label(g.station),
+    distanceKm: (g) => stationDistanceKm(anchor, g.station),
+    durationMin: (g) => g.minDurationMin,
+  });
+  refs.results.append(
+    render.listToolbarEl(
+      t(countKey, { n: total }),
+      query.sort ?? "rec",
+      sortOptions(["rec", "fastest", "closest", "name"]),
+      onSort,
+    ),
+  );
+  for (const g of sortedGroups)
     refs.results.append(
       render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
     );
@@ -1213,15 +1288,29 @@ function runBestSearch(c: RenderCtx): void {
     return;
   }
 
-  refs.results.append(
-    el("p", { class: "muted count", text: t("res_destinations", { n: trips.length }) }),
-  );
   // Month-long train count per destination (same figure as the "Where to?" list),
   // so an idea shows how well-served it is before you drill in.
   const stats = windowStats(trains, query.origin, "from", filterOpts());
-  for (const tr of trips)
+  // Sort by trains / days reachable / distance / name; "rec" keeps fastest-first.
+  const origin = query.origin;
+  const sorted = applySort(trips, {
+    name: (tr) => registry.label(tr.destination),
+    trains: (tr) => stats.get(tr.destination)?.trains ?? 0,
+    days: (tr) => tr.days ?? 0,
+    distanceKm: (tr) => stationDistanceKm(origin, tr.destination),
+    durationMin: (tr) => tr.journey.totalDurationMin,
+  });
+  refs.results.append(
+    render.listToolbarEl(
+      t("res_destinations", { n: trips.length }),
+      query.sort ?? "rec",
+      sortOptions(["rec", "trains", "days", "closest", "name"]),
+      onSort,
+    ),
+  );
+  for (const tr of sorted)
     refs.results.append(render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
-  showMap(query.origin, trips.map((tr) => tr.destination));
+  showMap(query.origin, sorted.map((tr) => tr.destination));
 }
 
 /**
@@ -1281,10 +1370,23 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
     showMap(origin, []);
     return;
   }
-  refs.results.append(el("p", { class: "muted count", text: t("best_round_count", { n: trips.length }) }));
+  // Sort by distance / total travel / name; "rec" keeps the best-stay default.
+  const sorted = applySort(trips, {
+    name: (g) => registry.label(g.destination),
+    distanceKm: (g) => stationDistanceKm(origin, g.destination),
+    durationMin: (g) => g.travelMin,
+  });
+  refs.results.append(
+    render.listToolbarEl(
+      t("best_round_count", { n: trips.length }),
+      query.sort ?? "rec",
+      sortOptions(["rec", "closest", "fastest", "name"]),
+      onSort,
+    ),
+  );
   // Trips fall on different start days across the month, so each row shows its date.
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
-  showMap(origin, trips.map((trip) => trip.destination));
+  for (const trip of sorted) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  showMap(origin, sorted.map((trip) => trip.destination));
 }
 
 function runOdSearch(c: RenderCtx): void {

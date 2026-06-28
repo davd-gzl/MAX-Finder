@@ -218,6 +218,13 @@ export const fr = {
   cal_legend_count: "le nombre = trains ce jour",
 
   cal_legend_dest: "le nombre = destinations ce jour",
+  sort_label: "Trier",
+  sort_rec: "Recommandé",
+  sort_trains: "Plus de trains",
+  sort_days: "Plus de jours",
+  sort_closest: "Plus proche",
+  sort_fastest: "Plus rapide",
+  sort_name: "A–Z",
 
 };
 

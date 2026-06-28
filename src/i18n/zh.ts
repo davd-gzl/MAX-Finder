@@ -207,5 +207,12 @@ export const zh: Dict = {
   cal_legend_count: "数字 = 当天列车数",
 
   cal_legend_dest: "数字 = 当天目的地数",
+  sort_label: "排序",
+  sort_rec: "推荐",
+  sort_trains: "车次最多",
+  sort_days: "天数最多",
+  sort_closest: "最近",
+  sort_fastest: "最快",
+  sort_name: "A–Z",
 
 };
