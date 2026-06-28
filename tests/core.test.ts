@@ -732,6 +732,21 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
     expect(twoNights[0]!.onSiteMin).toBeUndefined(); // multi-night counts nights, not minutes
   });
 
+  it("models a sleeper round trip: overnight out, N nights, overnight back", () => {
+    const sleeperRT = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "BRIANCON", heure_depart: "21:00", heure_arrivee: "07:00", train_no: "OUT", od_happy_card: "OUI", axe: "IC NUIT" },
+      { date: "2026-07-03", origine: "BRIANCON", destination: "PARIS (intramuros)", heure_depart: "20:00", heure_arrivee: "07:00", train_no: "BACK", od_happy_card: "OUI", axe: "IC NUIT" },
+      // A day return that must NOT be used when "only night trains" is on.
+      { date: "2026-07-03", origine: "BRIANCON", destination: "PARIS (intramuros)", heure_depart: "08:00", heure_arrivee: "12:00", train_no: "DAYBACK", od_happy_card: "OUI", axe: "SUD EST" },
+    ] as RawRecord[]);
+    const g = getaways(sleeperRT, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, onlyNight: true, nights: 1 });
+    expect(g).toHaveLength(1);
+    expect(g[0]!.nights).toBe(1); // one night AT the destination
+    expect(g[0]!.outbound.legs[0]!.trainNo).toBe("OUT"); // sleeper out (arrives next morning)
+    expect(g[0]!.back.legs[0]!.trainNo).toBe("BACK"); // sleeper back, not the day return
+    expect(g[0]!.back.date).toBe("2026-07-03"); // leaves the evening after the last night (date + nights + 1)
+  });
+
   it("flexibleNights keeps the longest feasible stay up to the max", () => {
     // With max 3 nights, the longest feasible stay is 2 (return on 03-Jul).
     const flex = getaways(stay, "PARIS (intramuros)", "2026-07-01", {

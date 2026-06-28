@@ -1220,6 +1220,16 @@ a {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+/* "+1d" marker after an overnight arrival time (a sleeper lands the next morning). */
+.day-offset {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  margin-left: 0.1rem;
+}
 .daytrip-travel {
   display: inline-flex;
   align-items: center;
