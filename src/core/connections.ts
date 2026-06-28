@@ -192,8 +192,10 @@ export function findJourneys(
     const last = path[path.length - 1];
     if (!last) return;
     if (last.destination === destination) {
-      // "Only night trains": keep the journey only if you'd sleep on a leg.
-      if (!opts.onlyNight || path.some(isNightTrain)) results.push(toJourney([...path]));
+      // "Only night trains": you must ARRIVE on a sleeper — the last leg is a night
+      // train. A day hop to a hub then the sleeper in is fine; a sleeper followed by
+      // a day hop is not (you wouldn't be sleeping into your destination).
+      if (!opts.onlyNight || isNightTrain(last)) results.push(toJourney([...path]));
       return;
     }
     if (path.length - 1 >= maxConn) return; // used all allowed changes
@@ -311,8 +313,8 @@ export function reachableJourneys(
     // Every station reached is itself a candidate destination — record the best
     // (shortest) journey to it.
     const j = toJourney([...path]);
-    // "Only night trains": a destination counts only via a journey you sleep on.
-    const okNight = !opts.onlyNight || path.some(isNightTrain);
+    // "Only night trains": you must arrive on a sleeper (the last leg is a night train).
+    const okNight = !opts.onlyNight || isNightTrain(last);
     if (okNight && (maxDur == null || j.totalDurationMin <= maxDur)) {
       const cur = best.get(j.destination);
       if (!cur || j.totalDurationMin < cur.totalDurationMin) best.set(j.destination, j);
@@ -411,7 +413,7 @@ export function latestReturns(
     if (!last) return;
     // Arrival (minutes from `date` midnight) must be within the home-by ceiling.
     if (absoluteMinute(last.date, last.arriveMin) - dateMidnight > arriveCeil) return;
-    if (opts.onlyNight && !path.some(isNightTrain)) return;
+    if (opts.onlyNight && !isNightTrain(last)) return;
     const j = toJourney([...path]);
     if (maxDur != null && j.totalDurationMin > maxDur) return;
     const cur = best.get(head.origin);
