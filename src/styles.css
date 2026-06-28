@@ -1095,6 +1095,10 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.daytrip-day {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
 .daytrip-times {
   display: inline-flex;
   align-items: center;

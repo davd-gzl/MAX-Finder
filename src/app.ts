@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
-import { dayTrips } from "./core/daytrips";
+import { getaways } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
@@ -61,11 +61,13 @@ interface Refs {
   connGroupField: HTMLElement;
   overnight: HTMLInputElement;
   night: HTMLInputElement;
-  dayTrip: HTMLInputElement;
-  dayTripHours: HTMLInputElement;
+  roundTrip: HTMLInputElement;
+  nights: HTMLSelectElement;
+  stayHours: HTMLInputElement;
+  stayHoursField: HTMLElement;
   lateReturn: HTMLInputElement;
-  dayTripField: HTMLElement;
-  dayTripOpts: HTMLElement;
+  roundTripField: HTMLElement;
+  roundTripOpts: HTMLElement;
   via: HTMLInputElement;
   flex: HTMLSelectElement;
   flexField: HTMLElement;
@@ -612,8 +614,9 @@ function syncFormFromQuery(): void {
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
-  refs.dayTrip.checked = Boolean(query.dayTrip);
-  refs.dayTripHours.value = query.dayTripMinHours != null ? String(query.dayTripMinHours) : "";
+  refs.roundTrip.checked = Boolean(query.roundTrip);
+  refs.nights.value = query.flexNights ? "flex" : String(query.nights ?? 0);
+  refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
   refs.region.value = query.region ?? "";
   tourCities = [...(query.cities ?? [])];
@@ -634,9 +637,11 @@ function readQueryFromForm(): SearchQuery {
   const maxLegDur = Number(refs.maxLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
-  const dayHours = Number(refs.dayTripHours.value.trim());
-  // Day trip is a "Where to?" feature only — gate it to `from` so it never leaks.
-  const dayTrip = query.mode === "from" && refs.dayTrip.checked;
+  const stayHours = Number(refs.stayHours.value.trim());
+  // Round trip is a "Where to?" feature only — gate it to `from` so it never leaks.
+  const roundTrip = query.mode === "from" && refs.roundTrip.checked;
+  const flexNights = refs.nights.value === "flex";
+  const nightsVal = flexNights ? 3 : Number(refs.nights.value) || 0;
   return {
     mode: query.mode,
     origin: resolveStation(refs.origin.value),
@@ -683,11 +688,15 @@ function readQueryFromForm(): SearchQuery {
     // Search radius (km) is an exact-trip feature only.
     radiusKm:
       query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
-    // Same-day round-trip ("day trip") view — a "Where to?" feature only.
-    dayTrip: dayTrip || undefined,
-    dayTripMinHours:
-      dayTrip && Number.isFinite(dayHours) && dayHours >= 1 ? Math.min(12, Math.floor(dayHours)) : undefined,
-    lateReturn: (dayTrip && refs.lateReturn.checked) || undefined,
+    // Round-trip view (day trips + N-night getaways) — a "Where to?" feature only.
+    roundTrip: roundTrip || undefined,
+    nights: roundTrip && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
+    flexNights: (roundTrip && flexNights) || undefined,
+    stayMinHours:
+      roundTrip && nightsVal === 0 && Number.isFinite(stayHours) && stayHours >= 1
+        ? Math.min(12, Math.floor(stayHours))
+        : undefined,
+    lateReturn: (roundTrip && refs.lateReturn.checked) || undefined,
     // Tour finish-by date — only meaningful with a tour destination set.
     tourEndDate:
       query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
@@ -828,8 +837,8 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   const { trains, registry } = deps;
   const anchor = dir === "from" ? query.origin : query.destination;
   if (!anchor) return showHint(dir === "from" ? refs.origin : refs.destination);
-  // "Day trip" view: same-day round trips from the origin, ranked by time on site.
-  if (dir === "from" && query.dayTrip) return runDayTrips(c, anchor);
+  // "Round trip" view: day trips / N-night getaways from the origin.
+  if (dir === "from" && query.roundTrip) return runGetaways(c, anchor);
   refs.title.textContent = t(dir === "from" ? "res_from_title" : "res_to_title", {
     station: registry.label(anchor),
     date: formatDate(query.date),
@@ -902,29 +911,32 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
 }
 
 /**
- * "Day trip" view (a toggle on "Where to?"): every city you can reach AND get
- * home from the same day on free MAX — leave in the morning, back in the evening.
- * Ranked by time on site, so the best escapes float to the top.
+ * "Round trip" view (a toggle on "Where to?"): every city you can reach AND get
+ * home from on free MAX — a same-day day trip (leave morning, back evening) or an
+ * N-night getaway. Ranked by nights, then time on site / least travel, so the best
+ * escapes float to the top.
  */
-function runDayTrips(c: RenderCtx, origin: string): void {
+function runGetaways(c: RenderCtx, origin: string): void {
   const { trains, registry } = deps;
-  refs.title.textContent = t("daytrip_title", {
+  refs.title.textContent = t("getaway_title", {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
-  const trips = dayTrips(trains, origin, query.date, {
+  const trips = getaways(trains, origin, query.date, {
     maxConnections: query.maxConnections,
     ...filterOpts(),
-    ...(query.dayTripMinHours ? { minOnSiteMin: query.dayTripMinHours * 60 } : {}),
+    ...(query.nights ? { nights: query.nights } : {}),
+    ...(query.flexNights ? { flexibleNights: true } : {}),
+    ...(query.stayMinHours ? { minOnSiteMin: query.stayMinHours * 60 } : {}),
     ...(query.lateReturn ? { lateReturn: true } : {}),
   });
   if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("daytrip_none")), render.hintEl(t("daytrip_none_hint")));
+    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
     return;
   }
-  refs.results.append(el("p", { class: "muted count", text: t("daytrip_count", { n: trips.length }) }));
-  for (const trip of trips) refs.results.append(render.dayTripRowEl(trip, c));
+  refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }));
+  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c));
   showMap(
     origin,
     trips.map((trip) => trip.destination),
@@ -1567,10 +1579,12 @@ function updateFieldVisibility(): void {
   refs.flexField.style.display =
     query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
-  // Day trip (same-day round trips) is a "Where to?"-only toggle; its two options
-  // (min hours on site + late return) appear only once the toggle is on.
-  refs.dayTripField.style.display = query.mode === "from" ? "" : "none";
-  refs.dayTripOpts.style.display = query.mode === "from" && refs.dayTrip.checked ? "" : "none";
+  // Round trip (day trips + N-night getaways) is a "Where to?"-only toggle; its
+  // options appear once the toggle is on, and "min hours on site" only for a
+  // same-day (0-night) trip.
+  refs.roundTripField.style.display = query.mode === "from" ? "" : "none";
+  refs.roundTripOpts.style.display = query.mode === "from" && refs.roundTrip.checked ? "" : "none";
+  refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
 
   // Field placement per mode: a tour AND an exact trip promote Connections (with
   // Overnight/Night) into the prominent main form; the other modes keep it in
@@ -1880,36 +1894,46 @@ function buildForm(): FormBuild {
     night,
     el("span", { class: "field-label", text: t("field_night") }),
   ]);
-  // "Day trip" (same-day round trip) controls — shown only in "Where to?" mode.
-  // The toggle flips the destinations list into a list of there-and-back-in-a-day
-  // trips; its two options (min hours on site, allow a late ~02:00 return) appear
-  // only once it's on.
-  const dayTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const dayTripToggle = el("label", { class: "field field-check daytrip-toggle" }, [
-    dayTrip,
-    el("span", { class: "field-label", text: t("field_daytrip") }),
+  // "Round trip" controls — shown only in "Where to?" mode. The toggle flips the
+  // destinations list into round trips (out and back, both free MAX); its options
+  // (nights away, min hours on site for a day trip, a late ~02:00 return) appear
+  // only once it's on. Nights = 0 is a same-day day trip.
+  const roundTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const roundTripToggle = el("label", { class: "field field-check daytrip-toggle" }, [
+    roundTrip,
+    el("span", { class: "field-label", text: t("field_roundtrip") }),
   ]);
-  const dayTripHours = inputEl("number");
-  dayTripHours.min = "1";
-  dayTripHours.max = "12";
-  dayTripHours.placeholder = "4";
-  dayTripHours.setAttribute("aria-label", t("field_daytrip_hours"));
+  const nights = el("select", { class: "input" }, [
+    optionEl("0", t("nights_sameday"), true),
+    optionEl("1", t("nights_n", { n: 1 }), false),
+    optionEl("2", t("nights_n", { n: 2 }), false),
+    optionEl("3", t("nights_n", { n: 3 }), false),
+    optionEl("flex", t("nights_flex"), false),
+  ]) as HTMLSelectElement;
+  const nightsField = field(t("field_nights"), nights);
+  const stayHours = inputEl("number");
+  stayHours.min = "1";
+  stayHours.max = "12";
+  stayHours.placeholder = "4";
+  stayHours.setAttribute("aria-label", t("field_daytrip_hours"));
+  const stayHoursField = field(t("field_daytrip_hours"), stayHours);
   const lateReturn = el("input", { type: "checkbox" }) as HTMLInputElement;
   const lateReturnField = el("label", { class: "field field-check" }, [
     lateReturn,
     el("span", { class: "field-label", text: t("field_late_return") }),
   ]);
-  const dayTripOpts = el("div", { class: "daytrip-opts" }, [
-    field(t("field_daytrip_hours"), dayTripHours),
-    lateReturnField,
-  ]);
-  const dayTripField = el("div", { class: "field daytrip-group" }, [dayTripToggle, dayTripOpts]);
-  // Reveal/hide the day-trip options the moment the toggle flips. The live form
-  // `change` handler re-runs the search but doesn't re-sync field visibility (it
-  // avoids touching the form to keep focus), so do that switch here directly.
-  dayTrip.addEventListener("change", () => {
-    dayTripOpts.style.display = dayTrip.checked ? "" : "none";
-  });
+  const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
+  const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
+  // Reveal/hide the round-trip options the moment the toggle or nights change. The
+  // live form `change` handler re-runs the search but doesn't re-sync field
+  // visibility (it avoids touching the form to keep focus), so switch here directly.
+  // The "min hours on site" field is meaningful only for a same-day (0-night) trip.
+  const syncRoundTripOpts = (): void => {
+    roundTripOpts.style.display = roundTrip.checked ? "" : "none";
+    stayHoursField.style.display = nights.value === "0" ? "" : "none";
+  };
+  roundTrip.addEventListener("change", syncRoundTripOpts);
+  nights.addEventListener("change", syncRoundTripOpts);
   // Flexible dates ("± N days") for the exact-trip search — find a MAX seat around
   // the chosen date, not only on it.
   const flex = el("select", { class: "input" }, [
@@ -2111,7 +2135,7 @@ function buildForm(): FormBuild {
       viaField,
       field(t("field_date"), date),
       endDateField,
-      dayTripField,
+      roundTripField,
       flexField,
       regionField,
       citiesField,
@@ -2154,11 +2178,13 @@ function buildForm(): FormBuild {
       connGroupField,
       overnight,
       night,
-      dayTrip,
-      dayTripHours,
+      roundTrip,
+      nights,
+      stayHours,
+      stayHoursField,
       lateReturn,
-      dayTripField,
-      dayTripOpts,
+      roundTripField,
+      roundTripOpts,
       via,
       flex,
       flexField,

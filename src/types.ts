@@ -98,14 +98,18 @@ export interface SearchQuery {
    */
   radiusKm?: number;
   /**
-   * "Day trip" toggle for "Where to?" mode: instead of the plain destinations
-   * list, show same-day round trips from the origin (leave in the morning, home
-   * the same evening — both free MAX), ranked by how long you get in each city.
+   * "Round trip" toggle for "Where to?" mode: instead of the plain destinations
+   * list, show round trips from the origin (out and back, both free MAX), ranked
+   * by how long you get away. Pairs with `nights` (0 = same-day) and `flexNights`.
    */
-  dayTrip?: boolean;
-  /** Minimum hours to spend in the city for a day trip to count (default 4). */
-  dayTripMinHours?: number;
-  /** Allow a day-trip return arriving up to ~02:00 the next morning (else by midnight). */
+  roundTrip?: boolean;
+  /** Nights away for a round-trip search: 0 = same-day (default), N = an N-night stay. */
+  nights?: number;
+  /** Treat `nights` as a maximum and keep the longest feasible stay per city. */
+  flexNights?: boolean;
+  /** Same-day round trips only: minimum hours on site to count (default 4). */
+  stayMinHours?: number;
+  /** Allow a round-trip return arriving up to ~02:00 the next morning (else by midnight). */
   lateReturn?: boolean;
 }
 

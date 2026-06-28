@@ -1,7 +1,7 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay } from "../types";
 import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
-import type { DayTrip } from "../core/daytrips";
+import type { Getaway } from "../core/getaways";
 import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
@@ -336,13 +336,17 @@ export function reachTripRowEl(
   ]);
 }
 
-/** A from→to→from time span ("09:51 → 10:40"), with a via chip when it changes. */
-function legTimesEl(label: string, j: Journey, ctx: RenderCtx): HTMLElement {
+/**
+ * A from→to→from time span ("09:51 → 10:40"), with a via chip when it changes.
+ * `withDay` prefixes the weekday so a multi-night leg's date is unambiguous.
+ */
+function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean): HTMLElement {
   const first = j.legs[0];
   const last = j.legs[j.legs.length - 1];
   const via = j.legs.length > 1;
   return el("span", { class: "daytrip-leg" }, [
     el("span", { class: "daytrip-leg-label muted", text: label }),
+    ...(withDay ? [el("span", { class: "daytrip-day muted", text: ctx.formatWeekday(j.date) })] : []),
     el("span", { class: "daytrip-times" }, [
       el("strong", { text: first?.depart ?? "" }),
       icon(I.arrow),
@@ -355,41 +359,46 @@ function legTimesEl(label: string, j: Journey, ctx: RenderCtx): HTMLElement {
 }
 
 /**
- * A same-day round-trip ("day trip") card: the city, how long you get there
- * (the headline), the total round-trip travel time, and the morning-out /
- * evening-back times. Clicking opens the exact route, where the 30-day calendar
- * and the "come back?" section let you pick and book both legs.
+ * A round-trip ("getaway") card: the city, how long you get there (the headline —
+ * time on site for a day trip, nights for a stay), the total round-trip travel
+ * time, and the out / back times. Clicking opens the exact route, where the 30-day
+ * calendar and the "come back?" section let you pick and book both legs.
  */
-export function dayTripRowEl(trip: DayTrip, ctx: RenderCtx): HTMLElement {
+export function getawayRowEl(trip: Getaway, ctx: RenderCtx): HTMLElement {
   const origin = trip.outbound.origin;
   const route: RoutePair = { origin, destination: trip.destination };
-  const onSite = el("span", {
+  const headlineText =
+    trip.nights > 0
+      ? t("getaway_nights", { n: trip.nights })
+      : t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin ?? 0) });
+  const headline = el("span", {
     class: "chip chip-onsite",
-    text: t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin) }),
-    attrs: { title: t("daytrip_onsite_hint") },
+    text: headlineText,
+    attrs: { title: trip.nights > 0 ? t("getaway_nights_hint") : t("daytrip_onsite_hint") },
   });
   const travel = el("span", { class: "daytrip-travel muted" }, [
     icon(I.clock),
     el("bdi", { text: t("daytrip_travel", { dur: formatDuration(trip.travelMin) }) }),
   ]);
+  // A multi-night stay departs and returns on different days, so stamp each leg
+  // with its weekday; a same-day trip needs no date.
+  const multiDay = trip.outbound.date !== trip.back.date;
   const main = el(
     "button",
     {
       class: "dest-main daytrip-main",
       type: "button",
-      attrs: {
-        "aria-label": `${ctx.label(trip.destination)} — ${t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin) })}`,
-      },
+      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${headlineText}` },
       on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
     },
     [
       el("span", { class: "daytrip-top" }, [
         el("span", { class: "dest-name", text: ctx.label(trip.destination) }),
-        onSite,
+        headline,
       ]),
       el("span", { class: "daytrip-legs" }, [
-        legTimesEl(t("daytrip_out"), trip.outbound, ctx),
-        legTimesEl(t("daytrip_back"), trip.back, ctx),
+        legTimesEl(t("daytrip_out"), trip.outbound, ctx, multiDay),
+        legTimesEl(t("daytrip_back"), trip.back, ctx, multiDay),
         travel,
       ]),
     ],
