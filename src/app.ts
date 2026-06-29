@@ -46,6 +46,7 @@ interface Refs {
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
+  dateField: HTMLElement;
   endDate: HTMLInputElement;
   endDateField: HTMLElement;
   card: HTMLSelectElement;
@@ -2002,7 +2003,9 @@ function updateFieldVisibility(): void {
   // elements moved between the main fields grid and Advanced, never duplicated.
   const tour = query.mode === "tour";
   const od = query.mode === "od";
-  refs.regionField.parentElement?.insertBefore(refs.connGroupField, refs.regionField);
+  // Connections (with Overnight/Night) sits right after the Date field — it's
+  // central to where you can actually get, so it belongs up top, not by Region.
+  refs.dateField.after(refs.connGroupField);
   if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
   else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
 
@@ -2265,6 +2268,7 @@ function buildForm(): FormBuild {
   const lastBookable = windowDates[windowDates.length - 1] ?? today;
   date.min = today;
   date.max = lastBookable;
+  const dateField = field(t("field_date"), date);
   // Optional tour finish-by date (shown only when a tour has a destination).
   const endDate = inputEl("date");
   endDate.min = today;
@@ -2577,7 +2581,7 @@ function buildForm(): FormBuild {
       originField,
       destinationField,
       viaField,
-      field(t("field_date"), date),
+      dateField,
       flexField,
       endDateField,
       roundTripField,
@@ -2609,6 +2613,7 @@ function buildForm(): FormBuild {
       origin,
       destination,
       date,
+      dateField,
       endDate,
       endDateField,
       departAfter,
