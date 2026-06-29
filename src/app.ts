@@ -321,8 +321,9 @@ function growTour(mode: "nearest" | "random", count: number): void {
 
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
-  // Honour "date flexibility": the first hop may slip up to this many days later,
-  // so the search isn't pinned to a day with no (or no night) departure.
+  // Honour "date flexibility": the first hop may leave within ±this many days of the
+  // chosen date (never before today), so the search isn't pinned to a day with no (or
+  // no night) departure.
   const startFlex = query.flexDays ?? 0;
   const planOpts = tourPlanOpts();
   // "Only night trains": a hop must END on a sleeper. With connections allowed,
@@ -330,14 +331,18 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // filter to night trains that run straight from the frontier.
   const onlyNightTour = Boolean(query.onlyNight);
   const withChanges = Boolean(query.maxConnections && query.maxConnections > 0);
-  // Every day the first hop may depart: the chosen date, or up to `startFlex` days
-  // later (the same window planSequence searches). Candidate generation must span
-  // ALL of them, or a city whose only service leaves on a flex day (e.g. the chosen
-  // date is the 1st, flex covers the 2nd) is never proposed — the planner could
-  // schedule it, but the search never offers it. The direct path below is already
-  // date-agnostic (it scans every available train), so this only matters with changes.
+  // Every day the first hop may depart: within ±startFlex of the chosen date (the
+  // same window planSequence searches), clamped so it never starts before today.
+  // Candidate generation must span ALL of them, or a city whose only service leaves
+  // on a flex day (e.g. the chosen date is the 1st, flex covers the 2nd or the prior
+  // 30th) is never proposed — the planner could schedule it, but the search never
+  // offers it. The direct path below is already date-agnostic (it scans every
+  // available train), so this only matters with changes.
   const departDays: string[] = [];
-  for (let i = 0; i <= startFlex; i++) departDays.push(addDays(query.date, i));
+  for (let i = -startFlex; i <= startFlex; i++) {
+    const d = addDays(query.date, i);
+    if (i === 0 || d >= today) departDays.push(d);
+  }
   // The next-city options from a frontier: every place the planner can actually
   // reach, unused, in-region, ordered by the mode (nearest needs coordinates). When
   // changes are allowed we seed from reachableJourneys (connection- AND onlyNight-
@@ -381,7 +386,7 @@ function growTour(mode: "nearest" | "random", count: number): void {
   const feasible = (cities: string[]): boolean => {
     budget--;
     return (
-      planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex) != null
+      planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex, today) != null
     );
   };
   // Depth-first search with backtracking: extend `cities` by `remaining` more,
@@ -1311,8 +1316,8 @@ function runTourSearch(c: RenderCtx): void {
   // finish set, an optional end date requires arriving there on or before it.
   const end = query.destination || undefined;
   const endDate = end ? query.tourEndDate : undefined;
-  // Flexible departure: let the first hop slip up to flexDays later than the chosen
-  // date, so a tour is found even when nothing leaves on that exact day.
+  // Flexible departure: the first hop may leave within ±flexDays of the chosen date
+  // (never before today), so a tour is found even when nothing leaves on that exact day.
   const startFlex = query.flexDays ?? 0;
   // Up to 5 cities: try every order and pick the fastest. Beyond that, permuting
   // is factorial, so order them greedily (nearest reachable city each hop). If the
@@ -1320,11 +1325,11 @@ function runTourSearch(c: RenderCtx): void {
   // stop" run already builds a feasible chain in that order.
   let tours: Tour[];
   if (cities.length <= 5) {
-    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex);
+    tours = planTours(trains, query.origin, cities, query.date, planOpts, 10, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex, today);
   } else {
     const single =
-      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex) ??
-      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex);
+      planTourGreedy(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex, today) ??
+      planTourInOrder(trains, query.origin, cities, query.date, planOpts, lo, hi, stationDistanceKm, maxKm, legKm, end, endDate, startFlex, today);
     tours = single ? [single] : [];
   }
   if (tours.length === 0) {
