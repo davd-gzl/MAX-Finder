@@ -383,6 +383,20 @@ describe("reachableJourneys (multi-target)", () => {
     expect(soonest.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("EARLY"); // arrives 09:00
   });
 
+  it("is pinned to the first-leg date — a flex-day-only route needs that day searched", () => {
+    // NICE only runs on 02-Jul. A tour starting 01-Jul with flexibility must search
+    // 02-Jul too (grow's candidate generation unions reachableJourneys over the flex
+    // window); querying only 01-Jul would never propose NICE.
+    const data = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "A", od_happy_card: "OUI" },
+      { date: "2026-07-02", origine: "PARIS (intramuros)", destination: "NICE VILLE", heure_depart: "09:00", heure_arrivee: "14:00", train_no: "B", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const day1 = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 1 });
+    expect(day1.has("NICE VILLE")).toBe(false); // nothing leaves PARIS for NICE on 01-Jul
+    const day2 = reachableJourneys(data, "PARIS (intramuros)", "2026-07-02", { maxConnections: 1 });
+    expect(day2.has("NICE VILLE")).toBe(true); // searching the flex day surfaces it
+  });
+
   it("onlyNight + a change finds a destination reachable only via a connecting sleeper", () => {
     // A day train to the LYON hub, then an IC NUIT sleeper on to BRIANCON. Direct-only
     // can never reach BRIANCON (no sleeper leaves PARIS for it) — the tour grow used to
