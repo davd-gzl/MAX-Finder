@@ -69,12 +69,15 @@ function planSequence(
   distance?: Distance,
   maxLegKm?: number,
   startFlex = 0,
+  earliestStart?: string,
 ): Journey[] | null {
   const legs: Journey[] = [];
-  // The first hop may leave on the chosen date or up to `startFlex` days later
-  // ("flexible departure"): the planner takes the earliest feasible start.
-  let depFrom = startDate;
+  // The first hop may leave within ±startFlex days of the chosen date ("flexible
+  // departure"), but never before `earliestStart` (the booking floor — you can't
+  // travel in the past): the planner takes the earliest feasible start in the window.
+  let depFrom = startFlex > 0 ? addDays(startDate, -startFlex) : startDate;
   let depTo = startFlex > 0 ? addDays(startDate, startFlex) : startDate;
+  if (earliestStart && depFrom < earliestStart) depFrom = earliestStart;
   for (let i = 0; i < seq.length - 1; i++) {
     const from = seq[i];
     const to = seq[i + 1];
@@ -140,6 +143,7 @@ export function planTours(
   end?: string,
   endDate?: string,
   startFlex = 0,
+  earliestStart?: string,
 ): Tour[] {
   // Intermediates exclude the start and a fixed end (the "nomad" stops in between).
   const unique = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
@@ -151,7 +155,7 @@ export function planTours(
 
   const tours: Tour[] = [];
   for (const perm of permutations(unique)) {
-    const legs = planSequence(firstFeasible, [start, ...perm, ...tail], startDate, lo, hi, distance, maxLegKm, startFlex);
+    const legs = planSequence(firstFeasible, [start, ...perm, ...tail], startDate, lo, hi, distance, maxLegKm, startFlex, earliestStart);
     if (!legs) continue;
     if (!withinKm(legs, distance, maxKm)) continue; // over the total-distance budget
     if (!endsBy(legs, endDate)) continue; // doesn't finish by the target date
@@ -184,6 +188,7 @@ export function planTourInOrder(
   end?: string,
   endDate?: string,
   startFlex = 0,
+  earliestStart?: string,
 ): Tour | null {
   const order: string[] = [];
   const seen = new Set([start]);
@@ -198,7 +203,7 @@ export function planTourInOrder(
   const lo = Math.max(1, Math.floor(minDays));
   const hi = Math.max(lo, Math.floor(maxDays));
   const full = end ? [...order, end] : order; // finish at `end` (may equal start)
-  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...full], startDate, lo, hi, distance, maxLegKm, startFlex);
+  const legs = planSequence(makeFirstFeasible(trains, opts), [start, ...full], startDate, lo, hi, distance, maxLegKm, startFlex, earliestStart);
   if (!legs) return null;
   if (!withinKm(legs, distance, maxKm)) return null; // over the total-distance budget
   if (!endsBy(legs, endDate)) return null; // doesn't finish by the target date
@@ -230,6 +235,7 @@ export function planTourGreedy(
   end?: string,
   endDate?: string,
   startFlex = 0,
+  earliestStart?: string,
 ): Tour | null {
   const remaining = [...new Set(cities.filter((c) => c && c !== start && c !== end))];
   if (remaining.length === 0) return null;
@@ -242,9 +248,11 @@ export function planTourGreedy(
   const order: string[] = [];
   const legs: Journey[] = [];
   let current = start;
-  let depFrom = startDate;
-  // Flexible departure: the first hop may slip up to `startFlex` days later.
+  // Flexible departure: the first hop may leave within ±startFlex days of the chosen
+  // date, never before earliestStart (the booking floor).
+  let depFrom = startFlex > 0 ? addDays(startDate, -startFlex) : startDate;
   let depTo = startFlex > 0 ? addDays(startDate, startFlex) : startDate;
+  if (earliestStart && depFrom < earliestStart) depFrom = earliestStart;
   let spentKm = 0;
 
   while (remaining.length > 0) {

@@ -513,6 +513,27 @@ describe("planTours", () => {
     expect(flexed[0]!.legs[0]!.date).toBe("2026-07-03");
   });
 
+  it("flexibility is symmetric: the first hop may also leave BEFORE the chosen date", () => {
+    // Paris→Lyon only runs 06-29, but the user picked 07-01.
+    const early = normalizeRecords([
+      { date: "2026-06-29", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "10", od_happy_card: "OUI" },
+      { date: "2026-06-30", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "09:00", heure_arrivee: "10:40", train_no: "11", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const cities = ["LYON (intramuros)", "MARSEILLE ST CHARLES"];
+    const opts = { maxConnections: 0 };
+    // No flex: nothing leaves 07-01, so the tour is infeasible.
+    expect(planTours(early, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1)).toHaveLength(0);
+    // startFlex=3 (symmetric): the departure may slip back to 06-29 -> the tour plans.
+    const flexed = planTours(early, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, undefined, undefined, 3);
+    expect(flexed).toHaveLength(1);
+    expect(flexed[0]!.legs[0]!.date).toBe("2026-06-29");
+    // The booking floor (earliestStart) blocks starting before it: with a 06-30 floor,
+    // the only first leg (06-29) is out of range, so the tour is infeasible again.
+    expect(
+      planTours(early, "PARIS (intramuros)", cities, "2026-07-01", opts, 10, 1, 1, undefined, undefined, undefined, undefined, undefined, 3, "2026-06-30"),
+    ).toHaveLength(0);
+  });
+
   it("searches the min/max day window for each hop (multi-day plan)", () => {
     // Second hop only runs 2 days after arriving in Lyon.
     const spaced = normalizeRecords([
