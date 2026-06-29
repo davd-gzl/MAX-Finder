@@ -547,7 +547,11 @@ export function listToolbarEl(
     { class: "sort-select", attrs: { "aria-label": t("sort_label") } },
     options.map((o) => el("option", { value: o.value, text: o.label })),
   ) as HTMLSelectElement;
-  sel.value = current;
+  // The sort key is kept across modes, but each list offers a different subset. If
+  // the carried-over key isn't one of these options, applySort no-ops it (natural
+  // "rec" order), so show that — not a stale label the list isn't actually using.
+  const offered = options.some((o) => o.value === current);
+  sel.value = offered ? current : (options[0]?.value ?? "rec");
   sel.addEventListener("change", () => onSort(sel.value as SortKey));
   return el("div", { class: "list-toolbar" }, [
     el("span", { class: "muted count", text: count }),

@@ -371,6 +371,33 @@ describe("reachableJourneys (multi-target)", () => {
     const direct = bestJourney(trains, "PARIS (intramuros)", "LILLE", "2026-06-25", { maxConnections: 1 });
     expect(r.get("LILLE")!.totalDurationMin).toBe(direct!.totalDurationMin);
   });
+
+  it("earliestArrival keeps the soonest-arriving journey, not the fastest", () => {
+    const data = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "06:00", heure_arrivee: "09:00", train_no: "EARLY", od_happy_card: "OUI" },
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "FAST", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const fastest = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0 });
+    expect(fastest.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("FAST"); // 2 h beats 3 h
+    const soonest = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, earliestArrival: true });
+    expect(soonest.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("EARLY"); // arrives 09:00
+  });
+
+  it("onlyNight + a change finds a destination reachable only via a connecting sleeper", () => {
+    // A day train to the LYON hub, then an IC NUIT sleeper on to BRIANCON. Direct-only
+    // can never reach BRIANCON (no sleeper leaves PARIS for it) — the tour grow used to
+    // propose only direct hops and so would say "nothing to add".
+    const data = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "14:00", heure_arrivee: "16:00", train_no: "DAY", od_happy_card: "OUI", axe: "SUD EST" },
+      { date: "2026-07-01", origine: "LYON (intramuros)", destination: "BRIANCON", heure_depart: "19:30", heure_arrivee: "07:00", train_no: "SLEEPER", od_happy_card: "OUI", axe: "IC NUIT" },
+    ] as RawRecord[]);
+    const direct = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, onlyNight: true });
+    expect(direct.has("BRIANCON")).toBe(false); // no direct sleeper from PARIS
+    const viaHub = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 1, onlyNight: true });
+    const briancon = viaHub.get("BRIANCON");
+    expect(briancon).toBeDefined();
+    expect(briancon!.legs.map((l) => l.trainNo)).toEqual(["DAY", "SLEEPER"]); // arrives on the sleeper
+  });
 });
 
 describe("excludeNight", () => {
@@ -777,6 +804,27 @@ describe("latestReturns (backward multi-source sweep)", () => {
     const r = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 26 * 60, { maxConnections: 0 });
     expect(r.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("LATE"); // 23:30 now fits
   });
+
+  it("honours the depart-time window on the first leg (parity with findJourneys)", () => {
+    // departBefore caps the first leg: only R1 (10:00) qualifies, not the later R2.
+    const before = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 24 * 60, {
+      maxConnections: 0,
+      departBefore: "12:00",
+    });
+    expect(before.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("R1");
+    // departAfter excludes R1 and R2; only LATE (23:30) is left, so it needs a late ceiling.
+    const after = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 26 * 60, {
+      maxConnections: 0,
+      departAfter: "19:00",
+    });
+    expect(after.get("LYON (intramuros)")!.legs[0]!.trainNo).toBe("LATE");
+    // With the default midnight ceiling, that late return arrives too late → no return.
+    const none = latestReturns(data, "PARIS (intramuros)", "2026-09-10", 24 * 60, {
+      maxConnections: 0,
+      departAfter: "19:00",
+    });
+    expect(none.has("LYON (intramuros)")).toBe(false);
+  });
 });
 
 describe("getawayIdeas (month-wide round-trip ideas)", () => {
@@ -808,6 +856,30 @@ describe("getawayIdeas (month-wide round-trip ideas)", () => {
       getawaysAcrossWindow(trains, "PARIS (intramuros)", dates, opts).trips.map((g) => g.destination),
     );
     expect(ideas).toEqual(precise);
+  });
+
+  it("uses the earliest-ARRIVING outbound (parity with Where-to), not the fastest, for same-day gating", () => {
+    // Two outbounds to LYON: EARLY arrives 09:00 (slower), FAST arrives 10:00
+    // (shorter). The single return leaves 13:30. With a 4 h minimum on site:
+    //   - from EARLY (09:00): 4 h30 on site → the day trip is valid
+    //   - from FAST  (10:00): 3 h30 on site → would be rejected
+    // The fast two-sweep ideas must pick EARLY like bestGetawayTo, else it would
+    // silently drop a day trip that "Where to?" shows.
+    const data = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "06:00", heure_arrivee: "09:00", train_no: "EARLY", od_happy_card: "OUI" },
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "FAST", od_happy_card: "OUI" },
+      { date: "2026-07-01", origine: "LYON (intramuros)", destination: "PARIS (intramuros)", heure_depart: "13:30", heure_arrivee: "15:30", train_no: "RET", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const opts = { maxConnections: 0, nights: 0 } as const;
+    const ideas = getawayIdeas(data, "PARIS (intramuros)", ["2026-07-01"], opts);
+    const precise = getawaysAcrossWindow(data, "PARIS (intramuros)", ["2026-07-01"], opts);
+    // Both surfaces keep LYON, on the EARLY outbound, with the same time on site.
+    expect(ideas.trips.map((g) => g.destination)).toEqual(["LYON (intramuros)"]);
+    expect(ideas.trips[0]!.outbound.legs[0]!.trainNo).toBe("EARLY");
+    expect(ideas.trips[0]!.onSiteMin).toBe(270);
+    expect(ideas.perDay[0]!.count).toBe(1);
+    expect(precise.trips.map((g) => g.destination)).toEqual(ideas.trips.map((g) => g.destination));
+    expect(precise.trips[0]!.onSiteMin).toBe(ideas.trips[0]!.onSiteMin);
   });
 });
 

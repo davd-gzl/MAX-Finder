@@ -11,7 +11,7 @@ import { filterTrains, isNightTrain } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
 import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
-import { findJourneys, bestJourney, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
@@ -325,30 +325,29 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // so the search isn't pinned to a day with no (or no night) departure.
   const startFlex = query.flexDays ?? 0;
   const planOpts = tourPlanOpts();
-  // "Only night trains": a hop must END on a sleeper, so a candidate can only work
-  // if a night train actually arrives there. Pre-computing this set keeps the pool
-  // small and — crucially — STABLE, so Surprise always weighs the same feasible
-  // night destinations (no random subset that sometimes omits the one that works).
-  const nightArrivals = query.onlyNight
-    ? new Set(avail.filter((tr) => isNightTrain(tr)).map((tr) => tr.destination))
-    : null;
-  // The next-city options from a frontier: a direct free-MAX hop, unused, in-region,
-  // ordered by the mode (nearest needs coordinates).
+  // "Only night trains": a hop must END on a sleeper. With connections allowed,
+  // reachableJourneys (below) already enforces that; direct-only needs an explicit
+  // filter to night trains that run straight from the frontier.
+  const onlyNightTour = Boolean(query.onlyNight);
+  const withChanges = Boolean(query.maxConnections && query.maxConnections > 0);
+  // The next-city options from a frontier: every place the planner can actually
+  // reach, unused, in-region, ordered by the mode (nearest needs coordinates). When
+  // changes are allowed we seed from reachableJourneys (connection- AND onlyNight-
+  // aware), not just direct trains — otherwise a city reachable only via a hub change
+  // (e.g. take a train, then a connecting sleeper) is never even proposed.
+  const reachableFrom = (frontier: string): string[] =>
+    withChanges
+      ? [...reachableJourneys(avail, frontier, query.date, planOpts).keys()]
+      : [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))];
   const optionsFrom = (frontier: string, used: Set<string>): string[] => {
-    let cs = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))].filter(
-      (d) => !used.has(d) && inRegion(d),
-    );
-    if (nightArrivals) {
-      // Direct: the sleeper must run straight from here; with connections, just keep
-      // the (still small) set of places a night train reaches.
-      if (query.maxConnections === 0) {
-        const direct = new Set(
-          avail.filter((tr) => tr.origin === frontier && isNightTrain(tr)).map((tr) => tr.destination),
-        );
-        cs = cs.filter((d) => direct.has(d));
-      } else {
-        cs = cs.filter((d) => nightArrivals.has(d));
-      }
+    let cs = reachableFrom(frontier).filter((d) => !used.has(d) && inRegion(d));
+    if (onlyNightTour && !withChanges) {
+      // Direct only: the sleeper must run straight from here. (With connections,
+      // reachableJourneys already restricted to sleeper-arrival destinations.)
+      const direct = new Set(
+        avail.filter((tr) => tr.origin === frontier && isNightTrain(tr)).map((tr) => tr.destination),
+      );
+      cs = cs.filter((d) => direct.has(d));
     }
     if (mode === "nearest") {
       cs = cs.filter((d) => deps.registry.coords(d));
@@ -362,7 +361,7 @@ function growTour(mode: "nearest" | "random", count: number): void {
     }
     // Day-train tours have hundreds of options — cap to keep the search snappy. The
     // night pool is already small (and must be fully weighed), so don't cap it.
-    return nightArrivals ? cs : cs.slice(0, TOUR_BRANCH);
+    return onlyNightTour ? cs : cs.slice(0, TOUR_BRANCH);
   };
   let budget = TOUR_SEARCH_BUDGET;
   const feasible = (cities: string[]): boolean => {
