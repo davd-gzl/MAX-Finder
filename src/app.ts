@@ -1220,22 +1220,8 @@ function runGetaways(c: RenderCtx, origin: string): void {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
-  // A calendar to pick a specific day (each cell coloured by availability), plus the
-  // ±N "date flexibility" stepper to widen the search to a window around the day.
-  const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  // Connection-aware destinations reachable per day (a hint of how much is possible);
-  // the number is "destinations that day", including via stopovers.
-  const dayCal = reachableCountCalendar(trains, origin, window, {
-    ...filterOpts(),
-    maxConnections: query.maxConnections,
-  });
-  refs.results.append(
-    render.calendarEl(dayCal, c, query.date, {
-      title: t("getaway_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
-    }),
-  );
+  // The Date field + "date flexibility" stepper drive this view (no calendar —
+  // it added little here and confused the day-trip vs round-trip framing).
   // Flexible dates: search every day in the ±N window and keep the best round trip
   // per destination (more nights, then more time on site / less travel) — so you
   // can do a round trip "around these days", not only on the exact one.
