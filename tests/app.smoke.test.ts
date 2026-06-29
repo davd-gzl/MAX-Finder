@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Leaflet needs a real browser canvas; stub the map module so the rest of the
 // UI can be exercised under jsdom.
@@ -38,6 +38,11 @@ function setup(search: string): HTMLElement {
 }
 
 beforeEach(() => {
+  // Pin the clock to the sample-data epoch so "today" sits at the start of the
+  // bookable window: the deep-linked dates (2026-06-25..27) are then in range and
+  // the app's date clamp leaves them alone — independent of the real machine clock.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-06-25T12:00:00Z"));
   // Run rAF synchronously so deferred search rendering completes within the test.
   globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
     cb(0);
@@ -45,6 +50,10 @@ beforeEach(() => {
   }) as typeof requestAnimationFrame;
   // jsdom doesn't implement scrollIntoView; stub it for click-driven navigation.
   Element.prototype.scrollIntoView = function scrollIntoView(): void {};
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("app (jsdom smoke)", () => {

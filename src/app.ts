@@ -8,7 +8,7 @@ import {
   windowStats,
 } from "./core/destinations";
 import { filterTrains, isNightTrain } from "./core/search";
-import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
+import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
 import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
@@ -541,7 +541,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 
   today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
-    ? store.queryFromParams(new URLSearchParams(location.search), today)
+    ? queryFromUrl()
     : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
 
   rebuild();
@@ -562,11 +562,25 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   // stack is the URL's source of truth here, so clear it to keep the in-app
   // "Retour" button in step with where the browser history now sits.
   window.addEventListener("popstate", () => {
-    query = store.queryFromParams(new URLSearchParams(location.search), today);
+    query = queryFromUrl();
     navStack = [];
     syncFormFromQuery();
     runSearch();
   });
+}
+
+/**
+ * Parse the query from the URL and snap its date back into the bookable window. The
+ * date <input> is clamped to [today, today+29], so the live form can never produce
+ * an out-of-range date — but a stale or shared link can. An out-of-window date would
+ * otherwise collapse the ±flex browse window (only the chosen, unbookable day is in
+ * range) and skew the exact-trip return calendar, so fall back to today.
+ */
+function queryFromUrl(): SearchQuery {
+  const q = store.queryFromParams(new URLSearchParams(location.search), today);
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  if (q.date < today || q.date > lastBookable) q.date = today;
+  return q;
 }
 
 function rebuild(): void {
@@ -843,7 +857,13 @@ function readQueryFromForm(): SearchQuery {
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
     via: resolveStation(refs.via.value),
-    flexDays: getStepper(refs.flex) || undefined,
+    // Flexibility only applies to from/to/tour (its field is hidden elsewhere).
+    // Gate it like the other mode-specific fields so a value set here doesn't leak
+    // into the URL — or silently reapply — after switching to Ideas / exact trip.
+    flexDays:
+      query.mode === "from" || query.mode === "to" || query.mode === "tour"
+        ? getStepper(refs.flex) || undefined
+        : undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -1182,16 +1202,24 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   );
 
   // Destinations reachable only with a change (not already direct), capped so the
-  // "via" list stays compact like the direct list (reachableBest is duration-sorted).
-  const connecting =
-    query.maxConnections > 0
-      ? reachableBest(trains, anchor, query.date, stationsOnDate(trains, query.date), {
-          ...filterOpts(),
-          maxConnections: query.maxConnections,
-        }, dir)
-          .filter((tr) => tr.journey.legs.length > 1 && !directStations.has(tr.station))
-          .slice(0, MAX_VIA_RESULTS)
-      : [];
+  // "via" list stays compact like the direct list. Search the SAME ±flex window as
+  // the direct list (keeping the shortest journey per station) — otherwise widening
+  // flexibility surfaces more direct places but never any extra connecting ones.
+  const connecting = ((): ReachTrip[] => {
+    if (query.maxConnections <= 0) return [];
+    const viaOpts = { ...filterOpts(), maxConnections: query.maxConnections };
+    const byStation = new Map<string, ReachTrip>();
+    for (const d of windowDates) {
+      for (const tr of reachableBest(trains, anchor, d, stationsOnDate(trains, d), viaOpts, dir)) {
+        if (tr.journey.legs.length <= 1 || directStations.has(tr.station)) continue;
+        const cur = byStation.get(tr.station);
+        if (!cur || tr.journey.totalDurationMin < cur.journey.totalDurationMin) byStation.set(tr.station, tr);
+      }
+    }
+    return [...byStation.values()]
+      .sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin)
+      .slice(0, MAX_VIA_RESULTS);
+  })();
 
   const total = groups.length + connecting.length;
   if (total === 0) {

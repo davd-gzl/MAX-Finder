@@ -283,7 +283,7 @@ export function reachableJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = reachMemo(trains);
-  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${opts.earliestArrival ? "earlyarr" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${opts.earliestArrival ? "earlyarr" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -312,6 +312,7 @@ export function reachableJourneys(
 
   const best = new Map<string, Journey>();
   const maxDur = opts.maxDurationMin;
+  const minDur = opts.minDurationMin;
   const path: MaxTrain[] = [];
 
   const dfs = (): void => {
@@ -322,7 +323,10 @@ export function reachableJourneys(
     const j = toJourney([...path]);
     // "Only night trains": you must arrive on a sleeper (the last leg is a night train).
     const okNight = !opts.onlyNight || isNightTrain(last);
-    if (okNight && (maxDur == null || j.totalDurationMin <= maxDur)) {
+    // Honour the same min/max duration bounds as findJourneys, so callers (e.g. the
+    // tour's min-per-train cap) don't get candidates the per-journey search rejects.
+    const okDur = (maxDur == null || j.totalDurationMin <= maxDur) && (minDur == null || j.totalDurationMin >= minDur);
+    if (okNight && okDur) {
       const cur = best.get(j.destination);
       // Default: keep the fastest. earliestArrival: keep the one arriving soonest
       // (ties → shorter), matching bestGetawayTo so round-trip ideas stay at parity.

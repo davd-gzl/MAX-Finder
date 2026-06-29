@@ -446,6 +446,12 @@ describe("minDurationMin (exclude short hops)", () => {
     const toulon = findJourneys(data, "PARIS (intramuros)", "TOULON", "2026-07-01", { maxConnections: 0, minDurationMin: 180 });
     expect(toulon).toHaveLength(1); // the 5 h trip clears the floor
   });
+
+  it("reachableJourneys honours the floor too (so tour grow doesn't propose rejected hops)", () => {
+    const r = reachableJourneys(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minDurationMin: 180 });
+    expect(r.has("LILLE")).toBe(false); // the 1 h hop is below the floor
+    expect(r.has("TOULON")).toBe(true); // the 5 h trip clears it
+  });
 });
 
 describe("findJourneys multi-day span", () => {
