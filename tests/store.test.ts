@@ -35,4 +35,16 @@ describe("URL deep-link round-trip", () => {
     expect(q.card).toBe("jeune");
     expect(q.maxConnections).toBe(1);
   });
+
+  it("clamps an out-of-range URL flex to the max instead of dropping it", () => {
+    // A shared link asking for more than the stepper allows should mean "the widest
+    // window" (7), not silently fall back to no flexibility (0/undefined).
+    expect(queryFromParams(new URLSearchParams("flex=8"), "2026-06-25").flexDays).toBe(7);
+    expect(queryFromParams(new URLSearchParams("flex=30"), "2026-06-25").flexDays).toBe(7);
+    expect(queryFromParams(new URLSearchParams("flex=3"), "2026-06-25").flexDays).toBe(3);
+    // 0 / negative / absent means no flexibility.
+    expect(queryFromParams(new URLSearchParams("flex=0"), "2026-06-25").flexDays).toBeUndefined();
+    expect(queryFromParams(new URLSearchParams("flex=-2"), "2026-06-25").flexDays).toBeUndefined();
+    expect(queryFromParams(new URLSearchParams(""), "2026-06-25").flexDays).toBeUndefined();
+  });
 });

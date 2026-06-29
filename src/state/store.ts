@@ -223,7 +223,9 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     origin: p.get("from") ?? undefined,
     destination: p.get("to") ?? undefined,
     via: p.get("via") ?? undefined,
-    flexDays: Number(p.get("flex")) >= 1 && Number(p.get("flex")) <= 7 ? Math.floor(Number(p.get("flex"))) : undefined,
+    // Clamp to the stepper's 0..7 range (like setStepper) — an out-of-range link
+    // should mean "the widest window", not silently fall back to no flexibility.
+    flexDays: Number.isFinite(Number(p.get("flex"))) && Math.floor(Number(p.get("flex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("flex")))) : undefined,
     date: p.get("date") ?? fallbackDate,
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,
