@@ -330,15 +330,29 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // filter to night trains that run straight from the frontier.
   const onlyNightTour = Boolean(query.onlyNight);
   const withChanges = Boolean(query.maxConnections && query.maxConnections > 0);
+  // Every day the first hop may depart: the chosen date, or up to `startFlex` days
+  // later (the same window planSequence searches). Candidate generation must span
+  // ALL of them, or a city whose only service leaves on a flex day (e.g. the chosen
+  // date is the 1st, flex covers the 2nd) is never proposed — the planner could
+  // schedule it, but the search never offers it. The direct path below is already
+  // date-agnostic (it scans every available train), so this only matters with changes.
+  const departDays: string[] = [];
+  for (let i = 0; i <= startFlex; i++) departDays.push(addDays(query.date, i));
   // The next-city options from a frontier: every place the planner can actually
   // reach, unused, in-region, ordered by the mode (nearest needs coordinates). When
   // changes are allowed we seed from reachableJourneys (connection- AND onlyNight-
-  // aware), not just direct trains — otherwise a city reachable only via a hub change
-  // (e.g. take a train, then a connecting sleeper) is never even proposed.
-  const reachableFrom = (frontier: string): string[] =>
-    withChanges
-      ? [...reachableJourneys(avail, frontier, query.date, planOpts).keys()]
-      : [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))];
+  // aware) across the flex window, not just direct trains on the exact day —
+  // otherwise a city reachable only via a hub change (e.g. take a train, then a
+  // connecting sleeper), or only on a flex day, is never even proposed.
+  const reachableFrom = (frontier: string): string[] => {
+    if (!withChanges) {
+      return [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))];
+    }
+    const dests = new Set<string>();
+    for (const d of departDays)
+      for (const dest of reachableJourneys(avail, frontier, d, planOpts).keys()) dests.add(dest);
+    return [...dests];
+  };
   const optionsFrom = (frontier: string, used: Set<string>): string[] => {
     let cs = reachableFrom(frontier).filter((d) => !used.has(d) && inRegion(d));
     if (onlyNightTour && !withChanges) {
