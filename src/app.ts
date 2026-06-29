@@ -324,21 +324,30 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // so the search isn't pinned to a day with no (or no night) departure.
   const startFlex = query.flexDays ?? 0;
   const planOpts = tourPlanOpts();
+  // "Only night trains": a hop must END on a sleeper, so a candidate can only work
+  // if a night train actually arrives there. Pre-computing this set keeps the pool
+  // small and — crucially — STABLE, so Surprise always weighs the same feasible
+  // night destinations (no random subset that sometimes omits the one that works).
+  const nightArrivals = query.onlyNight
+    ? new Set(avail.filter((tr) => isNightTrain(tr)).map((tr) => tr.destination))
+    : null;
   // The next-city options from a frontier: a direct free-MAX hop, unused, in-region,
-  // ordered by the mode (nearest needs coordinates). Not capped — under tight filters
-  // (e.g. only night trains) the only feasible stop can be far down the list.
+  // ordered by the mode (nearest needs coordinates).
   const optionsFrom = (frontier: string, used: Set<string>): string[] => {
     let cs = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))].filter(
       (d) => !used.has(d) && inRegion(d),
     );
-    // Direct "only night trains": a hop is a single sleeper, so only places with a
-    // night train from here can ever work — drop the hundreds of day-only options
-    // up front instead of planning each one (otherwise the search crawls).
-    if (query.onlyNight && query.maxConnections === 0) {
-      const nightDests = new Set(
-        avail.filter((tr) => tr.origin === frontier && isNightTrain(tr)).map((tr) => tr.destination),
-      );
-      cs = cs.filter((d) => nightDests.has(d));
+    if (nightArrivals) {
+      // Direct: the sleeper must run straight from here; with connections, just keep
+      // the (still small) set of places a night train reaches.
+      if (query.maxConnections === 0) {
+        const direct = new Set(
+          avail.filter((tr) => tr.origin === frontier && isNightTrain(tr)).map((tr) => tr.destination),
+        );
+        cs = cs.filter((d) => direct.has(d));
+      } else {
+        cs = cs.filter((d) => nightArrivals.has(d));
+      }
     }
     if (mode === "nearest") {
       cs = cs.filter((d) => deps.registry.coords(d));
@@ -350,7 +359,9 @@ function growTour(mode: "nearest" | "random", count: number): void {
     } else {
       cs.sort(() => Math.random() - 0.5);
     }
-    return cs.slice(0, TOUR_BRANCH);
+    // Day-train tours have hundreds of options — cap to keep the search snappy. The
+    // night pool is already small (and must be fully weighed), so don't cap it.
+    return nightArrivals ? cs : cs.slice(0, TOUR_BRANCH);
   };
   let budget = TOUR_SEARCH_BUDGET;
   const feasible = (cities: string[]): boolean => {
