@@ -7,7 +7,7 @@ import {
   reachableGroups,
   windowStats,
 } from "./core/destinations";
-import { filterTrains } from "./core/search";
+import { filterTrains, isNightTrain } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "./core/best";
 import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
@@ -279,6 +279,12 @@ function nearbyCalendarLevels(
 // Hard cap on how many cities one "find N" click can add, so a huge number can't
 // freeze the planner.
 const MAX_TOUR_FILL = 12;
+// Bounds for the "find N cities" backtracking search so it always returns
+// promptly: how many next-city options to weigh at each step, and a global
+// plan-check budget. (Only-night destinations are pre-filtered, so the cap doesn't
+// hide them.)
+const TOUR_BRANCH = 24;
+const TOUR_SEARCH_BUDGET = 900;
 
 /** Cities to add per Surprise / Nearest click — the "Cities to add" input (≥1). */
 function tourAddCount(): number {
@@ -287,11 +293,12 @@ function tourAddCount(): number {
 }
 
 /**
- * Grow the tour by up to `count` more cities, each the next hop from the frontier
- * (the last stop, or the departure when empty) that keeps the WHOLE in-order tour
- * feasible — `"nearest"` picks the closest each time, `"random"` shuffles (Surprise
- * me). Fills a missing departure first; stops early when no city keeps it feasible.
- * One re-render at the end. So "find me 5 cities" is just count = 5.
+ * Grow the tour by `count` more cities — searching for ONE travel that strings all
+ * of them together, not adding cities one greedy hop at a time. It backtracks: if a
+ * choice dead-ends before reaching `count`, it tries another, so "Cities to add 5"
+ * really finds a feasible 5-destination itinerary (or the longest one that exists).
+ * `"nearest"` explores closest-first; `"random"` shuffles (Surprise me). Fills a
+ * missing departure first; one re-render at the end.
  */
 function growTour(mode: "nearest" | "random", count: number): void {
   setSurpriseMsg("");
@@ -309,43 +316,71 @@ function growTour(mode: "nearest" | "random", count: number): void {
     setSurpriseMsg(t("surprise_none"));
     return;
   }
+  const start = origin;
 
   const lo = query.minDays ?? 1;
   const hi = Math.max(lo, query.maxDays ?? 3);
+  // Honour "date flexibility": the first hop may slip up to this many days later,
+  // so the search isn't pinned to a day with no (or no night) departure.
+  const startFlex = query.flexDays ?? 0;
   const planOpts = tourPlanOpts();
-  let added = 0;
-  for (let k = 0; k < count; k++) {
-    const frontier = tourCities[tourCities.length - 1] ?? origin;
-    const used = new Set([origin, ...tourCities]);
-    // Candidates: stations with a direct free-MAX train from the frontier, not yet
-    // visited and in-region (nearest also needs coordinates to sort by distance).
-    let candidates = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))].filter(
+  // The next-city options from a frontier: a direct free-MAX hop, unused, in-region,
+  // ordered by the mode (nearest needs coordinates). Not capped — under tight filters
+  // (e.g. only night trains) the only feasible stop can be far down the list.
+  const optionsFrom = (frontier: string, used: Set<string>): string[] => {
+    let cs = [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))].filter(
       (d) => !used.has(d) && inRegion(d),
     );
+    // Direct "only night trains": a hop is a single sleeper, so only places with a
+    // night train from here can ever work — drop the hundreds of day-only options
+    // up front instead of planning each one (otherwise the search crawls).
+    if (query.onlyNight && query.maxConnections === 0) {
+      const nightDests = new Set(
+        avail.filter((tr) => tr.origin === frontier && isNightTrain(tr)).map((tr) => tr.destination),
+      );
+      cs = cs.filter((d) => nightDests.has(d));
+    }
     if (mode === "nearest") {
-      candidates = candidates.filter((d) => deps.registry.coords(d));
-      // Nearest first; if the frontier itself is unplotted, fall back to a stable
-      // label order rather than an arbitrary NaN-comparator one.
+      cs = cs.filter((d) => deps.registry.coords(d));
       if (deps.registry.coords(frontier)) {
-        candidates.sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
+        cs.sort((a, b) => stationDistanceKm(frontier, a) - stationDistanceKm(frontier, b));
       } else {
-        candidates.sort((a, b) => deps.registry.label(a).localeCompare(deps.registry.label(b)));
+        cs.sort((a, b) => deps.registry.label(a).localeCompare(deps.registry.label(b)));
       }
     } else {
-      candidates.sort(() => Math.random() - 0.5);
+      cs.sort(() => Math.random() - 0.5);
     }
-    // Take the first candidate that keeps the whole in-order tour feasible.
-    let chosen: string | undefined;
-    for (const c of candidates) {
-      if (planTourInOrder(deps.trains, origin, [...tourCities, c], query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined)) {
-        chosen = c;
-        break;
-      }
+    return cs.slice(0, TOUR_BRANCH);
+  };
+  let budget = TOUR_SEARCH_BUDGET;
+  const feasible = (cities: string[]): boolean => {
+    budget--;
+    return (
+      planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex) != null
+    );
+  };
+  // Depth-first search with backtracking: extend `cities` by `remaining` more,
+  // returning the FULL-depth itinerary if one exists (early out), else the deepest
+  // feasible one found within the budget.
+  const extend = (cities: string[], remaining: number): string[] => {
+    if (remaining === 0 || budget <= 0) return cities;
+    const used = new Set([start, ...cities]);
+    const frontier = cities[cities.length - 1] ?? start;
+    let deepest = cities;
+    for (const c of optionsFrom(frontier, used)) {
+      if (budget <= 0) break;
+      const next = [...cities, c];
+      if (!feasible(next)) continue; // the whole in-order tour so far must still plan
+      const result = extend(next, remaining - 1);
+      if (result.length === cities.length + remaining) return result; // reached count
+      if (result.length > deepest.length) deepest = result; // keep the longest partial
     }
-    if (!chosen) break; // nothing more keeps it feasible — stop here
-    tourCities.push(chosen);
-    added++;
-  }
+    return deepest;
+  };
+
+  const base = [...tourCities];
+  tourCities = extend(base, count);
+  const added = tourCities.length - base.length;
 
   if (added === 0) {
     // Couldn't add any city. Reflect a freshly-filled departure, but add nothing.
