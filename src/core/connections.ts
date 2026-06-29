@@ -19,6 +19,13 @@ export interface ConnectionOptions {
   /** Only keep journeys that include at least one night train (sleep aboard). */
   onlyNight?: boolean;
   /**
+   * reachableJourneys only: keep the EARLIEST-ARRIVING journey per destination
+   * (maximises time on site) instead of the shortest-duration one. Round-trip
+   * "ideas" need this so their outbound matches bestGetawayTo's earliest-arrival
+   * choice; one-way "best" leaves it off and keeps the fastest journey.
+   */
+  earliestArrival?: boolean;
+  /**
    * How many calendar days of trains to pool, so a journey may chain hops with
    * multi-day stopovers at hubs ("trip over up to N days"). Default 2 — the chosen
    * day plus the next, enough for a normal connection across midnight. Larger spans
@@ -276,7 +283,7 @@ export function reachableJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = reachMemo(trains);
-  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${opts.earliestArrival ? "earlyarr" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -317,7 +324,15 @@ export function reachableJourneys(
     const okNight = !opts.onlyNight || isNightTrain(last);
     if (okNight && (maxDur == null || j.totalDurationMin <= maxDur)) {
       const cur = best.get(j.destination);
-      if (!cur || j.totalDurationMin < cur.totalDurationMin) best.set(j.destination, j);
+      // Default: keep the fastest. earliestArrival: keep the one arriving soonest
+      // (ties → shorter), matching bestGetawayTo so round-trip ideas stay at parity.
+      const better =
+        !cur ||
+        (opts.earliestArrival
+          ? j.arriveMin < cur.arriveMin ||
+            (j.arriveMin === cur.arriveMin && j.totalDurationMin < cur.totalDurationMin)
+          : j.totalDurationMin < cur.totalDurationMin);
+      if (better) best.set(j.destination, j);
     }
     if (path.length - 1 >= maxConn) return; // used all allowed changes
     if (!hubSet.has(last.destination)) return; // intermediate must be a hub
@@ -383,7 +398,7 @@ export function latestReturns(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = returnMemo(trains);
-  const key = `${target}@${date}|${arriveCeil}|${maxConn}|${minC}-${maxC}|${span}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${target}@${date}|${arriveCeil}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -392,6 +407,11 @@ export function latestReturns(
   for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
   if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
   if (opts.excludeNight) pool = pool.filter((t) => !isNightTrain(t));
+
+  // The first (departing) leg must respect the user's depart-time window — same as
+  // findJourneys/reachableJourneys, so the Ideas return is filtered like Where-to's.
+  const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
+  const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
 
   const dateMidnight = dayIndex(date) * 1440;
   // Index by ARRIVAL station, to walk a journey backward from `target`.
@@ -409,6 +429,8 @@ export function latestReturns(
   const consider = (): void => {
     const head = path[0];
     if (!head || head.date !== date) return; // the first leg must depart on `date`
+    if (after !== undefined && head.departMin < after) return; // outside depart window
+    if (before !== undefined && head.departMin > before) return;
     const last = path[path.length - 1];
     if (!last) return;
     // Arrival (minutes from `date` midnight) must be within the home-by ceiling.

@@ -212,7 +212,10 @@ export function getawayIdeas(
   const byDest = new Map<string, Getaway>();
   const perDay: CalendarDay[] = [];
   for (const date of dates) {
-    const outboundMap = reachableJourneys(trains, origin, date, opts);
+    // Outbound must be the EARLIEST-ARRIVING journey per destination (the Getaway
+    // contract, and what bestGetawayTo uses) — not the fastest — so the same-day
+    // on-site gate, onSiteMin, shown train and ranking match the "Where to?" view.
+    const outboundMap = reachableJourneys(trains, origin, date, { ...opts, earliestArrival: true });
     const startable = new Set<string>(); // round-trippable destinations starting today
     for (const nights of nightChoices) {
       // A sleeper return leaves the evening after your last night — one day later.
