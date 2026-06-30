@@ -10,7 +10,11 @@
  *  - Cross-origin / POST  → passthrough, never cached
  */
 
-const CACHE_NAME = "maxjeune-v6";
+// Bump on every release that changes the build output. A new value forces the SW to
+// re-install and re-activate: the activate handler then deletes the previous cache
+// and navigates any client stranded on a stale shell (the white-page failure mode)
+// onto the freshly deployed one.
+const CACHE_NAME = "maxjeune-v7";
 
 // Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.
