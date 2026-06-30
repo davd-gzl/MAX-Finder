@@ -26,7 +26,7 @@ function permutations<T>(arr: T[]): T[][] {
 }
 
 /** Date the traveller actually arrives at the destination of a journey. */
-function arrivalDate(j: Journey): string {
+export function arrivalDate(j: Journey): string {
   const last = j.legs[j.legs.length - 1];
   if (!last) return j.date;
   // arriveMin >= 1440 means the leg crossed midnight (normalised that way).

@@ -10,7 +10,7 @@ import {
 import { filterTrains, isNightTrain } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
 import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
-import { planTours, planTourInOrder, planTourGreedy, type Tour } from "./core/tour";
+import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
@@ -331,35 +331,43 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // filter to night trains that run straight from the frontier.
   const onlyNightTour = Boolean(query.onlyNight);
   const withChanges = Boolean(query.maxConnections && query.maxConnections > 0);
-  // Every day the first hop may depart: within ±startFlex of the chosen date (the
-  // same window planSequence searches), clamped so it never starts before today.
-  // Candidate generation must span ALL of them, or a city whose only service leaves
-  // on a flex day (e.g. the chosen date is the 1st, flex covers the 2nd or the prior
-  // 30th) is never proposed — the planner could schedule it, but the search never
-  // offers it. The direct path below is already date-agnostic (it scans every
-  // available train), so this only matters with changes.
-  const departDays: string[] = [];
-  for (let i = -startFlex; i <= startFlex; i++) {
-    const d = addDays(query.date, i);
-    if (i === 0 || d >= today) departDays.push(d);
-  }
+  // The days a hop may depart, used to seed connection-aware candidates. The FIRST
+  // hop leaves within ±startFlex of the chosen date (clamped to today), exactly the
+  // window planSequence searches. A LATER hop leaves arrival+minDays..arrival+maxDays
+  // — its real stay window — so a city reachable from an intermediate stop only on
+  // that (later) date is still proposed; pinning every hop to the start date would
+  // miss it. The direct path below is date-agnostic (scans every train), so this
+  // only matters with changes.
+  const startWindow = (): string[] => {
+    const out: string[] = [];
+    for (let i = -startFlex; i <= startFlex; i++) {
+      const d = addDays(query.date, i);
+      if (i === 0 || d >= today) out.push(d);
+    }
+    return out;
+  };
+  const stayWindow = (arrival: string): string[] => {
+    const out: string[] = [];
+    for (let i = lo; i <= hi; i++) out.push(addDays(arrival, i));
+    return out;
+  };
   // The next-city options from a frontier: every place the planner can actually
-  // reach, unused, in-region, ordered by the mode (nearest needs coordinates). When
-  // changes are allowed we seed from reachableJourneys (connection- AND onlyNight-
-  // aware) across the flex window, not just direct trains on the exact day —
-  // otherwise a city reachable only via a hub change (e.g. take a train, then a
-  // connecting sleeper), or only on a flex day, is never even proposed.
-  const reachableFrom = (frontier: string): string[] => {
+  // reach over `days`, unused, in-region, ordered by the mode (nearest needs
+  // coordinates). When changes are allowed we seed from reachableJourneys
+  // (connection- AND onlyNight-aware) across those days, not just direct trains on
+  // the exact day — otherwise a city reachable only via a hub change (e.g. take a
+  // train, then a connecting sleeper), or only on a flex/stay day, is never proposed.
+  const reachableFrom = (frontier: string, days: string[]): string[] => {
     if (!withChanges) {
       return [...new Set(avail.filter((tr) => tr.origin === frontier).map((tr) => tr.destination))];
     }
     const dests = new Set<string>();
-    for (const d of departDays)
+    for (const d of days)
       for (const dest of reachableJourneys(avail, frontier, d, planOpts).keys()) dests.add(dest);
     return [...dests];
   };
-  const optionsFrom = (frontier: string, used: Set<string>): string[] => {
-    let cs = reachableFrom(frontier).filter((d) => !used.has(d) && inRegion(d));
+  const optionsFrom = (frontier: string, used: Set<string>, days: string[]): string[] => {
+    let cs = reachableFrom(frontier, days).filter((d) => !used.has(d) && inRegion(d));
     if (onlyNightTour && !withChanges) {
       // Direct only: the sleeper must run straight from here. (With connections,
       // reachableJourneys already restricted to sleeper-arrival destinations.)
@@ -383,25 +391,34 @@ function growTour(mode: "nearest" | "random", count: number): void {
     return onlyNightTour ? cs : cs.slice(0, TOUR_BRANCH);
   };
   let budget = TOUR_SEARCH_BUDGET;
-  const feasible = (cities: string[]): boolean => {
+  // Plan the whole in-order tour so far (returns the legs, or null if any hop is
+  // infeasible). The arrival date of its last leg is when the traveller reaches the
+  // frontier — which drives the NEXT hop's candidate window.
+  const plan = (cities: string[]): Tour | null => {
     budget--;
-    return (
-      planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex, today) != null
-    );
+    return planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex, today);
+  };
+  const frontierArrival = (tour: Tour): string => {
+    const last = tour.legs[tour.legs.length - 1];
+    return last ? arrivalDate(last) : query.date;
   };
   // Depth-first search with backtracking: extend `cities` by `remaining` more,
   // returning the FULL-depth itinerary if one exists (early out), else the deepest
-  // feasible one found within the budget.
-  const extend = (cities: string[], remaining: number): string[] => {
+  // feasible one found within the budget. `arrival` is when the traveller reaches the
+  // current frontier (the chosen date for the start), so candidates are drawn from
+  // the days the next hop could actually depart.
+  const extend = (cities: string[], remaining: number, arrival: string): string[] => {
     if (remaining === 0 || budget <= 0) return cities;
     const used = new Set([start, ...cities]);
     const frontier = cities[cities.length - 1] ?? start;
+    const days = cities.length === 0 ? startWindow() : stayWindow(arrival);
     let deepest = cities;
-    for (const c of optionsFrom(frontier, used)) {
+    for (const c of optionsFrom(frontier, used, days)) {
       if (budget <= 0) break;
       const next = [...cities, c];
-      if (!feasible(next)) continue; // the whole in-order tour so far must still plan
-      const result = extend(next, remaining - 1);
+      const tour = plan(next); // the whole in-order tour so far must still plan
+      if (!tour) continue;
+      const result = extend(next, remaining - 1, frontierArrival(tour));
       if (result.length === cities.length + remaining) return result; // reached count
       if (result.length > deepest.length) deepest = result; // keep the longest partial
     }
@@ -409,7 +426,10 @@ function growTour(mode: "nearest" | "random", count: number): void {
   };
 
   const base = [...tourCities];
-  tourCities = extend(base, count);
+  // Seed the arrival at the existing frontier (if any) so the first new hop departs
+  // from the right day. If the existing cities don't even plan, there's nothing to grow.
+  const baseTour = base.length ? plan(base) : null;
+  tourCities = base.length && !baseTour ? base : extend(base, count, baseTour ? frontierArrival(baseTour) : query.date);
   const added = tourCities.length - base.length;
 
   if (added === 0) {
