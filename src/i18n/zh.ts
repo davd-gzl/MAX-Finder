@@ -75,6 +75,7 @@ export const zh: Dict = {
   res_origins: "{n} 个出发地",
   badge_trains: "{n} 趟列车",
   lbl_direct: "直达",
+  lbl_airport: "机场",
   lbl_via: "经 {hub}",
   lbl_connection: "在 {hub} 换乘 {dur}",
   lbl_train: "列车 {no}",

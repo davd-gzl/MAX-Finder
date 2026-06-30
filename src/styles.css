@@ -1299,12 +1299,39 @@ a {
   flex-wrap: wrap;
 }
 /* Let long station names shrink/ellipsize instead of overflowing the card on
-   narrow phones; the arrow icon and day-badge keep their size. */
-.leg-route > span:not(.day-badge) {
+   narrow phones; the arrow icon, day-badge and airport flag keep their size. */
+.leg-route > span:not(.day-badge):not(.airport-badge) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A small ✈ marking an airport station, next to its name in lists and journeys. */
+.airport-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-inline-start: 0.25rem;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.airport-badge .icon svg {
+  width: 13px;
+  height: 13px;
+}
+/* Airport name + flag: the name ellipsizes, the ✈ stays put (never clipped). */
+.stn-airport {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+.stn-airport .stn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .layover {
   display: inline-flex;

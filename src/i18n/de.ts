@@ -75,6 +75,7 @@ export const de: Dict = {
   res_origins: "{n} Ausgangsort(e)",
   badge_trains: "{n} Zug/Züge",
   lbl_direct: "Direkt",
+  lbl_airport: "Flughafen",
   lbl_via: "über {hub}",
   lbl_connection: "Umstieg von {dur} in {hub}",
   lbl_train: "Zug {no}",

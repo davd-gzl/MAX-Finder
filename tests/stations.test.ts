@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Station } from "../src/types";
-import { StationRegistry, normalizeText, prettyLabel } from "../src/data/stations";
+import { StationRegistry, normalizeText, prettyLabel, isAirportStation } from "../src/data/stations";
 import stationData from "../data/stations.json";
 
 const registry = new StationRegistry(stationData as Station[]);
@@ -16,6 +16,21 @@ describe("prettyLabel", () => {
   it("makes a readable label from a raw station id", () => {
     expect(prettyLabel("PARIS (intramuros)")).toBe("Paris");
     expect(prettyLabel("MARSEILLE ST CHARLES")).toBe("Marseille St Charles");
+  });
+});
+
+describe("isAirportStation", () => {
+  it("flags the TGV airport stations", () => {
+    expect(isAirportStation("AEROPORT CDG2 TGV")).toBe(true);
+    expect(isAirportStation("AEROPORT CHARLES DE GAULLE 2 TGV")).toBe(true);
+    expect(isAirportStation("LYON ST EXUPERY TGV")).toBe(true);
+    expect(isAirportStation("ROISSY")).toBe(true);
+  });
+  it("does not flag ordinary city / suburb stations", () => {
+    expect(isAirportStation("PARIS (intramuros)")).toBe(false);
+    expect(isAirportStation("LYON (intramuros)")).toBe(false);
+    expect(isAirportStation("MASSY TGV")).toBe(false);
+    expect(isAirportStation("MARNE LA VALLEE CHESSY")).toBe(false);
   });
 });
 

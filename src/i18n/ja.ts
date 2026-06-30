@@ -75,6 +75,7 @@ export const ja: Dict = {
   res_origins: "出発地 {n} 件",
   badge_trains: "列車 {n} 本",
   lbl_direct: "直通",
+  lbl_airport: "空港",
   lbl_via: "{hub} 経由",
   lbl_connection: "{hub} で {dur} の乗り換え",
   lbl_train: "列車 {no}",

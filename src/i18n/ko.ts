@@ -75,6 +75,7 @@ export const ko: Dict = {
   res_origins: "출발지 {n}곳",
   badge_trains: "열차 {n}대",
   lbl_direct: "직통",
+  lbl_airport: "공항",
   lbl_via: "{hub} 경유",
   lbl_connection: "{hub}에서 {dur} 환승",
   lbl_train: "열차 {no}",

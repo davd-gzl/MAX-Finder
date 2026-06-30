@@ -80,6 +80,7 @@ export const en: Dict = {
   badge_trains: "{n} train(s)",
 
   lbl_direct: "Direct",
+  lbl_airport: "Airport",
   lbl_via: "via {hub}",
   lbl_connection: "{dur} connection at {hub}",
   lbl_train: "Train {no}",

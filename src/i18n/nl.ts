@@ -75,6 +75,7 @@ export const nl: Dict = {
   res_origins: "{n} vertrekpunt(en)",
   badge_trains: "{n} trein(en)",
   lbl_direct: "Rechtstreeks",
+  lbl_airport: "Luchthaven",
   lbl_via: "via {hub}",
   lbl_connection: "Overstap van {dur} in {hub}",
   lbl_train: "Trein {no}",

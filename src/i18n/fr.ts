@@ -78,6 +78,7 @@ export const fr = {
   badge_trains: "{n} train(s)",
 
   lbl_direct: "Direct",
+  lbl_airport: "Aéroport",
   lbl_via: "via {hub}",
   lbl_connection: "Correspondance de {dur} à {hub}",
   lbl_train: "Train {no}",

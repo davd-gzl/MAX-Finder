@@ -6,6 +6,7 @@ import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
+import { isAirportStation } from "../data/stations";
 import { formatDuration, dayIndex } from "../util/time";
 import { t } from "../i18n";
 
@@ -63,6 +64,7 @@ const I = {
   // A numbered/stepped list — used when "Book" opens the step-by-step modal (book
   // each train in turn) rather than a single deep link to a new tab.
   steps: '<path d="M9 6h11M9 12h11M9 18h11M4 5l1 1 1.5-1.5M4 11l1 1 1.5-1.5M4 17l1 1 1.5-1.5"/>',
+  plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 4.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
 };
 
 /**
@@ -175,15 +177,40 @@ const PARIS_GARE_BY_AXE: Record<string, string> = {
   EST: "Paris Est",
 };
 
-/** Display name for one end of a leg: the specific Paris gare (derived from the
- *  train's axe) when that end is the Paris aggregate, else the normal station label. */
+// Aggregate ids whose dominant gare we can name on a journey even though the axe
+// doesn't disambiguate it: nearly all TGVmax Lyon trains use Part-Dieu (not Perrache).
+const GARE_DEFAULT: Record<string, string> = {
+  "LYON (intramuros)": "Lyon Part-Dieu",
+};
+
+/** Display name for one end of a leg: the specific gare when known — the Paris
+ *  terminus from the train's axe, or a dominant-gare default (Lyon → Part-Dieu) —
+ *  else the normal station label. Only used on a concrete journey leg. */
 function legEndpointLabel(ctx: RenderCtx, leg: MaxTrain, end: "origin" | "destination"): string {
   const id = end === "origin" ? leg.origin : leg.destination;
   if (id === "PARIS (intramuros)") {
-    const gare = PARIS_GARE_BY_AXE[(leg.axe ?? "").toUpperCase().trim()];
-    if (gare) return gare;
+    return PARIS_GARE_BY_AXE[(leg.axe ?? "").toUpperCase().trim()] ?? ctx.label(id);
   }
-  return ctx.label(id);
+  return GARE_DEFAULT[id] ?? ctx.label(id);
+}
+
+/** A small ✈ flag marking an airport station (Roissy-CDG, Lyon St-Exupéry, …). */
+function airportBadge(): HTMLElement {
+  return el(
+    "span",
+    { class: "airport-badge", attrs: { title: t("lbl_airport"), "aria-label": t("lbl_airport") } },
+    [icon(I.plane)],
+  );
+}
+
+/** A station-name span, with an ✈ badge appended when the station is an airport.
+ *  For airports the name ellipsizes in an inner span so the flag is never clipped. */
+function stationNameEl(cls: string, id: string, label: string): HTMLElement {
+  if (!isAirportStation(id)) return el("span", { class: cls, text: label });
+  return el("span", { class: `${cls} stn-airport`.trim() }, [
+    el("span", { class: "stn-text", text: label }),
+    airportBadge(),
+  ]);
 }
 
 /**
@@ -227,9 +254,9 @@ export function journeyEl(
       );
     }
     const route = el("div", { class: "leg-route" }, [
-      el("span", { text: legEndpointLabel(ctx, leg, "origin") }),
+      stationNameEl("", leg.origin, legEndpointLabel(ctx, leg, "origin")),
       icon(I.arrow),
-      el("span", { text: legEndpointLabel(ctx, leg, "destination") }),
+      stationNameEl("", leg.destination, legEndpointLabel(ctx, leg, "destination")),
       ...(leg.date !== j.date
         ? [
             el("span", {
@@ -399,7 +426,7 @@ export function groupCardEl(
       on: { click: () => ctx.onOpenRoute(origin, destination) },
     },
     [
-      el("span", { class: "dest-name", text: ctx.label(group.station) }),
+      stationNameEl("dest-name", group.station, ctx.label(group.station)),
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, meta),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
@@ -444,7 +471,7 @@ export function reachTripRowEl(
       on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
     },
     [
-      el("span", { class: "dest-name", text: ctx.label(station) }),
+      stationNameEl("dest-name", station, ctx.label(station)),
       ...viaChip,
       ...(extra ? [extra] : []),
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
@@ -526,7 +553,7 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
     },
     [
       el("span", { class: "daytrip-top" }, [
-        el("span", { class: "dest-name", text: ctx.label(trip.destination) }),
+        stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
         headline,
       ]),
       el("span", { class: "daytrip-legs" }, [
@@ -633,7 +660,7 @@ export function nearbyTripRowEl(station: string, km: number, j: Journey, ctx: Re
       on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
     },
     [
-      el("span", { class: "dest-name", text: ctx.label(station) }),
+      stationNameEl("dest-name", station, ctx.label(station)),
       el("span", { class: "chip chip-soft km-chip", text: t("nearby_km", { km }) }),
       ...viaChip,
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [

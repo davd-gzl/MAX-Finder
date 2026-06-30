@@ -22,6 +22,17 @@ export function isNonBookable(station: string): boolean {
   return NON_BOOKABLE_PATTERNS.some((p) => n.includes(p));
 }
 
+// Station ids that are airports (flagged with an ✈ in the UI). The open data has no
+// airport field, so detect by the markers SNCF uses in the station name: CDG and
+// Lyon St-Exupéry are the two TGV airport stations, plus generic "aéroport".
+const AIRPORT_MARKERS = ["AEROPORT", "ROISSY", "CHARLES DE GAULLE", "ST EXUPERY"];
+
+/** True if the station id looks like an airport (Roissy-CDG, Lyon St-Exupéry, …). */
+export function isAirportStation(id: string): boolean {
+  const u = id.toUpperCase();
+  return AIRPORT_MARKERS.some((m) => u.includes(m));
+}
+
 /**
  * Tolerant match key for city resolution: accent/case-folded, hyphens → spaces,
  * "St"/"Ste" → "Saint"/"Sainte". Lets "ST MALO", "Saint-Malo" and "SAINT MALO"
