@@ -75,6 +75,7 @@ export const ar: Dict = {
   res_origins: "{n} نقطة انطلاق",
   badge_trains: "{n} قطار",
   lbl_direct: "مباشر",
+  lbl_airport: "مطار",
   lbl_via: "عبر {hub}",
   lbl_connection: "تغيير {dur} في {hub}",
   lbl_train: "القطار {no}",
