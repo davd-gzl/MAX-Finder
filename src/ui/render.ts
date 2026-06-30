@@ -163,6 +163,29 @@ export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
   );
 }
 
+// Paris intra-muros is a single aggregate in the SNCF open data, but a train's axe
+// pins which terminus gare it actually uses. Map the main TGV axes; other axes
+// (Intercités, international, night) stay as the plain "Paris" — better a city than
+// a wrong gare. The mapping only applies on a concrete journey leg (where the axe is
+// known), never in browse lists (where many axes mix under one "Paris").
+const PARIS_GARE_BY_AXE: Record<string, string> = {
+  "SUD EST": "Paris Gare de Lyon",
+  ATLANTIQUE: "Paris Montparnasse",
+  NORD: "Paris Nord",
+  EST: "Paris Est",
+};
+
+/** Display name for one end of a leg: the specific Paris gare (derived from the
+ *  train's axe) when that end is the Paris aggregate, else the normal station label. */
+function legEndpointLabel(ctx: RenderCtx, leg: MaxTrain, end: "origin" | "destination"): string {
+  const id = end === "origin" ? leg.origin : leg.destination;
+  if (id === "PARIS (intramuros)") {
+    const gare = PARIS_GARE_BY_AXE[(leg.axe ?? "").toUpperCase().trim()];
+    if (gare) return gare;
+  }
+  return ctx.label(id);
+}
+
 /**
  * A direct or connecting journey card. `opts.saveable` (default true) adds a Save
  * button to the actions; it's turned off inside the trip modal, where a single
@@ -204,9 +227,9 @@ export function journeyEl(
       );
     }
     const route = el("div", { class: "leg-route" }, [
-      el("span", { text: ctx.label(leg.origin) }),
+      el("span", { text: legEndpointLabel(ctx, leg, "origin") }),
       icon(I.arrow),
-      el("span", { text: ctx.label(leg.destination) }),
+      el("span", { text: legEndpointLabel(ctx, leg, "destination") }),
       ...(leg.date !== j.date
         ? [
             el("span", {
