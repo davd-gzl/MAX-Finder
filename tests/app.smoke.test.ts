@@ -113,6 +113,18 @@ describe("app (jsdom smoke)", () => {
     expect(root.textContent ?? "").toContain("Toulouse");
   });
 
+  it("shows the specific Paris gare on a journey (from the train's axe)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+    );
+    const text = root.textContent ?? "";
+    // The Paris→Lyon trains are on the SUD EST axe → Paris Gare de Lyon.
+    expect(text).toContain("Paris Gare de Lyon");
+    // The journey leg-route renders it (not just the plain "Paris" aggregate).
+    const legRoute = root.querySelector(".leg-route");
+    expect(legRoute?.textContent ?? "").toContain("Paris Gare de Lyon");
+  });
+
   it("builds the search form with all modes", () => {
     const root = setup("");
     expect(root.querySelectorAll(".mode-tab").length).toBeGreaterThanOrEqual(4);
