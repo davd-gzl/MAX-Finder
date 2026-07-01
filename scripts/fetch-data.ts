@@ -159,6 +159,15 @@ async function main(): Promise<void> {
     `[fetch-data] Kept ${records.length} reservable (OUI) of ${mapped.length} mapped records.`,
   );
 
+  // Never overwrite a good snapshot with nothing. If the OUI filter yields zero (an
+  // upstream schema change, or a genuinely dry response that still passed the array
+  // check), the whole 30-day window being empty is far more likely a fault than real
+  // — keep yesterday's data instead of wiping the site down to the tiny sample.
+  if (records.length === 0) {
+    console.error("[fetch-data] Zero reservable (OUI) records after mapping. Not overwriting existing data.");
+    process.exit(1);
+  }
+
   const meta: Meta = {
     updatedAt: new Date().toISOString(),
     source: "SNCF Open Data — tgvmax (Licence Ouverte)",

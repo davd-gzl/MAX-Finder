@@ -76,7 +76,9 @@ export async function loadDataset(profile: DatasetProfile = SNCF_PROFILE): Promi
   const meta = await fetchJson<DataMeta>(profile.metaUrl).catch(() => null);
   let rows = await fetchJson<RawRecord[]>(profile.dataUrl).catch(() => null);
   let usedSample = false;
-  if (!rows || rows.length === 0) {
+  // Guard the shape too: a malformed snapshot (e.g. an error object instead of an
+  // array) would otherwise slip past a length check and crash normalizeRecords.
+  if (!Array.isArray(rows) || rows.length === 0) {
     rows = sampleData as RawRecord[]; // bundled fixture: app still works offline
     usedSample = true;
   }
