@@ -971,7 +971,7 @@ describe("round-trip arrival uses absolute time, not the last leg's own-date min
       // Same-day return from Nice, home 22:00.
       { date: "2026-07-01", origine: "NICE VILLE", destination: "PARIS (intramuros)", heure_depart: "18:00", heure_arrivee: "22:00", train_no: "RET", od_happy_card: "OUI" },
     ] as RawRecord[]);
-    const opts = { maxConnections: 1, hubs: ["LYON (intramuros)"], nights: 0, minOnSiteMin: 60 } as const;
+    const opts = { maxConnections: 1, hubs: ["LYON (intramuros)"], nights: 0, minOnSiteMin: 60 };
     const nice = getaways(data, "PARIS (intramuros)", "2026-07-01", opts).find((x) => x.destination === "NICE VILLE")!;
     expect(nice.outbound.legs[0]!.trainNo).toBe("DIRECT"); // NOT the next-day via-hub
     expect(nice.onSiteMin).toBe(360); // 12:00 → 18:00 = 6 h, not a fabricated 12 h+
