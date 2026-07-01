@@ -46,6 +46,7 @@ export const zh: Dict = {
   field_advanced: "高级筛选",
   field_departAfter: "出发时间晚于",
   field_departBefore: "出发时间早于",
+  field_arriveBefore: "到达时间早于",
   field_maxDuration: "总最长时间（分钟）",
   field_maxSpanDays: "最长行程（天）",
   field_radius: "搜索半径（公里）",

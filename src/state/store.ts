@@ -177,6 +177,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   p.set("card", q.card);
   if (q.departAfter) p.set("after", q.departAfter);
   if (q.departBefore) p.set("before", q.departBefore);
+  if (q.arriveBefore) p.set("arrbefore", q.arriveBefore);
   if (q.maxDurationMin != null) p.set("maxdur", String(q.maxDurationMin));
   if (q.trainType) p.set("type", q.trainType);
   if (q.maxConnections !== 1) p.set("conn", String(q.maxConnections));
@@ -236,6 +237,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,
     departBefore: p.get("before") ?? undefined,
+    arriveBefore: p.get("arrbefore") ?? undefined,
     maxDurationMin: Number.isFinite(maxdur) && maxdur > 0 ? maxdur : undefined,
     trainType: p.get("type") ?? undefined,
     maxConnections: Number.isFinite(conn) && conn >= 0 && conn <= 6 ? conn : 1,

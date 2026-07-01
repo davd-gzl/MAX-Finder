@@ -46,6 +46,7 @@ export const nl: Dict = {
   field_advanced: "Geavanceerde filters",
   field_departAfter: "Vertrek na",
   field_departBefore: "Vertrek voor",
+  field_arriveBefore: "Aankomst voor",
   field_maxDuration: "Max. totale duur (min)",
   field_maxSpanDays: "Max. reisduur (dagen)",
   field_radius: "Zoekstraal (km)",

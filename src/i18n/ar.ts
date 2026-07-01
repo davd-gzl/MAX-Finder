@@ -46,6 +46,7 @@ export const ar: Dict = {
   field_advanced: "عوامل تصفية متقدمة",
   field_departAfter: "المغادرة بعد",
   field_departBefore: "المغادرة قبل",
+  field_arriveBefore: "الوصول قبل",
   field_maxDuration: "أقصى مدة إجمالية (دقيقة)",
   field_maxSpanDays: "أقصى مدة للرحلة (أيام)",
   field_radius: "نطاق البحث (كم)",

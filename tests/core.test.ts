@@ -140,6 +140,18 @@ describe("filterTrains", () => {
     expect(short.some((t) => t.destination === "NICE VILLE")).toBe(false);
     expect(short.some((t) => t.destination === "LYON (intramuros)")).toBe(true);
   });
+
+  it("respects a max-arrival-time (arriveBefore) filter", () => {
+    // Paris→Lyon on 2026-06-25 arrives 10:00 / 16:00 / 21:00. A 12:00 ceiling keeps
+    // only the 08:00→10:00 train.
+    const byNoon = filterTrains(trains, {
+      origin: "PARIS (intramuros)",
+      destination: "LYON (intramuros)",
+      date: "2026-06-25",
+      arriveBefore: "12:00",
+    });
+    expect(byNoon.map((t) => t.trainNo)).toEqual(["6601"]);
+  });
 });
 
 describe("findJourneys (connections)", () => {
@@ -182,6 +194,15 @@ describe("findJourneys (connections)", () => {
     for (const j of journeys) {
       for (const leg of j.legs) expect(leg.available).toBe(true);
     }
+  });
+
+  it("drops journeys that arrive after the arriveBefore ceiling", () => {
+    // Direct Paris→Lyon trains arrive 10:00 / 16:00 / 21:00 on 2026-06-25.
+    const byNoon = findJourneys(trains, "PARIS (intramuros)", "LYON (intramuros)", "2026-06-25", {
+      arriveBefore: "12:00",
+    });
+    expect(byNoon.length).toBe(1);
+    expect(byNoon[0]!.legs[0]!.trainNo).toBe("6601"); // the 08:00→10:00
   });
 });
 

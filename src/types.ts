@@ -57,6 +57,7 @@ export interface SearchQuery {
   card: CardType;
   departAfter?: string; // "HH:MM"
   departBefore?: string; // "HH:MM"
+  arriveBefore?: string; // "HH:MM" — latest acceptable arrival
   maxDurationMin?: number;
   trainType?: string;
   /** Max changes allowed: 0 = direct only, 1 = one change, 2 = two changes. */

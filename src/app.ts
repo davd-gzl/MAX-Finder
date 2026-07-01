@@ -52,6 +52,7 @@ interface Refs {
   card: HTMLSelectElement;
   departAfter: HTMLInputElement;
   departBefore: HTMLInputElement;
+  arriveBefore: HTMLInputElement;
   maxDuration: HTMLInputElement;
   maxSpanDays: HTMLInputElement;
   maxSpanDaysField: HTMLElement;
@@ -849,6 +850,7 @@ function syncFormFromQuery(): void {
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
   refs.departBefore.value = query.departBefore ?? "";
+  refs.arriveBefore.value = query.arriveBefore ?? "";
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
   refs.radius.value = query.radiusKm != null ? String(query.radiusKm) : "";
@@ -903,6 +905,7 @@ function readQueryFromForm(): SearchQuery {
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
     departBefore: refs.departBefore.value || undefined,
+    arriveBefore: refs.arriveBefore.value || undefined,
     maxDurationMin: Number.isFinite(maxDur) && maxDur > 0 ? maxDur : undefined,
     trainType: refs.trainType.value || undefined,
     maxConnections: Number(refs.maxConnections.value),
@@ -1029,6 +1032,7 @@ function tourPlanOpts() {
     ...(query.trainType ? { trainType: query.trainType } : {}),
     ...(query.departAfter ? { departAfter: query.departAfter } : {}),
     ...(query.departBefore ? { departBefore: query.departBefore } : {}),
+    ...(query.arriveBefore ? { arriveBefore: query.arriveBefore } : {}),
     ...(query.excludeNight ? { excludeNight: true } : {}),
     ...(query.onlyNight ? { onlyNight: true } : {}),
     // Overnight stopovers widen the layover ceiling, so a hop can wait a whole day
@@ -1042,6 +1046,7 @@ function filterOpts() {
   return {
     departAfter: query.departAfter,
     departBefore: query.departBefore,
+    arriveBefore: query.arriveBefore,
     maxDurationMin: query.maxDurationMin,
     trainType: query.trainType,
     ...(query.excludeNight ? { excludeNight: true } : {}),
@@ -2358,6 +2363,7 @@ function buildForm(): FormBuild {
   const endDateField = field(t("field_end_date"), endDate);
   const departAfter = inputEl("time");
   const departBefore = inputEl("time");
+  const arriveBefore = inputEl("time");
   const maxDuration = inputEl("number");
   // Max trip length in days (exact trip): caps how many calendar days a journey may
   // straddle — overnight stopovers can chain trains across several days.
@@ -2608,6 +2614,7 @@ function buildForm(): FormBuild {
     el("div", { class: "advanced-grid" }, [
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
+      field(t("field_arriveBefore"), arriveBefore),
       connGroupField,
       maxDurationField,
       minLegDurationField,
@@ -2699,6 +2706,7 @@ function buildForm(): FormBuild {
       endDateField,
       departAfter,
       departBefore,
+      arriveBefore,
       maxDuration,
       maxSpanDays,
       maxSpanDaysField,
