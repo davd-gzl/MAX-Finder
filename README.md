@@ -50,6 +50,8 @@ This app is a frontend over that dataset. No backend, no accounts, no cost.
   where the data comes from, and why it runs for free with no server or account.
 - **[Algorithms](docs/algorithms.md)** — how it actually finds trains (the free-seat filter,
   connections, the fast one-pass sweeps, round trips, tours, gare naming) — with diagrams.
+- **[Vision / roadmap](VISION.md)** — where it's headed (V2: adding trains from Germany,
+  Spain, and beyond, while staying SNCF-focused today).
 
 ## Architecture
 
