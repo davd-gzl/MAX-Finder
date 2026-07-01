@@ -118,10 +118,10 @@ describe("app (jsdom smoke)", () => {
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
     );
     const legRoute = root.querySelector(".leg-route")?.textContent ?? "";
-    // The Paris→Lyon trains are on the SUD EST axe → Paris Gare de Lyon, and Lyon
-    // defaults to its dominant gare, Part-Dieu — both on the journey leg-route.
+    // The Paris→Lyon trains are on the SUD EST axe → Paris Gare de Lyon (the one gare
+    // the data can pin down). Lyon's gare isn't derivable, so it stays plain "Lyon".
     expect(legRoute).toContain("Paris Gare de Lyon");
-    expect(legRoute).toContain("Lyon Part-Dieu");
+    expect(legRoute).not.toContain("Part-Dieu");
   });
 
   it("builds the search form with all modes", () => {

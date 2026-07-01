@@ -180,21 +180,16 @@ const PARIS_GARE_BY_AXE: Record<string, string> = {
   "IC NUIT": "Paris Austerlitz",
 };
 
-// Aggregate ids whose dominant gare we can name on a journey even though the axe
-// doesn't disambiguate it: nearly all TGVmax Lyon trains use Part-Dieu (not Perrache).
-const GARE_DEFAULT: Record<string, string> = {
-  "LYON (intramuros)": "Lyon Part-Dieu",
-};
-
-/** Display name for one end of a leg: the specific gare when known — the Paris
- *  terminus from the train's axe, or a dominant-gare default (Lyon → Part-Dieu) —
- *  else the normal station label. Only used on a concrete journey leg. */
+/** Display name for one end of a leg: the specific Paris terminus gare — fixed by the
+ *  train's axe — when that end is the Paris aggregate; otherwise the plain station /
+ *  city label. We never guess a gare the data can't pin down (Lyon, Lille, …): if we
+ *  don't know, we keep the city name. */
 function legEndpointLabel(ctx: RenderCtx, leg: MaxTrain, end: "origin" | "destination"): string {
   const id = end === "origin" ? leg.origin : leg.destination;
   if (id === "PARIS (intramuros)") {
     return PARIS_GARE_BY_AXE[(leg.axe ?? "").toUpperCase().trim()] ?? ctx.label(id);
   }
-  return GARE_DEFAULT[id] ?? ctx.label(id);
+  return ctx.label(id);
 }
 
 /** A small ✈ flag marking an airport station (Roissy-CDG, Lyon St-Exupéry, …). */
