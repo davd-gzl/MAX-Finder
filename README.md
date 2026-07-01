@@ -44,12 +44,20 @@ This app is a frontend over that dataset. No backend, no accounts, no cost.
 - **11 languages** (FR, EN, ES, DE, IT, KO, ZH, JA, NL, PT, AR — incl. right-to-left),
   light/dark theme, installable **PWA** with offline support, mobile-friendly, accessible.
 
+## Documentation
+
+- **[How it works](docs/how-it-works.md)** — a plain-language tour of what the app does,
+  where the data comes from, and why it runs for free with no server or account.
+- **[Algorithms](docs/algorithms.md)** — how it actually finds trains (the free-seat filter,
+  connections, the fast one-pass sweeps, round trips, tours, gare naming) — with diagrams.
+
 ## Architecture
 
 Pure static site (Vite + TypeScript + Leaflet) deployed to GitHub Pages.
 A scheduled **GitHub Action** snapshots the SNCF `tgvmax` dataset into `data/tgvmax.json`
 each morning, so the site never depends on a live server. The browser can also query the
-SNCF API directly as a fallback. See [`specs/`](./specs) for the full spec-driven design.
+SNCF API directly as a fallback. The guiding principles live in
+[`specs/constitution.md`](./specs/constitution.md).
 
 ```
 data/        committed daily snapshot (+ a small fixture for dev/tests)
@@ -58,7 +66,8 @@ src/data     dataset loading + station lookup
 src/ui       rendering (search form, results, map, calendar)
 scripts/     fetch-data.ts — used by the daily Action
 .github/     update-data (cron) + deploy (Pages) workflows
-specs/        constitution, spec, plan, tasks (Spec-Driven Development)
+docs/        how-it-works.md, algorithms.md (plain-language guides) + screenshots
+specs/       constitution.md (guiding principles)
 ```
 
 ## Develop
