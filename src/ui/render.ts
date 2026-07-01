@@ -175,6 +175,9 @@ const PARIS_GARE_BY_AXE: Record<string, string> = {
   ATLANTIQUE: "Paris Montparnasse",
   NORD: "Paris Nord",
   EST: "Paris Est",
+  // Every Intercités de Nuit from Paris departs Austerlitz. (IC ARO / INTERNATIONAL
+  // aren't tied to one gare, so they stay the plain "Paris" aggregate.)
+  "IC NUIT": "Paris Austerlitz",
 };
 
 // Aggregate ids whose dominant gare we can name on a journey even though the axe
