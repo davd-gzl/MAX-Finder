@@ -398,9 +398,13 @@ function growTour(mode: "nearest" | "random", count: number): void {
     budget--;
     return planTourInOrder(deps.trains, start, cities, query.date, planOpts, lo, hi, stationDistanceKm, query.maxKm, query.maxLegKm, query.destination || undefined, query.destination ? query.tourEndDate : undefined, startFlex, today);
   };
-  const frontierArrival = (tour: Tour): string => {
-    const last = tour.legs[tour.legs.length - 1];
-    return last ? arrivalDate(last) : query.date;
+  // Arrival date at a SPECIFIC city in the planned tour (the leg that ends there) —
+  // not just the last leg: when a fixed destination is appended, the last leg lands
+  // at the destination, so seeding from it would use the wrong (later) window for the
+  // frontier we're actually extending from, dropping cities reachable in the right one.
+  const arrivalAt = (tour: Tour, city: string): string => {
+    const leg = tour.legs.find((j) => j.destination === city);
+    return leg ? arrivalDate(leg) : query.date;
   };
   // Depth-first search with backtracking: extend `cities` by `remaining` more,
   // returning the FULL-depth itinerary if one exists (early out), else the deepest
@@ -409,7 +413,9 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // the days the next hop could actually depart.
   const extend = (cities: string[], remaining: number, arrival: string): string[] => {
     if (remaining === 0 || budget <= 0) return cities;
-    const used = new Set([start, ...cities]);
+    // The fixed finish (query.destination) is the END, never a nomad stop — exclude it
+    // so it can't be proposed as a "city to add" (a ghost stop that plans away to the end).
+    const used = new Set([start, ...cities, ...(query.destination ? [query.destination] : [])]);
     const frontier = cities[cities.length - 1] ?? start;
     const days = cities.length === 0 ? startWindow() : stayWindow(arrival);
     let deepest = cities;
@@ -418,7 +424,7 @@ function growTour(mode: "nearest" | "random", count: number): void {
       const next = [...cities, c];
       const tour = plan(next); // the whole in-order tour so far must still plan
       if (!tour) continue;
-      const result = extend(next, remaining - 1, frontierArrival(tour));
+      const result = extend(next, remaining - 1, arrivalAt(tour, c)); // seed from the NEW frontier c
       if (result.length === cities.length + remaining) return result; // reached count
       if (result.length > deepest.length) deepest = result; // keep the longest partial
     }
@@ -429,7 +435,11 @@ function growTour(mode: "nearest" | "random", count: number): void {
   // Seed the arrival at the existing frontier (if any) so the first new hop departs
   // from the right day. If the existing cities don't even plan, there's nothing to grow.
   const baseTour = base.length ? plan(base) : null;
-  tourCities = base.length && !baseTour ? base : extend(base, count, baseTour ? frontierArrival(baseTour) : query.date);
+  const baseFrontier = base[base.length - 1];
+  tourCities =
+    base.length && !baseTour
+      ? base
+      : extend(base, count, baseTour && baseFrontier ? arrivalAt(baseTour, baseFrontier) : query.date);
   const added = tourCities.length - base.length;
 
   if (added === 0) {
@@ -1014,6 +1024,11 @@ function tourPlanOpts() {
     maxConnections: query.maxConnections,
     ...(query.maxLegDurationMin ? { maxDurationMin: query.maxLegDurationMin } : {}),
     ...(query.minLegDurationMin ? { minDurationMin: query.minLegDurationMin } : {}),
+    // The train-type and depart-time filters are shown in every mode's Advanced
+    // panel, so honour them here too — otherwise a tour silently ignores them.
+    ...(query.trainType ? { trainType: query.trainType } : {}),
+    ...(query.departAfter ? { departAfter: query.departAfter } : {}),
+    ...(query.departBefore ? { departBefore: query.departBefore } : {}),
     ...(query.excludeNight ? { excludeNight: true } : {}),
     ...(query.onlyNight ? { onlyNight: true } : {}),
     // Overnight stopovers widen the layover ceiling, so a hop can wait a whole day
