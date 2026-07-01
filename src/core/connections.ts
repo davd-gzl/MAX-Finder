@@ -11,6 +11,8 @@ export interface ConnectionOptions {
   maxConnectionMin?: number;
   departAfter?: string; // constrains the first leg only
   departBefore?: string;
+  /** Latest acceptable arrival ("HH:MM"), compared on the absolute cross-date timeline. */
+  arriveBefore?: string;
   maxDurationMin?: number; // total journey duration
   minDurationMin?: number; // skip journeys shorter than this (e.g. exclude 1 h hops)
   trainType?: string;
@@ -168,7 +170,7 @@ export function findJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = journeyMemo(trains);
-  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}>${destination}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.arriveBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -185,6 +187,7 @@ export function findJourneys(
   // The first leg must depart on `date`, within the user's time window.
   const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
   const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const arriveBy = opts.arriveBefore ? parseTimeToMinutes(opts.arriveBefore) : undefined;
   const firstPool = pool.filter(
     (t) =>
       t.date === date &&
@@ -249,6 +252,11 @@ export function findJourneys(
   if (opts.minDurationMin != null) {
     out = out.filter((j) => j.totalDurationMin >= opts.minDurationMin!);
   }
+  // Latest acceptable arrival, on the absolute cross-date timeline: a journey whose
+  // final leg lands after the cutoff (even the next day) is dropped.
+  if (arriveBy !== undefined) {
+    out = out.filter((j) => journeyArriveAbs(j) <= arriveBy);
+  }
   out.sort(
     (a, b) =>
       a.departMin - b.departMin ||
@@ -295,7 +303,7 @@ export function reachableJourneys(
   const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
 
   const memo = reachMemo(trains);
-  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${opts.earliestArrival ? "earlyarr" : ""}|${[...hubSet].join(",")}`;
+  const key = `${origin}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.arriveBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.minDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${opts.earliestArrival ? "earlyarr" : ""}|${[...hubSet].join(",")}`;
   const cached = memo.get(key);
   if (cached) return cached;
 
@@ -308,6 +316,7 @@ export function reachableJourneys(
 
   const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
   const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const arriveBy = opts.arriveBefore ? parseTimeToMinutes(opts.arriveBefore) : undefined;
   const firstPool = pool.filter(
     (t) =>
       t.date === date &&
@@ -338,7 +347,9 @@ export function reachableJourneys(
     // Honour the same min/max duration bounds as findJourneys, so callers (e.g. the
     // tour's min-per-train cap) don't get candidates the per-journey search rejects.
     const okDur = (maxDur == null || j.totalDurationMin <= maxDur) && (minDur == null || j.totalDurationMin >= minDur);
-    if (okNight && okDur) {
+    // Latest acceptable arrival, on the absolute cross-date timeline.
+    const okArrive = arriveBy === undefined || journeyArriveAbs(j) <= arriveBy;
+    if (okNight && okDur && okArrive) {
       const cur = best.get(j.destination);
       // Default: keep the fastest. earliestArrival: keep the one arriving soonest in
       // ABSOLUTE time (ties → shorter), matching bestGetawayTo so round-trip ideas

@@ -7,6 +7,7 @@ export interface FilterOptions {
   date?: string;
   departAfter?: string; // "HH:MM"
   departBefore?: string; // "HH:MM"
+  arriveBefore?: string; // "HH:MM" — latest acceptable arrival (max arrival time)
   maxDurationMin?: number;
   trainType?: string; // matches MaxTrain.axe
   /** When true (default) only free-MAX trains are kept. */
@@ -31,6 +32,7 @@ export function filterTrains(trains: MaxTrain[], opts: FilterOptions): MaxTrain[
   const availableOnly = opts.availableOnly ?? true;
   const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
   const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const arriveBy = opts.arriveBefore ? parseTimeToMinutes(opts.arriveBefore) : undefined;
   return trains
     .filter((t) => {
       if (availableOnly && !t.available) return false;
@@ -39,6 +41,9 @@ export function filterTrains(trains: MaxTrain[], opts: FilterOptions): MaxTrain[
       if (opts.destination && t.destination !== opts.destination) return false;
       if (after !== undefined && t.departMin < after) return false;
       if (before !== undefined && t.departMin > before) return false;
+      // Latest acceptable arrival. arriveMin can exceed 1440 (past midnight), so an
+      // overnight train that lands after the cutoff on the travel day is dropped.
+      if (arriveBy !== undefined && t.arriveMin > arriveBy) return false;
       if (opts.maxDurationMin !== undefined && t.durationMin > opts.maxDurationMin) return false;
       if (opts.trainType && (t.axe ?? "") !== opts.trainType) return false;
       if (opts.excludeNight && isNightTrain(t)) return false;

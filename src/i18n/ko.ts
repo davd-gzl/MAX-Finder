@@ -46,6 +46,7 @@ export const ko: Dict = {
   field_advanced: "고급 필터",
   field_departAfter: "출발 시각 이후",
   field_departBefore: "출발 시각 이전",
+  field_arriveBefore: "도착 시각 이전",
   field_maxDuration: "총 최대 소요시간 (분)",
   field_maxSpanDays: "최대 여행 기간(일)",
   field_radius: "검색 반경 (km)",

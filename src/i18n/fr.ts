@@ -46,6 +46,7 @@ export const fr = {
   field_advanced: "Filtres avancés",
   field_departAfter: "Départ après",
   field_departBefore: "Départ avant",
+  field_arriveBefore: "Arrivée avant",
   field_maxDuration: "Durée totale max (min)",
   field_maxSpanDays: "Durée max du trajet (jours)",
   field_radius: "Rayon de recherche (km)",

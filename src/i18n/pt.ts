@@ -46,6 +46,7 @@ export const pt: Dict = {
   field_advanced: "Filtros avançados",
   field_departAfter: "Partida depois de",
   field_departBefore: "Partida antes de",
+  field_arriveBefore: "Chegada antes de",
   field_maxDuration: "Duração total máx. (min)",
   field_maxSpanDays: "Duração máx da viagem (dias)",
   field_radius: "Raio de busca (km)",

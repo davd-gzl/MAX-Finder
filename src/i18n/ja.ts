@@ -46,6 +46,7 @@ export const ja: Dict = {
   field_advanced: "詳細フィルター",
   field_departAfter: "出発時刻以降",
   field_departBefore: "出発時刻以前",
+  field_arriveBefore: "到着時刻以前",
   field_maxDuration: "合計最大所要時間（分）",
   field_maxSpanDays: "最大旅行日数（日）",
   field_radius: "検索範囲（km）",
