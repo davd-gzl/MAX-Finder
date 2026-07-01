@@ -113,6 +113,30 @@ describe("app (jsdom smoke)", () => {
     expect(root.textContent ?? "").toContain("Toulouse");
   });
 
+  it("flags an overnight train's next-day arrival (+Nd), not a same-morning arrival", () => {
+    // Sample train 6190: Paris → Toulon 23:00 → 00:50 the NEXT day.
+    const root = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=TOULON&date=2026-06-25`);
+    expect(root.textContent ?? "").toContain("00:50");
+    expect(root.querySelector(".day-offset")).not.toBeNull(); // the "+1 d" marker
+  });
+
+  it("survives corrupt / wrong-typed localStorage without crashing at startup", () => {
+    localStorage.clear();
+    // Valid JSON but the wrong shape — would crash .some()/.findIndex()/.theme without
+    // a shape guard (the try/catch only catches parse errors, not type mismatches).
+    localStorage.setItem("mj.watched", "42");
+    localStorage.setItem("mj.favorites", JSON.stringify({ foo: 1 }));
+    localStorage.setItem("mj.trips", '"nope"');
+    localStorage.setItem("mj.settings", "null");
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById("app") as HTMLElement;
+    history.replaceState(null, "", "/");
+    const trains = normalizeRecords(sample as RawRecord[]);
+    const registry = new StationRegistry(stations as Station[]);
+    expect(() => initApp(root, { trains, meta }, registry)).not.toThrow();
+    expect(root.querySelector(".search-form")).not.toBeNull();
+  });
+
   it("shows the specific Paris gare on a journey (from the train's axe)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,

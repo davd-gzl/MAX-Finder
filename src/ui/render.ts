@@ -103,6 +103,11 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
     el("strong", { text: train.depart }),
     icon(I.arrow),
     el("strong", { text: train.arrive }),
+    // Overnight train: the arrival time is past midnight (arriveMin ≥ 1440), so flag
+    // the day offset — otherwise "23:00 → 00:50" reads as arriving the same morning.
+    ...(train.arriveMin >= 1440
+      ? [el("span", { class: "day-offset", text: t("lbl_dayoffset", { n: Math.floor(train.arriveMin / 1440) }) })]
+      : []),
   ]);
   const meta = el("span", { class: "train-meta" }, [
     icon(I.clock),

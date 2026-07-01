@@ -22,10 +22,16 @@ const KEY = {
   trips: "mj.trips",
 } as const;
 
-function readLS<T>(key: string, fallback: T): T {
+function readLS<T>(key: string, fallback: T, valid?: (v: unknown) => boolean): T {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as unknown;
+    // The try/catch only guards against invalid JSON. A valid-but-wrong-TYPE value
+    // (e.g. an object where an array is expected) would parse fine and then crash the
+    // caller's .some()/.findIndex() — so callers can pass a shape check to fall back.
+    if (valid && !valid(parsed)) return fallback;
+    return parsed as T;
   } catch {
     return fallback;
   }
@@ -42,7 +48,7 @@ function writeLS(key: string, value: unknown): void {
 // --- settings ---------------------------------------------------------------
 
 export function loadSettings(): Settings {
-  const s = readLS<Partial<Settings>>(KEY.settings, {});
+  const s = readLS<Partial<Settings>>(KEY.settings, {}, (v) => typeof v === "object" && v !== null && !Array.isArray(v));
   return {
     lang: isLang(s.lang) ? s.lang : detectLang(),
     theme: s.theme === "light" || s.theme === "dark" ? s.theme : "auto",
@@ -61,7 +67,7 @@ function sameRoute(a: RoutePair, b: RoutePair): boolean {
 }
 
 export function loadFavorites(): RoutePair[] {
-  return readLS<RoutePair[]>(KEY.favorites, []);
+  return readLS<RoutePair[]>(KEY.favorites, [], Array.isArray);
 }
 
 export function isFavorite(r: RoutePair): boolean {
@@ -78,7 +84,7 @@ export function toggleFavorite(r: RoutePair): RoutePair[] {
 }
 
 export function loadWatched(): RoutePair[] {
-  return readLS<RoutePair[]>(KEY.watched, []);
+  return readLS<RoutePair[]>(KEY.watched, [], Array.isArray);
 }
 
 export function isWatched(r: RoutePair): boolean {
@@ -127,7 +133,7 @@ export function tourId(tour: Tour): string {
 }
 
 export function loadTrips(): SavedTrip[] {
-  return readLS<SavedTrip[]>(KEY.trips, []);
+  return readLS<SavedTrip[]>(KEY.trips, [], Array.isArray);
 }
 
 export function isTripSaved(id: string): boolean {
