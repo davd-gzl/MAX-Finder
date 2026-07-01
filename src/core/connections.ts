@@ -118,6 +118,18 @@ export function toJourney(legs: MaxTrain[]): Journey {
   };
 }
 
+/**
+ * Arrival time as minutes from the journey's START-date midnight. Use this — never
+ * the bare `arriveMin` — whenever comparing "when do I get there" across journeys or
+ * against a home-by ceiling: `arriveMin` is only the LAST leg's own-date minute, so a
+ * journey whose final leg falls on a later day would otherwise look hours *earlier*.
+ * `departMin` is on the start date and `totalDurationMin` is the true cross-date span,
+ * so their sum is the real arrival offset from the start-date midnight.
+ */
+export function journeyArriveAbs(j: Journey): number {
+  return j.departMin + j.totalDurationMin;
+}
+
 function dedupe(journeys: Journey[]): Journey[] {
   const seen = new Set<string>();
   const out: Journey[] = [];
@@ -328,13 +340,15 @@ export function reachableJourneys(
     const okDur = (maxDur == null || j.totalDurationMin <= maxDur) && (minDur == null || j.totalDurationMin >= minDur);
     if (okNight && okDur) {
       const cur = best.get(j.destination);
-      // Default: keep the fastest. earliestArrival: keep the one arriving soonest
-      // (ties → shorter), matching bestGetawayTo so round-trip ideas stay at parity.
+      // Default: keep the fastest. earliestArrival: keep the one arriving soonest in
+      // ABSOLUTE time (ties → shorter), matching bestGetawayTo so round-trip ideas
+      // stay at parity. Compare journeyArriveAbs, not the leg-local arriveMin — else a
+      // via-hub journey whose last leg lands the next day would falsely look earliest.
       const better =
         !cur ||
         (opts.earliestArrival
-          ? j.arriveMin < cur.arriveMin ||
-            (j.arriveMin === cur.arriveMin && j.totalDurationMin < cur.totalDurationMin)
+          ? journeyArriveAbs(j) < journeyArriveAbs(cur) ||
+            (journeyArriveAbs(j) === journeyArriveAbs(cur) && j.totalDurationMin < cur.totalDurationMin)
           : j.totalDurationMin < cur.totalDurationMin);
       if (better) best.set(j.destination, j);
     }

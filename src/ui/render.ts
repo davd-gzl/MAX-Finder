@@ -866,8 +866,10 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
     if (nights > 0) {
       summary = t("trip_summary", { n: nights, dur: formatDuration(totalTravel) });
     } else {
-      // Same-day round trip: surface how long you actually get in the city.
-      const onSite = Math.max(0, inbound.departMin - outbound.arriveMin);
+      // Same-day round trip: surface how long you actually get in the city. Use the
+      // outbound's ABSOLUTE arrival (departMin + span), not the last leg's own-date
+      // arriveMin, so a connecting outbound isn't credited with bogus extra hours.
+      const onSite = Math.max(0, inbound.departMin - (outbound.departMin + outbound.totalDurationMin));
       summary = t("trip_summary_day", { onsite: formatDuration(onSite), dur: formatDuration(totalTravel) });
     }
   } else {

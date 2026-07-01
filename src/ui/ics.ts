@@ -38,7 +38,10 @@ export function journeyToIcs(j: Journey, summary: string, description = ""): str
     `UID:${uid}`,
     `DTSTAMP:${utcStamp()}`,
     `DTSTART:${stamp(j.date, j.departMin)}`,
-    `DTEND:${stamp(j.date, j.arriveMin)}`,
+    // Absolute arrival from the start date (departMin + total span) so a connecting
+    // journey whose last leg lands the next day gets the right end date, not the last
+    // leg's own-date minute stamped back onto the start date.
+    `DTEND:${stamp(j.date, j.departMin + j.totalDurationMin)}`,
     `SUMMARY:${escapeIcs(summary)}`,
     `DESCRIPTION:${escapeIcs(description)}`,
     "END:VEVENT",

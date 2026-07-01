@@ -1,5 +1,5 @@
 import type { MaxTrain, Journey, CalendarDay } from "../types";
-import { findJourneys, reachableJourneys, latestReturns, type ConnectionOptions } from "./connections";
+import { findJourneys, reachableJourneys, latestReturns, journeyArriveAbs, type ConnectionOptions } from "./connections";
 import { stationsOnDate } from "./best";
 import { addDays } from "../util/time";
 
@@ -91,7 +91,7 @@ export function bestGetawayTo(
   let out = outbound ?? null;
   if (!out) {
     for (const j of findJourneys(trains, origin, dest, date, opts)) {
-      if (!out || j.arriveMin < out.arriveMin) out = j;
+      if (!out || journeyArriveAbs(j) < journeyArriveAbs(out)) out = j;
     }
   }
   if (!out) return null;
@@ -103,9 +103,9 @@ export function bestGetawayTo(
     const returnDate = addDays(date, sleeper ? nights + 1 : nights);
     let back: Journey | null = null;
     for (const j of findJourneys(trains, dest, origin, returnDate, opts)) {
-      if (j.arriveMin > arriveCeil) continue; // gets home too late
+      if (journeyArriveAbs(j) > arriveCeil) continue; // gets home too late
       // Same-day: leave enough time in the city; a stay (or any sleeper) needs no gap.
-      if (!sleeper && nights === 0 && j.departMin < out.arriveMin + minOnSite) continue;
+      if (!sleeper && nights === 0 && j.departMin < journeyArriveAbs(out) + minOnSite) continue;
       if (!back || j.departMin > back.departMin) back = j; // keep the latest return
     }
     if (back) {
@@ -114,7 +114,7 @@ export function bestGetawayTo(
         outbound: out,
         back,
         nights,
-        onSiteMin: !sleeper && nights === 0 ? back.departMin - out.arriveMin : undefined,
+        onSiteMin: !sleeper && nights === 0 ? back.departMin - journeyArriveAbs(out) : undefined,
         travelMin: out.totalDurationMin + back.totalDurationMin,
       };
     }
@@ -226,14 +226,14 @@ export function getawayIdeas(
         const back = returns.get(dest);
         if (!back) continue;
         // Same-day: the return must leave after you've had your time in the city.
-        if (!sleeper && nights === 0 && back.departMin < outbound.arriveMin + minOnSite) continue;
+        if (!sleeper && nights === 0 && back.departMin < journeyArriveAbs(outbound) + minOnSite) continue;
         startable.add(dest);
         const g: Getaway = {
           destination: dest,
           outbound,
           back,
           nights,
-          onSiteMin: !sleeper && nights === 0 ? back.departMin - outbound.arriveMin : undefined,
+          onSiteMin: !sleeper && nights === 0 ? back.departMin - journeyArriveAbs(outbound) : undefined,
           travelMin: outbound.totalDurationMin + back.totalDurationMin,
         };
         const cur = byDest.get(dest);

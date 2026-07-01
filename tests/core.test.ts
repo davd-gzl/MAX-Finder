@@ -959,6 +959,41 @@ describe("getawayIdeas (month-wide round-trip ideas)", () => {
   });
 });
 
+describe("round-trip arrival uses absolute time, not the last leg's own-date minute", () => {
+  it("prefers a same-day direct outbound over a via-hub one that lands the NEXT day", () => {
+    const data = normalizeRecords([
+      // Same-day direct: arrives 12:00 on 01-Jul.
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "NICE VILLE", heure_depart: "08:00", heure_arrivee: "12:00", train_no: "DIRECT", od_happy_card: "OUI" },
+      // Via LYON: the last leg lands 06:00 the NEXT day — its own-date minute (360) is
+      // tiny, but the real arrival is ~18 h after the direct.
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "22:00", heure_arrivee: "23:30", train_no: "P2L", od_happy_card: "OUI" },
+      { date: "2026-07-02", origine: "LYON (intramuros)", destination: "NICE VILLE", heure_depart: "00:30", heure_arrivee: "06:00", train_no: "L2N", od_happy_card: "OUI" },
+      // Same-day return from Nice, home 22:00.
+      { date: "2026-07-01", origine: "NICE VILLE", destination: "PARIS (intramuros)", heure_depart: "18:00", heure_arrivee: "22:00", train_no: "RET", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    const opts = { maxConnections: 1, hubs: ["LYON (intramuros)"], nights: 0, minOnSiteMin: 60 } as const;
+    const nice = getaways(data, "PARIS (intramuros)", "2026-07-01", opts).find((x) => x.destination === "NICE VILLE")!;
+    expect(nice.outbound.legs[0]!.trainNo).toBe("DIRECT"); // NOT the next-day via-hub
+    expect(nice.onSiteMin).toBe(360); // 12:00 → 18:00 = 6 h, not a fabricated 12 h+
+    // The fast two-sweep "Ideas" path must agree (parity).
+    const ideas = getawayIdeas(data, "PARIS (intramuros)", ["2026-07-01"], opts).trips.find((x) => x.destination === "NICE VILLE")!;
+    expect(ideas.outbound.legs[0]!.trainNo).toBe("DIRECT");
+    expect(ideas.onSiteMin).toBe(360);
+  });
+
+  it("rejects a return that only gets home after midnight (absolute home-by ceiling)", () => {
+    const data = normalizeRecords([
+      { date: "2026-07-01", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "09:00", train_no: "OUT", od_happy_card: "OUI" },
+      // The only way home crosses midnight: arrives PARIS 03:00 the NEXT day.
+      { date: "2026-07-01", origine: "LYON (intramuros)", destination: "MARSEILLE ST CHARLES", heure_depart: "22:00", heure_arrivee: "23:30", train_no: "R1", od_happy_card: "OUI" },
+      { date: "2026-07-02", origine: "MARSEILLE ST CHARLES", destination: "PARIS (intramuros)", heure_depart: "00:30", heure_arrivee: "03:00", train_no: "R2", od_happy_card: "OUI" },
+    ] as RawRecord[]);
+    // No same-day round trip to Lyon exists — the return lands at 03:00, past midnight.
+    const g = getaways(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 1, hubs: ["MARSEILLE ST CHARLES"], nights: 0, minOnSiteMin: 60 });
+    expect(g.find((x) => x.destination === "LYON (intramuros)")).toBeUndefined();
+  });
+});
+
 function base(): RawRecord {
   return {
     date: "2026-06-25",
