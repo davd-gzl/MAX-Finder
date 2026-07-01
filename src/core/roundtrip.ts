@@ -3,10 +3,10 @@ import { findJourneys, type ConnectionOptions } from "./connections";
 import { absoluteMinute } from "../util/time";
 
 function stayMinutes(outbound: Journey, inbound: Journey): number {
-  return (
-    absoluteMinute(inbound.date, inbound.departMin) -
-    absoluteMinute(outbound.date, outbound.arriveMin)
-  );
+  // Absolute arrival of the outbound: its bare arriveMin is only the last leg's
+  // own-date minute, so add the true cross-date span to the start-date departure.
+  const outboundArrivesAbs = absoluteMinute(outbound.date, outbound.departMin) + outbound.totalDurationMin;
+  return absoluteMinute(inbound.date, inbound.departMin) - outboundArrivesAbs;
 }
 
 /**
