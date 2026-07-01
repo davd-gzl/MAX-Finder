@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { RawRecord } from "../src/types";
 import { normalizeRecords, normalizeRecord } from "../src/data/dataset";
+import type { DatasetProfile } from "../src/data/profile";
 import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
@@ -49,6 +50,40 @@ describe("normalizeRecord", () => {
     ).toBe(false);
     // A purely domestic OUI route stays bookable.
     expect(normalizeRecord({ ...base(), destination: "LYON (intramuros)", od_happy_card: "OUI" })!.available).toBe(true);
+  });
+
+  it("normalizes through a custom DatasetProfile — the data seam is source-agnostic", () => {
+    // A made-up source with its OWN field names and its OWN 'bookable' rule. Proves
+    // the core only depends on the normalized shape, so another operator (DB, Renfe…)
+    // can be plugged in via a profile without touching the search code.
+    const demo: DatasetProfile = {
+      id: "demo",
+      dataUrl: "/x",
+      metaUrl: "/y",
+      read: (r) => ({
+        origin: r.from as string,
+        destination: r.to as string,
+        date: r.day as string,
+        depart: r.dep as string,
+        arrive: r.arr as string,
+        trainNo: r.no as string,
+        category: r.kind as string,
+      }),
+      isReservable: (r) => r.free === true,
+      hubs: [],
+      nonBookablePatterns: [],
+    };
+    const raw = { from: "ALPHA", to: "BETA", day: "2026-07-01", dep: "08:00", arr: "10:30", no: "Z9", kind: "ICE", free: true } as unknown as RawRecord;
+    const t = normalizeRecord(raw, demo)!;
+    expect(t.origin).toBe("ALPHA");
+    expect(t.destination).toBe("BETA");
+    expect(t.departMin).toBe(480);
+    expect(t.arriveMin).toBe(630);
+    expect(t.durationMin).toBe(150);
+    expect(t.axe).toBe("ICE");
+    expect(t.available).toBe(true); // the source's own rule said so
+    // Its own rule can reject a record, and nonBookablePatterns still applies.
+    expect(normalizeRecord({ ...raw, free: false } as unknown as RawRecord, demo)!.available).toBe(false);
   });
 });
 
