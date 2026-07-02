@@ -93,6 +93,22 @@ specs/       constitution.md (guiding principles)
 - **[Algorithms](docs/algorithms.md)** — how it actually finds trains (free-seat filter, connections, one-pass sweeps, round trips, tours, station naming) with diagrams.
 - **[Vision / roadmap](VISION.md)** — V1 today is SNCF, done well; V2 adds Deutsche Bahn, Renfe and more of Europe into the same search. Principles in [`specs/constitution.md`](./specs/constitution.md).
 
+## Mobile app (Capacitor)
+
+The same static app is wrapped as a native Android/iOS app with
+[Capacitor](https://capacitorjs.com/). The native build uses base `/` (assets
+load from the app bundle, not the GitHub Pages sub-path), the service worker is
+skipped on native, and the Android hardware back button navigates in-app history.
+
+```bash
+npm run cap:add:android   # one-time: generate the android/ native project (already committed)
+npm run cap:sync          # build for native (base "/") + copy assets & plugins into the platform
+npx cap open android      # open in Android Studio to run / build an APK/AAB
+```
+
+Requires the Android SDK / Android Studio to compile — the web build itself
+needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
+
 Contributions welcome — fork, `npm install`, `npm test`, then open a PR; principles in [`specs/constitution.md`](./specs/constitution.md).
 
 ## For agents / data API

@@ -1,7 +1,9 @@
 /**
  * PWA helpers: service worker registration and Notifications API wrappers.
- * Dependency-free, strict-TS-clean.
+ * Strict-TS-clean.
  */
+
+import { isNativePlatform } from "../native/capacitor";
 
 // ---------------------------------------------------------------------------
 // Service Worker registration
@@ -18,6 +20,10 @@
  */
 export function registerServiceWorker(): void {
   if (!import.meta.env.PROD) return;
+  // Inside the Capacitor native shell the app is served from the bundle, not a
+  // web origin — a service worker would only add a stale-cache layer over local
+  // assets. Skip it; the native app updates via the store, not the SW.
+  if (isNativePlatform()) return;
   if (!("serviceWorker" in navigator)) return;
 
   // When a NEW service worker replaces an existing one, reload once so the page
