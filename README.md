@@ -101,10 +101,12 @@ load from the app bundle, not the GitHub Pages sub-path), the service worker is
 skipped on native, and the Android hardware back button navigates in-app history.
 
 ```bash
-npm run cap:add:android   # one-time: generate the android/ native project (already committed)
 npm run cap:sync          # build for native (base "/") + copy assets & plugins into the platform
 npx cap open android      # open in Android Studio to run / build an APK/AAB
 ```
+
+The `android/` native project is already committed, so there's nothing to
+generate first. (If it's ever deleted, `npm run cap:add:android` regenerates it.)
 
 Requires the Android SDK / Android Studio to compile — the web build itself
 needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
