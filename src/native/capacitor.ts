@@ -26,7 +26,13 @@ export async function initNative(): Promise<void> {
   try {
     const { App } = await import("@capacitor/app");
     await App.addListener("backButton", ({ canGoBack }) => {
-      if (canGoBack || window.history.length > 1) {
+      // `canGoBack` is the WebView's authoritative signal and already accounts
+      // for the SPA's pushState entries. Do NOT also gate on
+      // `window.history.length`: that is the total session-entry count, which
+      // never decreases as the user navigates back, so it would stay > 1 forever
+      // after the first search and route every root-level back press into a
+      // no-op history.back() — trapping the user, who could never exit.
+      if (canGoBack) {
         window.history.back();
       } else {
         void App.exitApp();
