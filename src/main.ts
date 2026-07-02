@@ -5,6 +5,7 @@ import type { Station } from "./types";
 import stationData from "../data/stations.json";
 import { initApp } from "./app";
 import { registerServiceWorker } from "./pwa/register";
+import { initNative } from "./native/capacitor";
 
 const root = document.getElementById("app");
 if (root) {
@@ -19,3 +20,4 @@ if (root) {
 }
 
 registerServiceWorker();
+void initNative();

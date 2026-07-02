@@ -81,6 +81,22 @@ npm test         # unit tests (no network needed)
 npm run build    # static build -> dist/
 ```
 
+## Mobile app (Capacitor)
+
+The same static app is wrapped as a native Android/iOS app with
+[Capacitor](https://capacitorjs.com/). The native build uses base `/` (assets
+load from the app bundle, not the GitHub Pages sub-path), the service worker is
+skipped on native, and the Android hardware back button navigates in-app history.
+
+```bash
+npm run cap:add:android   # one-time: generate the android/ native project (already committed)
+npm run cap:sync          # build for native (base "/") + copy assets & plugins into the platform
+npx cap open android      # open in Android Studio to run / build an APK/AAB
+```
+
+Requires the Android SDK / Android Studio to compile — the web build itself
+needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
+
 ## Data & disclaimer
 
 Data: [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/),

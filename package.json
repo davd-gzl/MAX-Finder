@@ -13,12 +13,20 @@
     "test:watch": "vitest",
     "fetch-data": "tsx scripts/fetch-data.ts",
     "verify": "node scripts/verify-render.mjs",
-    "screenshot": "node scripts/screenshot.mjs"
+    "screenshot": "node scripts/screenshot.mjs",
+    "build:mobile": "tsc --noEmit && vite build --mode capacitor",
+    "cap:sync": "npm run build:mobile && cap sync",
+    "cap:copy": "npm run build:mobile && cap copy",
+    "cap:add:android": "cap add android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.1",
     "leaflet": "^1.9.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@sparticuz/chromium": "^149.0.0",
     "@types/leaflet": "^1.9.12",
     "jsdom": "^25.0.1",
