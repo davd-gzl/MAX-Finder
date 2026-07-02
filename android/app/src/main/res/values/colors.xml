@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Brand palette, matched to the web app's theme-color (#0f7a52). These are
+         referenced by AppTheme in styles.xml; without them aapt2 link fails and
+         no APK/AAB can be built. -->
+    <color name="colorPrimary">#0f7a52</color>
+    <color name="colorPrimaryDark">#0b5c3d</color>
+    <color name="colorAccent">#0f7a52</color>
+</resources>
