@@ -144,14 +144,11 @@ function setSurpriseMsg(text: string): void {
   if (surpriseMsgEl) surpriseMsgEl.textContent = text;
 }
 
-/** Remove every tour "city to visit" at once. */
+/** Remove every tour "city to visit" at once (staged — the search waits for the button). */
 function clearTourCities(): void {
   if (tourCities.length === 0) return;
   tourCities = [];
-  query = { ...query, cities: [] };
-  navStack = [];
-  syncFormFromQuery();
-  applyAndRun();
+  renderCityChips();
 }
 
 /** Straight-line km between two stations; Infinity if either lacks coordinates. */
@@ -607,7 +604,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 
 /**
  * Parse the query from the URL and snap its date back into the bookable window. The
- * date <input> is clamped to [today, today+29], so the live form can never produce
+ * date <input> is clamped to [today, today+29], so the search form can never produce
  * an out-of-range date — but a stale or shared link can. An out-of-window date would
  * otherwise collapse the ±flex browse window (only the chosen, unbookable day is in
  * range) and skew the exact-trip return calendar, so fall back to today.
@@ -975,7 +972,7 @@ function clampDays(raw: string, fallback: number): number {
 
 function applyAndRun(): void {
   // Push a browser history entry so the native Back button returns to the prior
-  // page. (Incidental updates — calendar day, live form edits — use replaceState.)
+  // page. (Incidental updates — e.g. picking a calendar day — use replaceState.)
   store.pushUrl(query);
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
@@ -983,21 +980,6 @@ function applyAndRun(): void {
   // Move focus to the results heading so screen-reader users hear the new context,
   // but don't let focus yank the scroll — callers control scrolling explicitly.
   refs.title.focus({ preventScroll: true });
-}
-
-/**
- * Live form update: re-read the form and re-run, without stealing focus from the
- * field being edited or jumping the scroll (unlike applyAndRun, which focuses the
- * results heading). Triggered when any field is committed/cleared.
- */
-function liveUpdate(): void {
-  navStack = [];
-  query = readQueryFromForm();
-  store.updateUrl(query);
-  settings = { ...settings, card: query.card };
-  store.saveSettings(settings);
-  refreshTourEndDate(); // a freshly typed tour destination reveals the finish-by date
-  runSearch();
 }
 
 /**
@@ -2447,9 +2429,9 @@ function buildForm(): FormBuild {
   const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
   const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
   // Reveal/hide the round-trip options the moment the toggle or nights change. The
-  // live form `change` handler re-runs the search but doesn't re-sync field
-  // visibility (it avoids touching the form to keep focus), so switch here directly.
-  // The "min hours on site" field is meaningful only for a same-day (0-night) trip.
+  // form-level `change` handler only re-syncs the tour finish-by date, so these
+  // mode-specific fields are toggled here directly (staged, without the search
+  // running). The "min hours on site" field is meaningful only for a same-day trip.
   const syncRoundTripOpts = (): void => {
     roundTripOpts.style.display = roundTrip.checked ? "" : "none";
     stayHoursField.style.display = nights.value === "0" ? "" : "none";
@@ -2458,7 +2440,7 @@ function buildForm(): FormBuild {
   nights.addEventListener("change", syncRoundTripOpts);
   // Flexible dates ("± N days"): a compact −/+ stepper (fewer controls than a row
   // of buttons). Widens the browse to a window around the chosen date.
-  const flex = buildStepper(t("field_flex"), () => liveUpdate());
+  const flex = buildStepper(t("field_flex"));
   const flexField = field(t("field_flex"), flex);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
@@ -2487,14 +2469,14 @@ function buildForm(): FormBuild {
   };
   cities.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === ",") {
+      // Enter would otherwise submit the form (running the search); intercept it so
+      // the text becomes a chip instead. The staged chip waits for the Search button.
       e.preventDefault();
       commitCities(cities.value);
       cities.value = "";
-      liveUpdate(); // keydown fires no `change`, so sync query/URL/results explicitly
     } else if (e.key === "Backspace" && cities.value === "" && tourCities.length) {
       tourCities.pop();
       renderCityChips();
-      liveUpdate();
     }
   });
   cities.addEventListener("change", () => {
@@ -2688,10 +2670,12 @@ function buildForm(): FormBuild {
     e.preventDefault();
     runFromForm();
   });
-  // Live form: react to any committed field change (incl. clearing a box) without
-  // waiting for the Search button. `change` fires on commit (blur / datalist pick /
-  // select), so it doesn't re-run on every keystroke. Keeps focus and scroll.
-  form.addEventListener("change", () => liveUpdate());
+  // Editing a field stages the change but no longer auto-runs the search: on mobile
+  // with a large dataset, recomputing on every field commit (blur / datalist pick /
+  // select) is slow, so the results now wait for the Search button (or Enter / "g").
+  // The `change` handler still keeps dependent fields in sync as you edit — e.g. it
+  // reveals the tour "finish by" date once a destination is filled.
+  form.addEventListener("change", () => refreshTourEndDate());
 
   return {
     form,
@@ -2782,9 +2766,9 @@ function renderCityChips(): void {
         attrs: { "aria-label": `${t("act_fav_remove")} — ${deps.registry.label(id)}` },
         on: {
           click: () => {
+            // Staged like every other edit — removing a chip waits for the Search button.
             tourCities.splice(i, 1);
             renderCityChips();
-            liveUpdate(); // keep query/URL/results in sync with the removal
           },
         },
       }),
@@ -2980,7 +2964,7 @@ const FLEX_MAX = 7;
  * flexibility): nudge with the buttons or just type the number of ± days. The
  * value lives on `data-value`.
  */
-function buildStepper(ariaLabel: string, onChange: () => void): HTMLElement {
+function buildStepper(ariaLabel: string): HTMLElement {
   const stepper = el("div", { class: "stepper", attrs: { role: "group", "aria-label": ariaLabel } });
   const input = el("input", {
     class: "step-input",
@@ -2989,18 +2973,11 @@ function buildStepper(ariaLabel: string, onChange: () => void): HTMLElement {
   }) as HTMLInputElement;
   const minus = el("button", { class: "step-btn", type: "button", text: "−", attrs: { "aria-label": "−1" } });
   const plus = el("button", { class: "step-btn", type: "button", text: "+", attrs: { "aria-label": "+1" } });
-  minus.addEventListener("click", () => {
-    setStepper(stepper, getStepper(stepper) - 1);
-    onChange();
-  });
-  plus.addEventListener("click", () => {
-    setStepper(stepper, getStepper(stepper) + 1);
-    onChange();
-  });
-  input.addEventListener("change", () => {
-    setStepper(stepper, Number(input.value));
-    onChange();
-  });
+  // Nudging the value only updates the field — like every other form control, the
+  // new flexibility is applied when the search is run, not on the spot.
+  minus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) - 1));
+  plus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) + 1));
+  input.addEventListener("change", () => setStepper(stepper, Number(input.value)));
   stepper.append(minus, input, el("span", { class: "step-unit muted", text: t("flex_days") }), plus);
   setStepper(stepper, 0);
   return stepper;
@@ -3021,7 +2998,8 @@ function getStepper(stepper: HTMLElement): number {
 
 /**
  * A field whose text input carries a clear "×" button (shown only when there's
- * something to clear). Clearing fires input+change so the live search reacts.
+ * something to clear). Clearing fires input+change so the field's invalid flag and
+ * any dependent fields re-sync — the search itself waits for the Search button.
  */
 function clearableField(label: string, input: HTMLInputElement): HTMLElement {
   input.classList.add("has-clear");
