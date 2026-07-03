@@ -37,8 +37,10 @@ This app is a frontend over that dataset. No backend, no accounts, no cost.
 - **Filters**: time window, max duration, MAX JEUNE vs MAX SENIOR, train type, region.
 - **Map** (Leaflet) of every reachable station — all dataset stations are plotted — with
   correspondences shown as intermediate points; click a point to select it in the list.
-- **Live form** (results update as you change a field), **back navigation** (and `Esc`),
-  **"Au hasard"** random-city shortcut, **calendar export (ICS)**, and shareable URLs.
+- **Explicit search** (edit the form freely, then run it with the **Search** button or
+  `Enter`/`g` — nothing recomputes until you do, so it stays fast on mobile with lots of
+  data), **back navigation** (and `Esc`), **"Au hasard"** random-city shortcut,
+  **calendar export (ICS)**, and shareable URLs.
 - **No accounts** — favorites, settings and searches live in your browser (localStorage).
   Optional **local notifications** for watched routes.
 - **11 languages** (FR, EN, ES, DE, IT, KO, ZH, JA, NL, PT, AR — incl. right-to-left),
