@@ -153,4 +153,27 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".mode-tab").length).toBeGreaterThanOrEqual(4);
     expect(root.querySelector(".search-form")).not.toBeNull();
   });
+
+  it("stages a field change without auto-running the search until Search is clicked", () => {
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+    // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.
+    expect(root.textContent ?? "").not.toContain("Toulouse");
+
+    // Allow one change, then commit the field. Only maxConnections offers a "6" option,
+    // so it's uniquely identifiable among the form selects.
+    const conn = Array.from(root.querySelectorAll<HTMLSelectElement>(".search-form select.input")).find((s) =>
+      Array.from(s.options).some((o) => o.value === "6"),
+    );
+    expect(conn).toBeTruthy();
+    conn!.value = "1";
+    conn!.dispatchEvent(new Event("change", { bubbles: true }));
+    // The results must NOT recompute on a field change — still the direct-only list.
+    expect(root.textContent ?? "").not.toContain("Toulouse");
+
+    // Running the search (the submit button) applies the staged change.
+    const searchBtn = root.querySelector(".search-form button[type=submit]") as HTMLElement;
+    expect(searchBtn).not.toBeNull();
+    searchBtn.click();
+    expect(root.textContent ?? "").toContain("Toulouse");
+  });
 });
