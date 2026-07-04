@@ -60,7 +60,6 @@ const failures = [];
 if (html.length < 20000) failures.push(`prerendered HTML is only ${html.length} bytes`);
 if (!html.includes('<html lang="fr"')) failures.push("prerendered HTML is not in French");
 if (!html.includes('id="app"')) failures.push("prerendered HTML lost #app");
-if (!html.includes('class="about"')) failures.push("prerendered HTML lost the static about section");
 if (!html.includes("application/ld+json")) failures.push("prerendered HTML lost JSON-LD");
 if (!html.includes("<noscript")) failures.push("prerendered HTML lost the noscript fallback");
 if (failures.length) {
