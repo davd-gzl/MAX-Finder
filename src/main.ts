@@ -6,6 +6,8 @@ import stationData from "../data/stations.json";
 import { initApp } from "./app";
 import { registerServiceWorker } from "./pwa/register";
 
+(window as unknown as { __mfBoot?: boolean }).__mfBoot = true;
+
 const root = document.getElementById("app");
 if (root) {
   root.innerHTML = '<div class="app-loading"><span class="spinner" aria-hidden="true"></span></div>';
