@@ -92,6 +92,8 @@ export const pt: Dict = {
   book_steps_title: "Reserve cada comboio",
   book_steps_note: "Uma ligação MAX reserva-se comboio a comboio — abra cada ligação por ordem.",
   act_ics: "Adicionar à agenda",
+  act_share: "Partilhar",
+  share_copied: "Ligação copiada",
   act_calendar: "Agenda",
   act_fav_add: "Adicionar aos favoritos",
   act_fav_remove: "Remover dos favoritos",

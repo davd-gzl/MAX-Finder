@@ -92,6 +92,8 @@ export const es: Dict = {
   book_steps_title: "Reserva cada tren",
   book_steps_note: "Una correspondencia MAX se reserva tren por tren: abre cada enlace en orden.",
   act_ics: "Añadir al calendario",
+  act_share: "Compartir",
+  share_copied: "Enlace copiado",
   act_calendar: "Calendario",
   act_fav_add: "Añadir a favoritos",
   act_fav_remove: "Quitar de favoritos",

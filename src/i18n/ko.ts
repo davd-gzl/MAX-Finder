@@ -92,6 +92,8 @@ export const ko: Dict = {
   book_steps_title: "각 열차 예약",
   book_steps_note: "MAX 환승은 열차별로 예약합니다. 순서대로 각 링크를 여세요.",
   act_ics: "캘린더에 추가",
+  act_share: "공유",
+  share_copied: "링크 복사됨",
   act_calendar: "캘린더",
   act_fav_add: "즐겨찾기 추가",
   act_fav_remove: "즐겨찾기 삭제",
