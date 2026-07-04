@@ -127,66 +127,6 @@
       </p>
     </noscript>
     <div id="app"></div>
-    <section class="about" lang="fr" aria-labelledby="about-title">
-      <div class="about-inner">
-        <h2 id="about-title">MAX Finder — trouver une place TGV Max (MAX JEUNE / MAX SENIOR)</h2>
-        <p>
-          MAX Finder est un outil gratuit et open source qui affiche les trains où une place
-          <strong>MAX JEUNE</strong> ou <strong>MAX SENIOR</strong> (les abonnements SNCF anciennement appelés
-          <strong>TGVmax</strong>) est ouverte à la réservation — sans avoir à tester gare par gare dans SNCF Connect.
-          Les données proviennent de l'<a href="https://ressources.data.sncf.com/explore/dataset/tgvmax/information/"
-            >open data SNCF (jeu de données tgvmax)</a
-          >, rafraîchies environ une fois par jour sur une fenêtre d'environ 30 jours.
-        </p>
-        <h3>Cinq façons de chercher</h3>
-        <ul>
-          <li><strong>Où partir ?</strong> — toutes les destinations accessibles depuis votre gare, classées par nombre de trains MAX disponibles.</li>
-          <li><strong>D'où venir ?</strong> — l'inverse : toutes les gares d'origine qui permettent de rejoindre une destination.</li>
-          <li><strong>Trajet précis</strong> — origine → destination avec calendrier de disponibilité sur 30 jours, correspondances jusqu'à 6 changements et recherche d'aller-retour.</li>
-          <li><strong>Idées</strong> — les destinations les plus rapides à atteindre depuis votre gare.</li>
-          <li><strong>Tour</strong> — un itinéraire multi-villes jour par jour en enchaînant des places MAX gratuites.</li>
-        </ul>
-        <h3>Questions fréquentes</h3>
-        <dl>
-          <dt>Pourquoi SNCF Connect affiche « aucun train disponible » avec mon abonnement MAX ?</dt>
-          <dd>
-            Les places MAX sont un quota limité par train. MAX Finder liste précisément les trains où ce quota est
-            encore ouvert, pour chercher là où il reste des places au lieu d'essayer au hasard.
-          </dd>
-          <dt>Quand les places MAX ouvrent-elles ?</dt>
-          <dd>
-            La réservation ouvre environ 30 jours avant le départ, et des places supplémentaires peuvent apparaître
-            jusqu'à la veille : revenir vérifier régulièrement augmente les chances.
-          </dd>
-          <dt>Les disponibilités sont-elles en temps réel ?</dt>
-          <dd>
-            Non : c'est un instantané quotidien de l'open data SNCF, donc indicatif. La référence reste
-            <a href="https://www.sncf-connect.com/">SNCF Connect</a>, où s'effectue la réservation.
-          </dd>
-          <dt>MAX Finder est-il un site officiel SNCF ?</dt>
-          <dd>
-            Non. C'est un projet indépendant et open source (licence MIT), non affilié à la SNCF, qui ne vend aucun
-            billet. <a href="faq/">Voir la FAQ complète</a>.
-          </dd>
-        </dl>
-        <h3>Pour aller plus loin</h3>
-        <ul>
-          <li><a href="faq/">FAQ — questions fréquentes sur TGV Max et l'outil</a></li>
-          <li><a href="trajets/">Disponibilités par trajet — les liaisons avec le plus de places MAX</a></li>
-          <li><a href="docs/how-it-works.html">Comment ça marche (données, fonctionnement)</a></li>
-          <li><a href="docs/algorithms.html">Les algorithmes de recherche</a></li>
-          <li><a href="https://github.com/davd-gzl/MAX-Finder">Code source sur GitHub</a></li>
-          <li>
-            Pour les développeurs et agents : <a href="llms.txt">llms.txt</a>, <a href="llms-full.txt">llms-full.txt</a>,
-            <a href="api.json">api.json</a>, <a href="data/tgvmax.json">données brutes (JSON)</a>
-          </li>
-        </ul>
-        <p class="about-note">
-          Application sans compte et sans serveur : favoris et recherches restent dans votre navigateur. Disponible en
-          11 langues, installable (PWA), utilisable hors ligne.
-        </p>
-      </div>
-    </section>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
