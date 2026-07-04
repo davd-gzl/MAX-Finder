@@ -87,6 +87,8 @@ export const de: Dict = {
   book_steps_title: "Jeden Zug buchen",
   book_steps_note: "Eine MAX-Verbindung wird Zug für Zug gebucht — öffne jeden Link der Reihe nach.",
   act_ics: "Zum Kalender hinzufügen",
+  act_share: "Teilen",
+  share_copied: "Link kopiert",
   act_calendar: "Kalender",
   act_fav_add: "Zu Favoriten",
   act_fav_remove: "Aus Favoriten entfernen",

@@ -1,4 +1,5 @@
 import type { Journey } from "../types";
+import { SITE_URL } from "../config";
 
 function stamp(date: string, minutesFromMidnight: number): string {
   // minutesFromMidnight may exceed 1440 (arrival after midnight) -> roll the date.
@@ -44,6 +45,7 @@ export function journeyToIcs(j: Journey, summary: string, description = ""): str
     `DTEND:${stamp(j.date, j.departMin + j.totalDurationMin)}`,
     `SUMMARY:${escapeIcs(summary)}`,
     `DESCRIPTION:${escapeIcs(description)}`,
+    `URL:${SITE_URL}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ];

@@ -93,6 +93,8 @@ export const en: Dict = {
   book_steps_title: "Book each train",
   book_steps_note: "A MAX connection is booked one train at a time — open each link in order.",
   act_ics: "Add to calendar",
+  act_share: "Share",
+  share_copied: "Link copied",
   act_calendar: "Calendar",
   act_fav_add: "Add to favorites",
   act_fav_remove: "Remove from favorites",

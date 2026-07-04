@@ -87,6 +87,8 @@ export const nl: Dict = {
   book_steps_title: "Boek elke trein",
   book_steps_note: "Een MAX-overstap boek je trein voor trein — open elke link op volgorde.",
   act_ics: "Aan agenda toevoegen",
+  act_share: "Delen",
+  share_copied: "Link gekopieerd",
   act_calendar: "Agenda",
   act_fav_add: "Aan favorieten toevoegen",
   act_fav_remove: "Uit favorieten verwijderen",
