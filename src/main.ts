@@ -35,6 +35,8 @@ function errorStateEl(): HTMLElement {
   ]);
 }
 
+(window as unknown as { __mfBoot?: boolean }).__mfBoot = true;
+
 const root = document.getElementById("app");
 if (root) {
   // The boot UI (loading/error) renders before initApp picks up the saved
