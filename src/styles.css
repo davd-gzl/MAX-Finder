@@ -2078,3 +2078,56 @@ a {
 .keys-btn {
   font-weight: 700;
 }
+
+.about {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.about-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 2.2rem 1.1rem 2.8rem;
+}
+.about h2 {
+  font-size: 1.15rem;
+  margin-bottom: 0.8rem;
+}
+.about h3 {
+  font-size: 0.98rem;
+  margin: 1.4rem 0 0.5rem;
+}
+.about p,
+.about li,
+.about dd {
+  color: var(--muted);
+  font-size: 0.92rem;
+  max-width: 72ch;
+}
+.about ul {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+.about li {
+  margin-bottom: 0.35rem;
+}
+.about dl {
+  margin: 0.4rem 0;
+}
+.about dt {
+  font-weight: 620;
+  font-size: 0.92rem;
+  margin-top: 0.8rem;
+}
+.about dd {
+  margin: 0.25rem 0 0;
+}
+.about a {
+  color: var(--accent);
+}
+.about-note {
+  margin-top: 1.3rem;
+  font-size: 0.85rem;
+}
+.share-feedback {
+  min-width: 0;
+}

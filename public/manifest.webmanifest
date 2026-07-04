@@ -1,7 +1,7 @@
 {
   "name": "MAX Finder",
   "short_name": "MAX Finder",
-  "description": "Trouvez des billets de train gratuits MAX JEUNE et MAX SENIOR — Find free MAX JEUNE/SENIOR train seats on SNCF routes.",
+  "description": "Trouvez les places TGV Max (MAX JEUNE / MAX SENIOR) réservables — Find reservable TGVmax (MAX JEUNE / MAX SENIOR) train seats on SNCF routes.",
   "start_url": "/MAX-Finder/",
   "scope": "/MAX-Finder/",
   "display": "standalone",
