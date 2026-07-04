@@ -86,6 +86,8 @@ export const it: Dict = {
   book_steps_title: "Prenota ogni treno",
   book_steps_note: "Una coincidenza MAX si prenota un treno alla volta: apri ogni link in ordine.",
   act_ics: "Aggiungi al calendario",
+  act_share: "Condividi",
+  share_copied: "Link copiato",
   act_calendar: "Calendario",
   act_fav_add: "Aggiungi ai preferiti",
   act_fav_remove: "Rimuovi dai preferiti",

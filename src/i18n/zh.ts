@@ -86,6 +86,8 @@ export const zh: Dict = {
   book_steps_title: "逐趟预订列车",
   book_steps_note: "MAX 换乘需逐趟预订，请按顺序打开每个链接。",
   act_ics: "添加到日历",
+  act_share: "分享",
+  share_copied: "链接已复制",
   act_calendar: "日历",
   act_fav_add: "加入收藏",
   act_fav_remove: "取消收藏",

@@ -17,7 +17,7 @@ import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
-import { RouteMap } from "./ui/map";
+import type { RouteMap } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
@@ -109,12 +109,18 @@ let query: SearchQuery;
 let settings: store.Settings;
 let rootRef: HTMLElement;
 let refs: Refs;
-let map: RouteMap | null = null;
+let mapPromise: Promise<RouteMap> | null = null;
+let mapInstance: RouteMap | null = null;
 let labelToId: Map<string, string>;
 // Today (YYYY-MM-DD). MAX seats are only bookable ~30 days out, so the calendar
 // and the date picker stay anchored to a today..today+30 window.
 let today = "";
 const BOOKING_WINDOW_DAYS = 30;
+const APP_TITLE = document.title;
+const SHARE_SVG =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+const CHECK_SVG =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 7"/></svg>';
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
@@ -565,8 +571,9 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   deps = { trains: dataset.trains, meta: dataset.meta, registry };
   rootRef = root;
   settings = store.loadSettings();
+  const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
-  setLang(settings.lang);
+  setLang(isLang(urlLang) ? urlLang : settings.lang);
   // Every station present in the dataset becomes searchable (the curated registry
   // only covers map coordinates for the major ones).
   registry.addMissing(dataset.trains.flatMap((t) => [t.origin, t.destination]));
@@ -692,7 +699,7 @@ function ctx(): RenderCtx {
       // this is the only scroll, not a jump-then-smooth).
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
     },
-    onFocusStation: (id) => map?.focus(id),
+    onFocusStation: (id) => mapInstance?.focus(id),
     onShowJourney: (j) => {
       showRoute([j.origin, ...j.hubs, j.destination]);
       refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -785,13 +792,28 @@ function showTripModal(outbound: Journey, inbound?: Journey): void {
       },
     },
   });
+  const shareTripBtn = el("button", {
+    class: "btn btn-ghost share-feedback",
+    type: "button",
+    text: t("act_share"),
+    on: {
+      click: () => {
+        void shareCurrentUrl(() => {
+          shareTripBtn.textContent = t("share_copied");
+          setTimeout(() => {
+            shareTripBtn.textContent = t("act_share");
+          }, 1600);
+        });
+      },
+    },
+  });
   // "Show on map" makes no sense behind a modal (it would scroll the page under
   // the dialog), so neutralise the map action for the cards shown here.
   const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
   dialog.append(
     el("div", { class: "modal-body" }, [
       render.tripViewEl(outbound, modalCtx, inbound),
-      el("div", { class: "modal-actions" }, [moreDates, closeBtn]),
+      el("div", { class: "modal-actions" }, [shareTripBtn, moreDates, closeBtn]),
     ]),
   );
   dialog.addEventListener("close", () => dialog.remove());
@@ -1144,8 +1166,44 @@ function runSearch(): void {
   });
 }
 
+function updateDocTitle(): void {
+  const label = (id: string) => deps.registry.label(id);
+  let context = "";
+  if (query.mode === "od" && query.origin && query.destination) {
+    context = `${label(query.origin)} → ${label(query.destination)} · ${formatDate(query.date)}`;
+  } else if (query.mode === "from" && query.origin) {
+    context = `${t("mode_from")} ${label(query.origin)}`;
+  } else if (query.mode === "to" && query.destination) {
+    context = `${t("mode_to")} ${label(query.destination)}`;
+  } else if (query.mode === "best" && query.origin) {
+    context = `${t("mode_best")} · ${label(query.origin)}`;
+  } else if (query.mode === "tour" && query.origin) {
+    context = `${t("mode_tour")} · ${label(query.origin)}`;
+  }
+  document.title = context ? `${context} — ${t("appName")}` : APP_TITLE;
+}
+
+async function shareCurrentUrl(onCopied: () => void): Promise<void> {
+  const url = location.href;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: document.title, url });
+    } catch {
+      return;
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    onCopied();
+  } catch {
+    return;
+  }
+}
+
 function renderSearch(): void {
   const c = ctx();
+  updateDocTitle();
 
   // Back to the previous list (instant — journeys are memoized).
   if (navStack.length) {
@@ -1962,31 +2020,51 @@ function surpriseMe(): void {
   applyAndRun();
 }
 
-function ensureMap(): RouteMap {
-  if (!map) {
-    map = new RouteMap(refs.mapEl, deps.registry);
-    map.onSelect = selectStation;
+function ensureMap(): Promise<RouteMap> {
+  if (!mapPromise) {
+    const host = refs.mapEl;
+    mapPromise = import("./ui/map").then(
+      ({ RouteMap: MapCtor }) => {
+        const m = new MapCtor(host, deps.registry);
+        m.onSelect = selectStation;
+        mapInstance = m;
+        return m;
+      },
+      (err: unknown) => {
+        mapPromise = null;
+        throw err;
+      },
+    );
   }
-  return map;
+  return mapPromise;
 }
 
 function showMap(hub: string, others: string[]): void {
-  const m = ensureMap();
-  m.show(hub, [...new Set(others)]);
-  requestAnimationFrame(() => m.invalidate());
+  ensureMap()
+    .then((m) => {
+      m.show(hub, [...new Set(others)]);
+      requestAnimationFrame(() => m.invalidate());
+    })
+    .catch(() => {});
 }
 
 function showRoute(stations: string[]): void {
-  const m = ensureMap();
-  m.route(stations);
-  requestAnimationFrame(() => m.invalidate());
+  ensureMap()
+    .then((m) => {
+      m.route(stations);
+      requestAnimationFrame(() => m.invalidate());
+    })
+    .catch(() => {});
 }
 
 /** Overlay radius circles + nearby-station markers on the current route map. */
 function showRadius(centers: { id: string; km: number }[], nearby: string[]): void {
-  const m = ensureMap();
-  m.radius(centers, nearby);
-  requestAnimationFrame(() => m.invalidate());
+  ensureMap()
+    .then((m) => {
+      m.radius(centers, nearby);
+      requestAnimationFrame(() => m.invalidate());
+    })
+    .catch(() => {});
 }
 
 /** Reveal & expand the destination card matching a clicked map marker. */
@@ -2128,7 +2206,7 @@ function buildLayout(root: HTMLElement): void {
   const langSel = el(
     "select",
     { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
-    LANGS.map((l) => optionEl(l.code, l.label, settings.lang === l.code)),
+    LANGS.map((l) => optionEl(l.code, l.label, getLang() === l.code)),
   ) as HTMLSelectElement;
   langSel.addEventListener("change", () => {
     settings = { ...settings, lang: isLang(langSel.value) ? langSel.value : "fr" };
@@ -2187,6 +2265,23 @@ function buildLayout(root: HTMLElement): void {
     on: { click: () => void promptInstall() },
   });
 
+  const shareBtn = el("button", {
+    class: "ctl icon-ctl",
+    type: "button",
+    attrs: { "aria-label": t("act_share"), title: t("act_share") },
+    html: SHARE_SVG,
+  });
+  shareBtn.addEventListener("click", () => {
+    void shareCurrentUrl(() => {
+      shareBtn.innerHTML = CHECK_SVG;
+      shareBtn.title = t("share_copied");
+      setTimeout(() => {
+        shareBtn.innerHTML = SHARE_SVG;
+        shareBtn.title = t("act_share");
+      }, 1600);
+    });
+  });
+
   // GitHub link with a star, to invite stars on the repo.
   const ghLink = el("a", {
     class: "ctl gh-link",
@@ -2213,7 +2308,7 @@ function buildLayout(root: HTMLElement): void {
         ]),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, shareBtn, installBtn]),
   ]);
 
   // form
@@ -2279,7 +2374,8 @@ function buildLayout(root: HTMLElement): void {
     tripList,
     card: cardSel,
   };
-  map = null;
+  mapPromise = null;
+  mapInstance = null;
   renderFavorites();
   renderSavedTrips();
 }
