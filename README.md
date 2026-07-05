@@ -2,8 +2,6 @@
 
 **Find every SNCF train where a free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat is actually reservable — instead of checking SNCF Connect one route at a time.**
 
-*Trouvez tous les trains SNCF avec une place MAX JEUNE / MAX SENIOR encore réservable.*
-
 ### ▶ [**Try it live — davd-gzl.github.io/MAX-Finder**](https://davd-gzl.github.io/MAX-Finder/) — no signup, runs in your browser
 
 If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but only when a MAX seat is still open on that train*. Normally you'd guess routes one at a time (Paris → Lyon? Paris → Bordeaux?…) just to find where those seats exist. **MAX Finder flips it around: pick a station and the whole map lights up with everywhere you can go for free.**
@@ -18,10 +16,10 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 
 | | |
 | --- | --- |
-| [![Où partir — every destination reachable with a free MAX seat, ranked by availability, beside a Leaflet map of France](docs/screenshots/from.png)](docs/screenshots/from.png) | [![Tour — multi-city day-by-day itinerary built from a chip input, each leg with Book, calendar and map buttons](docs/screenshots/tour.png)](docs/screenshots/tour.png) |
-| **Où partir** — everywhere you can go, ranked by availability | **Tour** — chain several cities into one free itinerary |
-| [![Idées — the fastest destinations reachable that day](docs/screenshots/best.png)](docs/screenshots/best.png) | [![Trajet précis — exact origin-to-destination route with a 30-day availability calendar highlighting bookable dates](docs/screenshots/trip.png)](docs/screenshots/trip.png) |
-| **Idées** — fastest destinations that day | **Trajet précis** — exact route + 30-day calendar |
+| [![Where to? — every destination reachable with a free MAX seat, ranked by availability, beside a Leaflet map of France](docs/screenshots/from.png)](docs/screenshots/from.png) | [![Tour — multi-city day-by-day itinerary built from a chip input, each leg with Book, calendar and map buttons](docs/screenshots/tour.png)](docs/screenshots/tour.png) |
+| **Where to?** — everywhere you can go, ranked by availability | **Tour** — chain several cities into one free itinerary |
+| [![Ideas — the fastest destinations reachable that day](docs/screenshots/best.png)](docs/screenshots/best.png) | [![Exact trip — exact origin-to-destination route with a 30-day availability calendar highlighting bookable dates](docs/screenshots/trip.png)](docs/screenshots/trip.png) |
+| **Ideas** — fastest destinations that day | **Exact trip** — exact route + 30-day calendar |
 
 <p>
   <img src="docs/screenshots/mobile.png" alt="MAX Finder running as an installable PWA on mobile, in a compact single-column layout" height="360">
@@ -32,10 +30,10 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 
 ## What you can ask it
 
-- **"Where can I go this weekend?"** → *Où partir*: pick your city, see every free-MAX destination, ranked by how well-served it is.
-- **"How do I get *to* this town for free?"** → *D'où venir*: pick a destination, see every origin that reaches it.
-- **"When is my exact route free?"** → *Trajet précis*: connections plus a 30-day calendar, with a round-trip / weekend-getaway finder.
-- **"I have no plan — surprise me."** → *Idées*: the fastest destinations reachable that day.
+- **"Where can I go this weekend?"** → *Where to?*: pick your city, see every free-MAX destination, ranked by how well-served it is.
+- **"How do I get *to* this town for free?"** → *Where from?*: pick a destination, see every origin that reaches it.
+- **"When is my exact route free?"** → *Exact trip*: connections plus a 30-day calendar, with a round-trip / weekend-getaway finder.
+- **"I have no plan — surprise me."** → *Ideas*: the fastest destinations reachable that day.
 - **"Plan me a multi-city trip."** → *Tour*: chain cities into one day-by-day itinerary, each hop on a free MAX seat.
 
 ## Features
@@ -46,7 +44,7 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 | **Round trips & night trains** | Round trips pair the earliest-arriving outbound with the latest feasible return to maximize time there; night mode covers genuine *Intercités de Nuit* only |
 | **Filters** | Time window, max duration, MAX JEUNE vs SENIOR, train type, region |
 | **Map** | Leaflet map of every station, with correspondences plotted as intermediate points; click to select |
-| **Search & share** | Explicit run (`Enter`/`g`), back nav (`Esc`), **Au hasard** random city, ICS calendar export, shareable URLs |
+| **Search & share** | Explicit run (`Enter`/`g`), back nav (`Esc`), **Surprise me** random city, ICS calendar export, shareable URLs |
 | **Private by default** | No accounts — favorites, settings and searches in `localStorage`; optional local notifications |
 | **Everywhere** | 11 languages (FR EN ES DE IT KO ZH JA NL PT AR, incl. RTL), light/dark, installable app that works offline, mobile, accessible |
 
@@ -92,7 +90,7 @@ specs/       constitution.md (guiding principles)
 ## Docs & roadmap
 
 - **[How it works](docs/how-it-works.md)** — plain-language tour of the app, its data, and why it runs free with no server or account.
-- **[Algorithms](docs/algorithms.md)** — how it actually finds trains (free-seat filter, connections, one-pass sweeps, round trips, tours, gare naming) with diagrams.
+- **[Algorithms](docs/algorithms.md)** — how it actually finds trains (free-seat filter, connections, one-pass sweeps, round trips, tours, station naming) with diagrams.
 - **[Vision / roadmap](VISION.md)** — V1 today is SNCF, done well; V2 adds Deutsche Bahn, Renfe and more of Europe into the same search. Principles in [`specs/constitution.md`](./specs/constitution.md).
 
 Contributions welcome — fork, `npm install`, `npm test`, then open a PR; principles in [`specs/constitution.md`](./specs/constitution.md).
