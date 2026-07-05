@@ -1,15 +1,13 @@
 name: Release Android APK
 
-# Build the Capacitor Android app and attach the APK to the GitHub Release.
+# Build the Capacitor Android app and attach a signed APK to the GitHub Release.
 #
 # Triggers when you publish a Release. workflow_dispatch lets you dry-run the
 # build (it produces a downloadable artifact but does not touch any Release).
 #
-# Signing: if the repo secret ANDROID_KEYSTORE_BASE64 (plus the password/alias
-# secrets) is set, the APK is signed with your keystore and is installable and
-# upgradable. If it is NOT set, the job still succeeds and uploads an *unsigned*
-# APK (clearly named) so nothing is blocked — but an unsigned APK cannot be
-# installed until you add the secrets. See docs/FDROID.md for the one-time setup.
+# Signing is REQUIRED: the job fails early if the keystore secrets are not
+# configured, so a release never ships an APK that cannot be installed. See
+# docs/FDROID.md for the one-time keystore + secrets setup.
 #
 # The version shipped is whatever versionCode/versionName is committed in
 # android/app/build.gradle at the tag — bump it there before tagging (this is
@@ -30,6 +28,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Fail before doing any work if signing isn't configured (checked via env
+      # so the secret is never interpolated into the command line).
+      - name: Verify signing secrets are configured
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set. Add the keystore secrets (see docs/FDROID.md) before publishing a release." >&2
+            exit 1
+          fi
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -58,19 +67,15 @@ jobs:
       - name: Build web + sync into the native project
         run: npm run cap:sync
 
-      # Evaluate secret presence without exposing it (only a boolean is emitted).
-      - name: Detect signing secret
-        id: signing
-        run: echo "enabled=${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}" >> "$GITHUB_OUTPUT"
-
       - name: Decode keystore
-        if: steps.signing.outputs.enabled == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: printf '%s' "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - name: Assemble release APK
+      - name: Assemble signed release APK
         working-directory: android
         env:
-          MAXFINDER_KEYSTORE_FILE: ${{ steps.signing.outputs.enabled == 'true' && format('{0}/release.keystore', runner.temp) || '' }}
+          MAXFINDER_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
           MAXFINDER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           MAXFINDER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           MAXFINDER_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -78,20 +83,13 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
 
-      - name: Locate and name the APK
+      - name: Name the APK
         id: apk
         run: |
           set -euo pipefail
           tag="${{ github.event.release.tag_name || github.ref_name }}"
-          dir=android/app/build/outputs/apk/release
-          if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
-            src=$(ls "$dir"/*-release.apk | grep -v unsigned | head -n1)
-            name="max-finder-${tag}.apk"
-          else
-            src=$(ls "$dir"/*-release-unsigned.apk | head -n1)
-            name="max-finder-${tag}-unsigned.apk"
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set — produced an UNSIGNED APK that cannot be installed. See docs/FDROID.md."
-          fi
+          src=$(ls android/app/build/outputs/apk/release/*-release.apk | grep -v -- -unsigned | head -n1)
+          name="max-finder-${tag}.apk"
           cp "$src" "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
