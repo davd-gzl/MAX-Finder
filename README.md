@@ -103,9 +103,9 @@ needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
 
 Publishing a **GitHub Release** triggers the
 [`Release Android APK`](.github/workflows/release-apk.yml) workflow, which builds
-the app, signs it (when the keystore secrets are configured) and attaches the APK
-to the release. The app is also packaged for **F-Droid**, which builds and signs
-from source. Signing setup, the per-release version bump, and the F-Droid build
+the app, signs it with the configured keystore and attaches the APK to the release
+(it fails early if the keystore secrets are not set). The app is also packaged for
+**F-Droid**, which builds and signs from source. Signing setup, the per-release version bump, and the F-Droid build
 recipe are documented in **[docs/FDROID.md](docs/FDROID.md)**.
 
 ## Data & disclaimer

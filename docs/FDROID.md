@@ -6,7 +6,8 @@ different keys**, so a user must pick one and stick with it (see
 
 1. **GitHub Releases** — you build and sign the APK; the
    [`Release Android APK`](../.github/workflows/release-apk.yml) workflow attaches
-   it to the Release automatically.
+   it to the Release automatically. Signing is **required** — the workflow fails
+   early if the keystore secrets below are not configured.
 2. **F-Droid** — F-Droid's servers build the APK **from the tagged source** and
    sign it with F-Droid's key. Your GitHub Action is *not* involved.
 
@@ -31,8 +32,8 @@ be injected by CI.
 
 ## GitHub Releases: one-time signing setup
 
-Without a keystore the workflow still runs, but produces an **unsigned** APK that
-cannot be installed. To ship an installable, upgradable APK:
+The release workflow **requires** a keystore and fails early without one (an
+unsigned APK cannot be installed anyway). Set it up once:
 
 1. **Generate a keystore once** (keep it forever — losing it means you can never
    upgrade the app for existing users):
