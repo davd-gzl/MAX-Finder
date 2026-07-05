@@ -4,9 +4,9 @@
 
 ### ▶ [**Try it live — davd-gzl.github.io/MAX-Finder**](https://davd-gzl.github.io/MAX-Finder/) — no signup, runs in your browser
 
-If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but only when a MAX seat is still open on that train*. Normally you'd guess routes one at a time (Paris → Lyon? Paris → Bordeaux?…) just to find where those seats exist. **MAX Finder flips it around: pick a station and the whole map lights up with everywhere you can go for free.**
+With a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — but only when a MAX seat is still open on that train. SNCF Connect makes you check one route at a time; MAX Finder shows every station you can reach for free from a single search, using SNCF's open availability data.
 
-**Free. No account, no app to install, nothing to pay.** Uses SNCF's official public train availability data. *(Open-source and serverless — technical details for developers below.)*
+Free, no account, open-source, and serverless — it runs entirely in your browser.
 
 > Independent open-source tool — **not affiliated with SNCF, not a ticket seller**. Availability is indicative and refreshed ~daily; always confirm and book on [SNCF Connect](https://www.sncf-connect.com/).
 
@@ -28,13 +28,13 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 
 ---
 
-## What you can ask it
+## Search modes
 
-- **"Where can I go this weekend?"** → *Where to?*: pick your city, see every free-MAX destination, ranked by how well-served it is.
-- **"How do I get *to* this town for free?"** → *Where from?*: pick a destination, see every origin that reaches it.
-- **"When is my exact route free?"** → *Exact trip*: connections plus a 30-day calendar, with a round-trip / weekend-getaway finder.
-- **"I have no plan — surprise me."** → *Ideas*: the fastest destinations reachable that day.
-- **"Plan me a multi-city trip."** → *Tour*: chain cities into one day-by-day itinerary, each hop on a free MAX seat.
+- **Where to?** — every destination reachable from a station, ranked by availability.
+- **Where from?** — the reverse: every origin that reaches a destination.
+- **Exact trip** — one origin → destination, with connections, a 30-day availability calendar, and a round-trip finder.
+- **Ideas** — the fastest destinations reachable that day.
+- **Tour** — a multi-city, day-by-day itinerary, each hop on a free MAX seat.
 
 ## Features
 
@@ -50,13 +50,13 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 
 ---
 
-## Why it can be free forever
+## Why it's free
 
-The hard part — *which trains actually have a free MAX seat* — is published by SNCF as open data. MAX Finder is a pure frontend over it:
+Which trains have a free MAX seat is published by SNCF as open data. MAX Finder is a static frontend over it:
 
-- A scheduled **GitHub Action** snapshots the dataset each morning into `public/data/tgvmax.json`, keeping only the trains with a free seat (trimming the raw ~77 MB feed down to ~6 MB).
-- Your **browser** downloads that file and does all the searching on your device — it can also query the SNCF API directly as a fallback.
-- Everything is static files on **GitHub Pages**. No backend, no database, no server bill, nothing to quietly shut down.
+- A scheduled **GitHub Action** snapshots the dataset each morning into `public/data/tgvmax.json`, keeping only the trains with a free seat (~77 MB feed trimmed to ~6 MB).
+- The **browser** downloads that file and runs the search on your device; it can also query the SNCF API directly as a fallback.
+- Everything is static files on **GitHub Pages** — no backend, no database, no server cost.
 
 ## Develop
 
