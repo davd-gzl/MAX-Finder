@@ -5,3 +5,8 @@ dist/
 .vite/
 coverage/
 *.log
+
+# Android signing — keystores and their encodings must never be committed
+*.keystore
+*.jks
+keystore.b64
