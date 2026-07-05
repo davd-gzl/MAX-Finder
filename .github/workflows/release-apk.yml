@@ -1,0 +1,109 @@
+name: Release Android APK
+
+# Build the Capacitor Android app and attach the APK to the GitHub Release.
+#
+# Triggers when you publish a Release. workflow_dispatch lets you dry-run the
+# build (it produces a downloadable artifact but does not touch any Release).
+#
+# Signing: if the repo secret ANDROID_KEYSTORE_BASE64 (plus the password/alias
+# secrets) is set, the APK is signed with your keystore and is installable and
+# upgradable. If it is NOT set, the job still succeeds and uploads an *unsigned*
+# APK (clearly named) so nothing is blocked — but an unsigned APK cannot be
+# installed until you add the secrets. See docs/FDROID.md for the one-time setup.
+#
+# The version shipped is whatever versionCode/versionName is committed in
+# android/app/build.gradle at the tag — bump it there before tagging (this is
+# also what F-Droid reads, since F-Droid builds the source, not this workflow).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write # upload the APK asset onto the Release
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Best-effort: the app also fetches live SNCF data at runtime, but bundling
+      # a fresh snapshot means the app works on first launch offline too.
+      - name: Refresh data (best-effort)
+        run: npm run fetch-data || echo "fetch-data failed; using committed snapshot"
+
+      # Builds the web app with base "/" and copies it (plus plugins) into android/.
+      - name: Build web + sync into the native project
+        run: npm run cap:sync
+
+      # Evaluate secret presence without exposing it (only a boolean is emitted).
+      - name: Detect signing secret
+        id: signing
+        run: echo "enabled=${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Decode keystore
+        if: steps.signing.outputs.enabled == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Assemble release APK
+        working-directory: android
+        env:
+          MAXFINDER_KEYSTORE_FILE: ${{ steps.signing.outputs.enabled == 'true' && format('{0}/release.keystore', runner.temp) || '' }}
+          MAXFINDER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MAXFINDER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MAXFINDER_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Locate and name the APK
+        id: apk
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name || github.ref_name }}"
+          dir=android/app/build/outputs/apk/release
+          if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
+            src=$(ls "$dir"/*-release.apk | grep -v unsigned | head -n1)
+            name="max-finder-${tag}.apk"
+          else
+            src=$(ls "$dir"/*-release-unsigned.apk | head -n1)
+            name="max-finder-${tag}-unsigned.apk"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set — produced an UNSIGNED APK that cannot be installed. See docs/FDROID.md."
+          fi
+          cp "$src" "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Keep a copy on the workflow run (also the deliverable for workflow_dispatch).
+      - name: Upload APK as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+
+      - name: Attach APK to the Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.apk.outputs.name }}" --clobber

@@ -99,6 +99,15 @@ generate first. (If it's ever deleted, `npm run cap:add:android` regenerates it.
 Requires the Android SDK / Android Studio to compile — the web build itself
 needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
 
+### Releases & F-Droid
+
+Publishing a **GitHub Release** triggers the
+[`Release Android APK`](.github/workflows/release-apk.yml) workflow, which builds
+the app, signs it (when the keystore secrets are configured) and attaches the APK
+to the release. The app is also packaged for **F-Droid**, which builds and signs
+from source. Signing setup, the per-release version bump, and the F-Droid build
+recipe are documented in **[docs/FDROID.md](docs/FDROID.md)**.
+
 ## Data & disclaimer
 
 Data: [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/),

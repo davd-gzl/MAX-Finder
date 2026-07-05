@@ -8,7 +8,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,30 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing is driven entirely by environment variables, so this repo
+    // never contains a keystore or any password. When the env vars are absent —
+    // local builds and F-Droid's build servers, which sign the APK with their
+    // own key — the release APK is left unsigned, which is exactly what F-Droid
+    // expects. When the GitHub "Release Android APK" workflow supplies them (from
+    // repo secrets), assembleRelease produces a signed, installable APK.
+    signingConfigs {
+        release {
+            def ksFile = System.getenv("MAXFINDER_KEYSTORE_FILE")
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword System.getenv("MAXFINDER_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("MAXFINDER_KEY_ALIAS")
+                keyPassword System.getenv("MAXFINDER_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv("MAXFINDER_KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
