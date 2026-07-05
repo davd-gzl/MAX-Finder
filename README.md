@@ -1,14 +1,16 @@
 # MAX Finder
 
-**Find every SNCF train where a free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat is actually reservable — without probing SNCF Connect station by station.**
+**Find every SNCF train where a free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat is actually reservable — instead of checking SNCF Connect one route at a time.**
 
-### ▶ [**Try it live — davd-gzl.github.io/MAX-Finder**](https://davd-gzl.github.io/MAX-Finder/)
+*Trouvez tous les trains SNCF avec une place MAX JEUNE / MAX SENIOR encore réservable.*
 
-Free · open-source · **serverless**. No backend, no accounts, no cost — it all runs in your browser. Built on SNCF open data (the [`tgvmax`](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/) dataset).
-
-> Independent open-source tool — **not affiliated with SNCF, not a ticket seller**. Availability is indicative and refreshed ~daily; always confirm and book on [SNCF Connect](https://www.sncf-connect.com/).
+### ▶ [**Try it live — davd-gzl.github.io/MAX-Finder**](https://davd-gzl.github.io/MAX-Finder/) — no signup, runs in your browser
 
 If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but only when a MAX seat is still open on that train*. Normally you'd guess routes one at a time (Paris → Lyon? Paris → Bordeaux?…) just to find where those seats exist. **MAX Finder flips it around: pick a station and the whole map lights up with everywhere you can go for free.**
+
+**Free. No account, no app to install, nothing to pay.** Uses SNCF's official public train availability data. *(Open-source and serverless — technical details for developers below.)*
+
+> Independent open-source tool — **not affiliated with SNCF, not a ticket seller**. Availability is indicative and refreshed ~daily; always confirm and book on [SNCF Connect](https://www.sncf-connect.com/).
 
 ---
 
@@ -16,8 +18,8 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 
 | | |
 | --- | --- |
-| [![Tour — multi-city day-by-day itinerary built from a chip input, each leg with Book, calendar and map buttons](docs/screenshots/tour.png)](docs/screenshots/tour.png) | [![Où partir — every destination reachable with a free MAX seat, ranked by availability, beside a Leaflet map of France](docs/screenshots/from.png)](docs/screenshots/from.png) |
-| **Tour** — chain several cities into one free itinerary | **Où partir** — everywhere you can go, ranked by availability |
+| [![Où partir — every destination reachable with a free MAX seat, ranked by availability, beside a Leaflet map of France](docs/screenshots/from.png)](docs/screenshots/from.png) | [![Tour — multi-city day-by-day itinerary built from a chip input, each leg with Book, calendar and map buttons](docs/screenshots/tour.png)](docs/screenshots/tour.png) |
+| **Où partir** — everywhere you can go, ranked by availability | **Tour** — chain several cities into one free itinerary |
 | [![Idées — the fastest destinations reachable that day](docs/screenshots/best.png)](docs/screenshots/best.png) | [![Trajet précis — exact origin-to-destination route with a 30-day availability calendar highlighting bookable dates](docs/screenshots/trip.png)](docs/screenshots/trip.png) |
 | **Idées** — fastest destinations that day | **Trajet précis** — exact route + 30-day calendar |
 
@@ -46,7 +48,7 @@ If you hold a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — *but 
 | **Map** | Leaflet map of every station, with correspondences plotted as intermediate points; click to select |
 | **Search & share** | Explicit run (`Enter`/`g`), back nav (`Esc`), **Au hasard** random city, ICS calendar export, shareable URLs |
 | **Private by default** | No accounts — favorites, settings and searches in `localStorage`; optional local notifications |
-| **Everywhere** | 11 languages (FR EN ES DE IT KO ZH JA NL PT AR, incl. RTL), light/dark, installable offline PWA, mobile, accessible |
+| **Everywhere** | 11 languages (FR EN ES DE IT KO ZH JA NL PT AR, incl. RTL), light/dark, installable app that works offline, mobile, accessible |
 
 ---
 
@@ -60,15 +62,17 @@ The hard part — *which trains actually have a free MAX seat* — is published 
 
 ## Develop
 
+**Prereqs:** Node 20+ and npm (CI runs Node 22).
+
 ```bash
 npm install
-npm run dev      # http://localhost:5173  (uses the committed data snapshot / fixture)
+npm run dev      # http://localhost:5173  (uses the committed data snapshot if present, else fixture)
 npm test         # unit tests, no network needed
 npm run build    # type-check + static build -> dist/
 ```
 
 <details>
-<summary><strong>Repository layout</strong></summary>
+<summary><strong>Repository layout</strong> — where each piece of logic lives</summary>
 
 ```
 public/data/ committed daily snapshot (tgvmax.json + meta.json), served at /data/
@@ -76,7 +80,8 @@ data/        station registry + a small fixture for dev/tests
 src/core     pure search / connections / calendar logic (unit-tested)
 src/data     dataset loading + station lookup (+ DatasetProfile seam)
 src/ui       rendering (search form, results, map, calendar)
-scripts/     fetch-data.ts — used by the daily Action
+scripts/     fetch-data.ts (daily Action) + screenshot.mjs (README shots)
+tests/       unit tests (vitest)
 .github/     update-data (cron) + deploy (Pages) workflows
 docs/        how-it-works.md, algorithms.md (plain-language guides) + screenshots
 specs/       constitution.md (guiding principles)
@@ -90,6 +95,8 @@ specs/       constitution.md (guiding principles)
 - **[Algorithms](docs/algorithms.md)** — how it actually finds trains (free-seat filter, connections, one-pass sweeps, round trips, tours, gare naming) with diagrams.
 - **[Vision / roadmap](VISION.md)** — V1 today is SNCF, done well; V2 adds Deutsche Bahn, Renfe and more of Europe into the same search. Principles in [`specs/constitution.md`](./specs/constitution.md).
 
+Contributions welcome — fork, `npm install`, `npm test`, then open a PR; principles in [`specs/constitution.md`](./specs/constitution.md).
+
 ## For agents / data API
 
 Machine-readable and serverless — [`llms.txt`](public/llms.txt) and [`api.json`](public/api.json) describe the data + query API for AI agents.
@@ -99,6 +106,6 @@ Machine-readable and serverless — [`llms.txt`](public/llms.txt) and [`api.json
 
 ## Data & license
 
-**Data:** [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/), licensed under the [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence). Availability is updated roughly once a day and is **indicative** — always confirm and book on [SNCF Connect](https://www.sncf-connect.com/). This project does not sell tickets and is not affiliated with SNCF.
+**Data:** [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/) (the `tgvmax` dataset), licensed under the [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence). Availability is updated roughly once a day and is **indicative** — always confirm and book on [SNCF Connect](https://www.sncf-connect.com/). This project does not sell tickets and is not affiliated with SNCF.
 
 **Code:** [MIT](./LICENSE).
