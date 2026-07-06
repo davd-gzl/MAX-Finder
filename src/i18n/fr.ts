@@ -58,6 +58,7 @@ export const fr = {
   conn_2: "2 correspondances max",
 
   btn_search: "Rechercher",
+  prompt_search: "Prêt — cliquez sur Rechercher pour afficher les résultats.",
 
   res_from_title: "Au départ de {station} — {date}",
   res_to_title: "Pour arriver à {station} — {date}",

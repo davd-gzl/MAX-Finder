@@ -57,6 +57,7 @@ export const zh: Dict = {
   conn_1: "最多换乘 1 次",
   conn_2: "最多换乘 2 次",
   btn_search: "搜索",
+  prompt_search: "已就绪 — 点击搜索查看结果。",
   res_from_title: "从 {station} 出发 — {date}",
   res_to_title: "到达 {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",

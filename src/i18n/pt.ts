@@ -57,6 +57,7 @@ export const pt: Dict = {
   conn_1: "Máx 1 conexão",
   conn_2: "Máx 2 conexões",
   btn_search: "Pesquisar",
+  prompt_search: "Pronto — clique em Pesquisar para ver os resultados.",
   res_from_title: "Partindo de {station} — {date}",
   res_to_title: "Chegando a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",

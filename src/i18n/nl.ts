@@ -57,6 +57,7 @@ export const nl: Dict = {
   conn_1: "Max. 1 overstap",
   conn_2: "Max. 2 overstappen",
   btn_search: "Zoeken",
+  prompt_search: "Klaar — klik op Zoeken om de resultaten te zien.",
   res_from_title: "Vertrek vanaf {station} — {date}",
   res_to_title: "Aankomst in {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
