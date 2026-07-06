@@ -208,4 +208,35 @@ describe("app (jsdom smoke)", () => {
     searchBtn.click();
     expect(root.textContent ?? "").toContain("Toulouse");
   });
+
+  it("keeps a staged filter when the results refresh in place (sort change)", () => {
+    // Regression: an in-place refresh (sort/calendar/day-shift) used to re-sync the
+    // whole form from the last-searched query, silently discarding a staged, not-yet-
+    // searched edit — the "my filter disappeared" bug.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
+    const nightBox = () => {
+      const label = Array.from(root.querySelectorAll("label.field-check")).find((l) =>
+        (l.textContent ?? "").trim().startsWith("Night trains"),
+      );
+      return label?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
+    };
+    // Stage: tick "Night trains" (do NOT run the search).
+    const night = nightBox();
+    expect(night).not.toBeNull();
+    expect(night!.checked).toBe(false);
+    night!.checked = true;
+    night!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // Change the sort — an in-place refresh. The sort <select> is the one with a
+    // "Fastest"/"Closest" option (the search form's selects never carry those).
+    const sort = Array.from(root.querySelectorAll<HTMLSelectElement>("select")).find((s) =>
+      Array.from(s.options).some((o) => /Fastest|Closest/i.test(o.textContent ?? "")),
+    );
+    expect(sort).toBeTruthy();
+    sort!.selectedIndex = Math.min(1, sort!.options.length - 1);
+    sort!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // The staged filter must still be ticked — not reset by the refresh.
+    expect(nightBox()!.checked).toBe(true);
+  });
 });
