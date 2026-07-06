@@ -154,6 +154,38 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".search-form")).not.toBeNull();
   });
 
+  it("does not auto-run the search on a page reload; Search runs the restored query", () => {
+    // Simulate a browser reload: the Navigation Timing entry reports type "reload".
+    const original = performance.getEntriesByType.bind(performance);
+    const spy = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockImplementation((type: string) =>
+        type === "navigation" ? ([{ type: "reload" }] as unknown as PerformanceEntryList) : original(type),
+      );
+    try {
+      const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+      // Reload restores the form but holds back the results — no destination cards yet.
+      expect(root.querySelectorAll(".group-card").length).toBe(0);
+      expect(root.querySelector(".empty")).not.toBeNull();
+      expect(root.textContent ?? "").not.toContain("Lyon");
+      // The origin is still restored from the URL, so pressing Search runs it as-is.
+      const searchBtn = root.querySelector(".search-form button[type=submit]") as HTMLElement;
+      searchBtn.click();
+      expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+      expect(root.textContent ?? "").toContain("Lyon");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("still auto-renders a fresh deep-link (not a reload)", () => {
+    // A fresh navigation (Navigation Timing type "navigate", the jsdom default) must
+    // still show results immediately, so shared/deep links keep working.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+    expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+    expect(root.textContent ?? "").toContain("Lyon");
+  });
+
   it("stages a field change without auto-running the search until Search is clicked", () => {
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
     // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.
@@ -175,5 +207,36 @@ describe("app (jsdom smoke)", () => {
     expect(searchBtn).not.toBeNull();
     searchBtn.click();
     expect(root.textContent ?? "").toContain("Toulouse");
+  });
+
+  it("keeps a staged filter when the results refresh in place (sort change)", () => {
+    // Regression: an in-place refresh (sort/calendar/day-shift) used to re-sync the
+    // whole form from the last-searched query, silently discarding a staged, not-yet-
+    // searched edit — the "my filter disappeared" bug.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
+    const nightBox = () => {
+      const label = Array.from(root.querySelectorAll("label.field-check")).find((l) =>
+        (l.textContent ?? "").trim().startsWith("Night trains"),
+      );
+      return label?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
+    };
+    // Stage: tick "Night trains" (do NOT run the search).
+    const night = nightBox();
+    expect(night).not.toBeNull();
+    expect(night!.checked).toBe(false);
+    night!.checked = true;
+    night!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // Change the sort — an in-place refresh. The sort <select> is the one with a
+    // "Fastest"/"Closest" option (the search form's selects never carry those).
+    const sort = Array.from(root.querySelectorAll<HTMLSelectElement>("select")).find((s) =>
+      Array.from(s.options).some((o) => /Fastest|Closest/i.test(o.textContent ?? "")),
+    );
+    expect(sort).toBeTruthy();
+    sort!.selectedIndex = Math.min(1, sort!.options.length - 1);
+    sort!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // The staged filter must still be ticked — not reset by the refresh.
+    expect(nightBox()!.checked).toBe(true);
   });
 });

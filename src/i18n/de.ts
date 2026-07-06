@@ -57,6 +57,7 @@ export const de: Dict = {
   conn_1: "Max. 1 Umstieg",
   conn_2: "Max. 2 Umstiege",
   btn_search: "Suchen",
+  prompt_search: "Bereit — klicke auf Suchen, um die Ergebnisse zu sehen.",
   res_from_title: "Abfahrt ab {station} — {date}",
   res_to_title: "Ankunft in {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",

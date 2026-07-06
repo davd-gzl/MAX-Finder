@@ -57,6 +57,7 @@ export const ar: Dict = {
   conn_1: "تغيير واحد كحد أقصى",
   conn_2: "تغييران كحد أقصى",
   btn_search: "بحث",
+  prompt_search: "جاهز — اضغط بحث لعرض النتائج.",
   res_from_title: "المغادرة من {station} — {date}",
   res_to_title: "الوصول إلى {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
