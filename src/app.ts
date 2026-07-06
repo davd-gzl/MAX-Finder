@@ -1018,7 +1018,14 @@ function applyAndRun(): void {
 function refreshInPlace(): void {
   store.updateUrl(query);
   const scrollY = window.scrollY;
-  syncFormFromQuery();
+  // Mirror ONLY the date back to its input — a calendar-day pick or day-shift is the
+  // only form-bound value an in-place refresh changes. Deliberately do NOT re-sync the
+  // whole form from `query` here: that clobbered a staged, not-yet-searched edit — a
+  // ticked "Night trains", a tour city chip — because those live in the form (and
+  // `tourCities`) but aren't folded into `query` until Search. Re-syncing silently
+  // reset them, which is the "my filter / cities disappeared" bug.
+  refs.date.value = query.date;
+  refreshTourEndDate();
   clear(refs.results);
   renderSearch();
   window.scrollTo({ top: scrollY });
