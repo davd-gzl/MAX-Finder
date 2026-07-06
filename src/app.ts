@@ -577,7 +577,12 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     ? queryFromUrl()
     : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
 
-  rebuild();
+  // A genuine page reload restores the form from the URL but does NOT auto-run the
+  // search — results wait for the Search button, matching how form edits are now
+  // staged (see "Don't auto-run on form edits"). Otherwise every reload silently
+  // recomputes. A fresh navigation — the first visit, or a shared/deep link opened
+  // from elsewhere — still shows results immediately, so shared links keep working.
+  rebuild(!(store.urlHasQuery() && isPageReload()));
   checkWatchedRoutes();
 
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -616,10 +621,33 @@ function queryFromUrl(): SearchQuery {
   return q;
 }
 
-function rebuild(): void {
+function rebuild(autoRun = true): void {
   buildLayout(rootRef);
   syncFormFromQuery();
-  runSearch();
+  if (autoRun) runSearch();
+  else showSearchPrompt();
+}
+
+/**
+ * Whether this page view is a browser reload, as opposed to a fresh navigation
+ * (first visit, typed URL, or a shared/deep link). Used to hold back the search
+ * on reload — the restored form waits for the Search button — while still running
+ * it automatically when someone opens a link. Unknown navigation types (and jsdom,
+ * where the entry is "navigate") count as "not a reload", so links keep auto-running.
+ */
+function isPageReload(): boolean {
+  const nav = performance.getEntriesByType?.("navigation") as PerformanceNavigationTiming[] | undefined;
+  return nav?.[0]?.type === "reload";
+}
+
+/**
+ * Results placeholder shown when a reload restored the form but we're deliberately
+ * waiting for the Search button rather than recomputing. Clicking Search (or the
+ * "g" shortcut) runs the restored query as-is.
+ */
+function showSearchPrompt(): void {
+  clear(refs.results);
+  refs.results.append(render.emptyEl(t("prompt_search")));
 }
 
 // --- station resolution -----------------------------------------------------

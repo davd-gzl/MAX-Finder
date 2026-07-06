@@ -61,6 +61,7 @@ export const en: Dict = {
 
   btn_search: "Search",
 
+  prompt_search: "Ready — press Search to see the results.",
   res_from_title: "Departing {station} — {date}",
   res_to_title: "Arriving at {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",

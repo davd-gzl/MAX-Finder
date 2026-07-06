@@ -154,6 +154,38 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".search-form")).not.toBeNull();
   });
 
+  it("does not auto-run the search on a page reload; Search runs the restored query", () => {
+    // Simulate a browser reload: the Navigation Timing entry reports type "reload".
+    const original = performance.getEntriesByType.bind(performance);
+    const spy = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockImplementation((type: string) =>
+        type === "navigation" ? ([{ type: "reload" }] as unknown as PerformanceEntryList) : original(type),
+      );
+    try {
+      const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+      // Reload restores the form but holds back the results — no destination cards yet.
+      expect(root.querySelectorAll(".group-card").length).toBe(0);
+      expect(root.querySelector(".empty")).not.toBeNull();
+      expect(root.textContent ?? "").not.toContain("Lyon");
+      // The origin is still restored from the URL, so pressing Search runs it as-is.
+      const searchBtn = root.querySelector(".search-form button[type=submit]") as HTMLElement;
+      searchBtn.click();
+      expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+      expect(root.textContent ?? "").toContain("Lyon");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("still auto-renders a fresh deep-link (not a reload)", () => {
+    // A fresh navigation (Navigation Timing type "navigate", the jsdom default) must
+    // still show results immediately, so shared/deep links keep working.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+    expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+    expect(root.textContent ?? "").toContain("Lyon");
+  });
+
   it("stages a field change without auto-running the search until Search is clicked", () => {
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
     // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.

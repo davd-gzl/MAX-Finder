@@ -57,6 +57,7 @@ export const ko: Dict = {
   conn_1: "최대 1회 환승",
   conn_2: "최대 2회 환승",
   btn_search: "검색",
+  prompt_search: "준비 완료 — 검색을 눌러 결과를 확인하세요.",
   res_from_title: "{station} 출발 — {date}",
   res_to_title: "{station} 도착 — {date}",
   res_od_title: "{origin} → {destination} — {date}",
