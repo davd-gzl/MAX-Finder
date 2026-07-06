@@ -57,6 +57,7 @@ export const ja: Dict = {
   conn_1: "乗り換え1回まで",
   conn_2: "乗り換え2回まで",
   btn_search: "検索",
+  prompt_search: "準備完了 — 検索を押して結果を表示します。",
   res_from_title: "{station} 発 — {date}",
   res_to_title: "{station} 着 — {date}",
   res_od_title: "{origin} → {destination} — {date}",

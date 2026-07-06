@@ -57,6 +57,7 @@ export const it: Dict = {
   conn_1: "Max 1 cambio",
   conn_2: "Max 2 cambi",
   btn_search: "Cerca",
+  prompt_search: "Pronto — premi Cerca per vedere i risultati.",
   res_from_title: "In partenza da {station} — {date}",
   res_to_title: "In arrivo a {station} — {date}",
   res_od_title: "{origin} → {destination} — {date}",
