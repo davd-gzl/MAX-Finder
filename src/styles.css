@@ -18,6 +18,8 @@
   --radius: 12px;
   --radius-sm: 9px;
   --shadow: 0 1px 1px rgba(10, 10, 11, 0.03), 0 4px 16px rgba(10, 10, 11, 0.05);
+  /* Custom chevron for select inputs (theme-aware stroke colour). */
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   --maxw: 1080px;
   font-synthesis: none;
 }
@@ -45,6 +47,7 @@
     --btn: #fafafa;
     --btn-ink: #09090b;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
+    --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   }
 }
 :root[data-theme="dark"] {
@@ -65,6 +68,7 @@
   --btn: #fafafa;
   --btn-ink: #09090b;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.35);
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 * {
@@ -2077,4 +2081,217 @@ a {
 }
 .keys-btn {
   font-weight: 700;
+}
+
+/* ---- custom-styled select: drop the native arrow, add a clean chevron ---- */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  background-image: var(--chev);
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 13px;
+  cursor: pointer;
+}
+select.input:hover {
+  border-color: var(--border-strong);
+}
+select.input::-ms-expand {
+  display: none;
+}
+
+/* ---- map marker hover tooltip + click popup ---- */
+.map-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.map-tip strong {
+  font-size: 0.9rem;
+  font-weight: 620;
+}
+.map-tip-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap; /* keep the trip summary on one line; the card widens to fit */
+}
+.leaflet-popup.map-popup .leaflet-popup-content-wrapper {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.leaflet-popup.map-popup .leaflet-popup-content {
+  margin: 0.7rem 0.85rem;
+  font: inherit;
+}
+.leaflet-popup.map-popup .leaflet-popup-tip {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+.map-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 150px;
+}
+.map-pop-title {
+  font-size: 0.92rem;
+  font-weight: 640;
+}
+.map-pop-meta {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.map-pop-btn {
+  align-self: flex-start;
+  margin-top: 0.1rem;
+  background: var(--btn);
+  color: var(--btn-ink);
+  border: 0;
+  border-radius: 7px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 560;
+  cursor: pointer;
+}
+.map-pop-btn:hover {
+  opacity: 0.9;
+}
+
+/* ---- boot loading label + dataset-load error card (with retry) ---- */
+.app-loading-label {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  min-height: 60vh;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #ef4444;
+}
+.error-title {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1.05rem;
+  max-width: 38ch;
+}
+
+/* ---- List / Map view toggle (segmented control in the header) ---- */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.view-btn + .view-btn {
+  border-left: 1px solid var(--border);
+}
+.view-btn:hover {
+  color: var(--text);
+}
+.view-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---- map-first canvas: [data-view="map"] blows the map up full-bleed and
+   floats the search + results panel over it (favourites hidden to declutter) ---- */
+[data-view="map"] .layout {
+  display: block;
+  position: relative;
+  min-height: calc(100vh - var(--above-h, 180px));
+}
+[data-view="map"] .side-col {
+  position: static;
+  gap: 0;
+}
+[data-view="map"] .saved-trips,
+[data-view="map"] .favorites,
+[data-view="map"] .map-section h3 {
+  display: none;
+}
+[data-view="map"] .map-section {
+  margin: 0;
+}
+[data-view="map"] .map {
+  height: calc(100vh - var(--above-h, 180px) - 1rem);
+}
+[data-view="map"] .main-col {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  z-index: 1000; /* above Leaflet panes + controls */
+  width: min(380px, calc(100% - 1.8rem));
+  max-height: calc(100vh - var(--above-h, 180px) - 2.8rem);
+  overflow-y: auto;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+/* The floating panel sits top-left, so move Leaflet's zoom control out from
+   under it to the top-right. */
+[data-view="map"] .leaflet-top.leaflet-left {
+  left: auto;
+  right: 0;
+}
+@media (max-width: 860px) {
+  /* On narrow screens an overlay panel over a tall map is cramped: stack a big
+     map on top with the search + results in normal flow below it. */
+  [data-view="map"] .layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  [data-view="map"] .side-col {
+    order: -1;
+  }
+  [data-view="map"] .main-col {
+    position: static;
+    width: auto;
+    max-height: none;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    border: 0;
+    box-shadow: none;
+  }
+  [data-view="map"] .map {
+    height: 62vh;
+  }
+  [data-view="map"] .leaflet-top.leaflet-left {
+    left: 0;
+    right: auto;
+  }
 }

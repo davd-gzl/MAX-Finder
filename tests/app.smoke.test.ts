@@ -9,6 +9,7 @@ vi.mock("../src/ui/map", () => ({
     route(): void {}
     invalidate(): void {}
     focus(): void {}
+    setInfo(): void {}
   },
 }));
 

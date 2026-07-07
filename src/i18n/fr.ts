@@ -1,5 +1,10 @@
 export const fr = {
   appName: "MAX Finder",
+  err_load: "Impossible de charger les données.",
+  act_retry: "Réessayer",
+  view_label: "Affichage",
+  view_list: "Liste",
+  view_map: "Carte",
   tagline: "Places MAX JEUNE / SENIOR ouvertes à la réservation.",
   prompt_pick: "Choisissez une gare de départ.",
   mode_best: "Idées",
