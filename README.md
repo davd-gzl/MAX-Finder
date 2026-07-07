@@ -138,4 +138,4 @@ Machine-readable and serverless — [`llms.txt`](public/llms.txt) and [`api.json
 
 **Data:** [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/) (the `tgvmax` dataset), licensed under the [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence). Availability is updated roughly once a day and is **indicative** — always confirm and book on [SNCF Connect](https://www.sncf-connect.com/). This project does not sell tickets and is not affiliated with SNCF.
 
-**Code:** [MIT](./LICENSE).
+**Code:** [MPL-2.0](./LICENSE).

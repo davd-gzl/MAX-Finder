@@ -2,7 +2,7 @@
   "name": "MAX Finder",
   "description": "Free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat availability from SNCF open data. Static, serverless, no accounts.",
   "homepage": "https://davd-gzl.github.io/MAX-Finder/",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "dataLicense": "Licence Ouverte / Open Licence",
   "notAffiliatedWith": "SNCF",
   "isTicketSeller": false,
