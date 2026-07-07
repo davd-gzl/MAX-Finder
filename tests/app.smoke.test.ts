@@ -239,4 +239,30 @@ describe("app (jsdom smoke)", () => {
     // The staged filter must still be ticked — not reset by the refresh.
     expect(nightBox()!.checked).toBe(true);
   });
+
+  it("Surprise me does not resurrect a tour finish the user just removed", () => {
+    // Regression: exact-trip destination carries into Tour as the "finish"; removing
+    // it is a staged edit. "Surprise me" used to rebuild from the stale last-searched
+    // query and push the removed city right back into the form and URL.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+    );
+    // Switch to Tour — Lyon becomes the tour finish (destination) field.
+    const tourTab = Array.from(root.querySelectorAll(".mode-tab")).find((t) => /Tour/i.test(t.textContent ?? ""));
+    expect(tourTab).toBeTruthy();
+    (tourTab as HTMLElement).click();
+    const dest = Array.from(root.querySelectorAll<HTMLInputElement>(".search-form input")).find((i) =>
+      /Lyon/i.test(i.value),
+    );
+    expect(dest).toBeTruthy();
+    // Remove it (staged), then hit "Surprise me".
+    dest!.value = "";
+    dest!.dispatchEvent(new Event("change", { bubbles: true }));
+    const surprise = root.querySelector(".surprise-btn") as HTMLElement;
+    expect(surprise).not.toBeNull();
+    surprise.click();
+    // The removed finish must stay gone — not in the field, not in the URL.
+    expect(dest!.value).toBe("");
+    expect(new URLSearchParams(location.search).get("to")).toBeNull();
+  });
 });
