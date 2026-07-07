@@ -14,7 +14,9 @@ function reachColor(connections: number): string {
   // gradient stays legible for realistic data (which rarely needs >2 changes).
   const tNorm = Math.min(Math.max(connections, 0), 2) / 2;
   const hue = 150 - 150 * tNorm; // 150° green → 0° red
-  return `hsl(${Math.round(hue)}, 70%, 45%)`;
+  // Deep, saturated fills read clearly against the basemap and, paired with the
+  // white pin outline, stay distinct where destinations cluster together.
+  return `hsl(${Math.round(hue)}, 75%, 34%)`;
 }
 
 /** Optional rich detail for a station marker (hover tooltip + click popup). */
@@ -32,6 +34,10 @@ export class RouteMap {
   private map: L.Map | null = null;
   private layer: L.LayerGroup | null = null;
   private info: Map<string, MarkerInfo> = new Map();
+  /** Markers by station id, so a selected destination can be highlighted. */
+  private markers: Map<string, L.CircleMarker> = new Map();
+  /** The currently emphasised marker and its resting radius/weight, to restore. */
+  private highlighted: { m: L.CircleMarker; radius: number; weight: number } | null = null;
   /** Called with a station id when its marker is clicked. */
   onSelect: ((id: string) => void) | null = null;
 
@@ -45,8 +51,9 @@ export class RouteMap {
     this.info = info;
   }
 
-  private ensure(): { map: L.Map; layer: L.LayerGroup } {
-    if (!this.map) {
+  private ensure(): { map: L.Map; layer: L.LayerGroup } | null {
+    if (this.map && this.layer) return { map: this.map, layer: this.layer };
+    try {
       this.map = L.map(this.container, { scrollWheelZoom: true }).setView([46.6, 2.4], 5);
       this.map.attributionControl.setPrefix(false); // drop the default "Leaflet" + flag prefix
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -54,12 +61,58 @@ export class RouteMap {
         maxZoom: 18,
       }).addTo(this.map);
       this.layer = L.layerGroup().addTo(this.map);
+      return { map: this.map, layer: this.layer };
+    } catch {
+      // Leaflet needs a laid-out DOM; in environments without one (e.g. jsdom
+      // unit tests) it throws. Degrade to a no-op map rather than crash the app.
+      this.map = null;
+      this.layer = null;
+      return null;
     }
-    return { map: this.map, layer: this.layer as L.LayerGroup };
   }
 
   invalidate(): void {
     this.map?.invalidateSize();
+  }
+
+  /**
+   * Emphasise the marker for `id` (grow it + thicken its ring + bring to front)
+   * and restore the previously highlighted one, so the selected destination is
+   * obvious on the map. No-op if the station has no marker on the current view.
+   */
+  highlight(id: string): void {
+    if (this.highlighted) {
+      this.highlighted.m.setRadius(this.highlighted.radius);
+      this.highlighted.m.setStyle({ weight: this.highlighted.weight });
+      this.highlighted = null;
+    }
+    const m = this.markers.get(id);
+    if (!m) return;
+    const radius = m.getRadius();
+    const weight = (m.options.weight as number | undefined) ?? 2;
+    this.highlighted = { m, radius, weight };
+    m.setRadius(radius + 4);
+    m.setStyle({ weight: weight + 1.5 });
+    m.bringToFront();
+  }
+
+  /** Forget the markers + highlight from the previous render. */
+  private resetMarkers(): void {
+    this.markers.clear();
+    this.highlighted = null;
+  }
+
+  /**
+   * Show the bare basemap of France with no markers — the resting state before a
+   * search has run, so the map reads as "ready" instead of an empty grey box.
+   */
+  base(): void {
+    const e = this.ensure();
+    if (!e) return;
+    e.layer.clearLayers();
+    this.resetMarkers();
+    this.info = new Map();
+    e.map.setView([46.6, 2.4], 5);
   }
 
   /** Pan/zoom to a station (if its coordinates are known). */
@@ -82,7 +135,9 @@ export class RouteMap {
         ? { radius: 8, color: "#ffffff", fillColor: EMERALD, weight: 2.5 }
         : role === "via"
           ? { radius: 5, color: EMERALD, fillColor: "#ffffff", weight: 2 }
-          : { radius: 6, color: tint, fillColor: tint, weight: 1.5 };
+          : // A white ring around each destination pin keeps clustered pins
+            // readable — without it, same-coloured fills merge into one blob.
+            { radius: 6, color: "#ffffff", fillColor: tint, weight: 2 };
     const m = L.circleMarker(c, { ...style, fillOpacity: 1 });
     const title = inf?.title ?? this.registry.label(id);
 
@@ -131,13 +186,17 @@ export class RouteMap {
     }
 
     if (this.onSelect) m.on("click", () => this.onSelect?.(id));
+    this.markers.set(id, m);
     return m;
   }
 
   /** Render a hub station linked to each of `others`. Unknown coords are skipped. */
   show(hub: string, others: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     layer.clearLayers();
+    this.resetMarkers();
     const pts: L.LatLngExpression[] = [];
 
     const hubC = this.registry.coords(hub);
@@ -170,8 +229,11 @@ export class RouteMap {
    * "via Paris" stop is visible as a secondary point along the line.
    */
   route(stations: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     layer.clearLayers();
+    this.resetMarkers();
     // Drop any connection-count tints left over from a previous browse (showMap):
     // an exact-trip/route destination is a plain endpoint, not a heat-map pin, so
     // it must read emerald rather than a stale reachColor() from the earlier view.
@@ -203,7 +265,9 @@ export class RouteMap {
    * the view is widened so the whole radius is visible.
    */
   radius(centers: { id: string; km: number }[], nearby: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     let bounds: L.LatLngBounds | null = null;
     for (const { id, km } of centers) {
       const c = this.registry.coords(id);

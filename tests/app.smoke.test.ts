@@ -7,6 +7,9 @@ vi.mock("../src/ui/map", () => ({
     onSelect: ((id: string) => void) | null = null;
     show(): void {}
     route(): void {}
+    radius(): void {}
+    base(): void {}
+    highlight(): void {}
     invalidate(): void {}
     focus(): void {}
     setInfo(): void {}

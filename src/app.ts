@@ -658,6 +658,7 @@ function isPageReload(): boolean {
 function showSearchPrompt(): void {
   clear(refs.results);
   refs.results.append(render.emptyEl(t("prompt_search")));
+  showBaseMap();
 }
 
 // --- station resolution -----------------------------------------------------
@@ -1191,6 +1192,11 @@ function runSearch(): void {
 
 function renderSearch(): void {
   const c = ctx();
+
+  // Default the map to the bare France basemap; a mode that has something to plot
+  // overrides this with its own markers below. This keeps the map from sitting
+  // empty when a search can't run yet (e.g. no origin entered).
+  showBaseMap();
 
   // Back to the previous list (instant — journeys are memoized).
   if (navStack.length) {
@@ -2042,6 +2048,13 @@ function showRoute(stations: string[]): void {
   requestAnimationFrame(() => m.invalidate());
 }
 
+/** Reset the map to the bare France basemap (no markers) — the pre-search state. */
+function showBaseMap(): void {
+  const m = ensureMap();
+  m.base();
+  requestAnimationFrame(() => m.invalidate());
+}
+
 /** Overlay radius circles + nearby-station markers on the current route map. */
 function showRadius(centers: { id: string; km: number }[], nearby: string[]): void {
   const m = ensureMap();
@@ -2059,9 +2072,21 @@ function selectStation(id: string): void {
     panel.removeAttribute("hidden");
     card.querySelector(".dest-main")?.setAttribute("aria-expanded", "true");
   }
+  markSelected(id);
   card.scrollIntoView({ behavior: "smooth", block: "center" });
   card.classList.add("flash");
   window.setTimeout(() => card.classList.remove("flash"), 1100);
+}
+
+/**
+ * Persistently highlight a destination — its results card and its map pin — and
+ * clear the previous selection, so it stays clear which place is being looked at.
+ */
+function markSelected(id: string): void {
+  for (const prev of refs.results.querySelectorAll(".is-selected")) prev.classList.remove("is-selected");
+  const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
+  refs.results.querySelector<HTMLElement>(sel)?.classList.add("is-selected");
+  map?.highlight(id);
 }
 
 // --- watched routes ---------------------------------------------------------
@@ -2346,6 +2371,13 @@ function buildLayout(root: HTMLElement): void {
   root.append(header, layout, footer);
   root.dataset.view = settings.view;
 
+  // Clicking a destination card highlights it (card + its map pin), so the list
+  // and map stay in sync. A map-pin click already routes through selectStation().
+  results.addEventListener("click", (ev) => {
+    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
+    if (card?.dataset.station) markSelected(card.dataset.station);
+  });
+
   refs = {
     ...built.refs,
     title,
@@ -2392,8 +2424,10 @@ function setView(view: store.ViewMode): void {
   updateViewToggle();
   updateRailMetrics();
   // The map container changed size — let Leaflet recompute over two frames so the
-  // new layout has settled before invalidateSize/refit.
+  // new layout has settled before invalidateSize/refit, then once more after the
+  // 0.3s height transition finishes so tiles fill the final size.
   requestAnimationFrame(() => requestAnimationFrame(() => map?.invalidate()));
+  window.setTimeout(() => map?.invalidate(), 340);
 }
 
 // Distance from the document top to the results/map row (navbar + form + margins).
