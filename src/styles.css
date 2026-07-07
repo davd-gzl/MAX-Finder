@@ -2303,3 +2303,55 @@ select.input::-ms-expand {
     right: auto;
   }
 }
+
+/* ---- selected destination: card + map pin stay highlighted together -------- */
+[data-station].is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+/* ---- smooth the List <-> Map view switch ----------------------------------- */
+.map {
+  transition: height 0.3s ease;
+}
+[data-view="map"] .main-col {
+  animation: mf-panel-in 0.28s ease both;
+}
+@keyframes mf-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map,
+  [data-view="map"] .main-col {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- map view uses the full width: break the map row out of the centred,
+   max-width #app so the map spans the whole viewport (more room to read it) --- */
+@media (min-width: 861px) {
+  [data-view="map"] .layout {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+  [data-view="map"] .map {
+    height: calc(100vh - var(--above-h, 180px));
+    border: 0;
+    border-radius: 0;
+  }
+  /* Keep the floating panel clear of the very edge now that the row is full-bleed. */
+  [data-view="map"] .main-col {
+    left: 1.4rem;
+  }
+}
