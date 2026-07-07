@@ -67,7 +67,12 @@ npm install
 npm run dev      # http://localhost:5173  (uses the committed data snapshot if present, else fixture)
 npm test         # unit tests, no network needed
 npm run build    # type-check + static build -> dist/
+npm run verify   # render gate: the built app mounts (home + exact-trip + tour), no blank page
+npm run test:e2e # end-to-end user journeys in headless Chromium against dist/ (needs build first)
 ```
+
+The full check suite (`build` → `test` → `verify` → `test:e2e`) also runs in CI on every
+pull request and push to `main` (`.github/workflows/test.yml`), and gates the Pages deploy.
 
 <details>
 <summary><strong>Repository layout</strong> — where each piece of logic lives</summary>
@@ -78,9 +83,9 @@ data/        station registry + a small fixture for dev/tests
 src/core     pure search / connections / calendar logic (unit-tested)
 src/data     dataset loading + station lookup (+ DatasetProfile seam)
 src/ui       rendering (search form, results, map, calendar)
-scripts/     fetch-data.ts (daily Action) + screenshot.mjs (README shots)
+scripts/     fetch-data.ts (daily Action) + verify-render.mjs + e2e.mjs + screenshot.mjs
 tests/       unit tests (vitest)
-.github/     update-data (cron) + deploy (Pages) workflows
+.github/     ci (test) + update-data (cron) + deploy (Pages) workflows
 docs/        how-it-works.md, algorithms.md (plain-language guides) + screenshots
 specs/       constitution.md (guiding principles)
 ```

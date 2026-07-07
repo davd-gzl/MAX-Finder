@@ -52,6 +52,12 @@ jobs:
       - name: Verify render (no blank page)
         run: npm run verify
 
+      # End-to-end user-journey gate: drives real flows (search, mode switch,
+      # deep links, the staged-edit model, history) against the built app. A
+      # behavioural regression fails here and never deploys.
+      - name: End-to-end user journeys
+        run: npm run test:e2e
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
