@@ -76,7 +76,7 @@ Create `metadata/org.maxfinder.app.yml` in `fdroiddata`:
 Categories:
   - Internet
   - Travel
-License: MIT
+License: MPL-2.0
 AuthorName: MAX Finder contributors
 SourceCode: https://github.com/davd-gzl/MAX-Finder
 IssueTracker: https://github.com/davd-gzl/MAX-Finder/issues

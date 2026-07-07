@@ -32,5 +32,5 @@ Mobile-first, keyboard-navigable, screen-reader friendly (WCAG AA targets). Smal
 French and English from day one (French is the primary audience).
 
 ## 7. FOSS and contributor-friendly
-MIT licensed. Readable code that matches its own conventions. Spec/plan/tasks kept in the repo
+MPL-2.0 licensed. Readable code that matches its own conventions. Spec/plan/tasks kept in the repo
 so contributors understand intent before code.
