@@ -1,0 +1,46 @@
+name: CI
+
+# Runs the full check suite on every PR and on pushes to main, so a change that
+# breaks the build, the unit tests, the render gate, or an end-to-end user
+# journey shows up as a red check before it can be merged or deployed.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check + build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Render gate (no blank page)
+        run: npm run verify
+
+      - name: End-to-end user journeys
+        run: npm run test:e2e

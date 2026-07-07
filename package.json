@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "fetch-data": "tsx scripts/fetch-data.ts",
     "verify": "node scripts/verify-render.mjs",
+    "test:e2e": "node scripts/e2e.mjs",
     "screenshot": "node scripts/screenshot.mjs",
     "build:mobile": "tsc --noEmit && vite build --mode capacitor",
     "cap:sync": "npm run build:mobile && cap sync",

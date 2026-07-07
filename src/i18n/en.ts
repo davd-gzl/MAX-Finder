@@ -2,6 +2,11 @@ import type { Dict } from "./fr";
 
 export const en: Dict = {
   appName: "MAX Finder",
+  err_load: "Couldn't load the data.",
+  act_retry: "Retry",
+  view_label: "View",
+  view_list: "List",
+  view_map: "Map",
   tagline: "MAX JEUNE / SENIOR seats open for reservation.",
   prompt_pick: "Choose a departure station.",
   mode_best: "Ideas",

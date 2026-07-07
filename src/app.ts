@@ -17,7 +17,7 @@ import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
-import { RouteMap } from "./ui/map";
+import { RouteMap, type MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
@@ -100,6 +100,7 @@ interface Refs {
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
+  viewToggle: HTMLElement;
   favList: HTMLElement;
   tripList: HTMLElement;
 }
@@ -598,6 +599,9 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     installPrompt = null;
   });
 
+  // Keep the map-first canvas sized to the viewport below the bars as they reflow.
+  window.addEventListener("resize", updateRailMetrics);
+
   // Global keyboard shortcuts (mode switch, focus, day nav, surprise, run, help).
   document.addEventListener("keydown", onGlobalKey);
 
@@ -631,6 +635,7 @@ function rebuild(autoRun = true): void {
   syncFormFromQuery();
   if (autoRun) runSearch();
   else showSearchPrompt();
+  updateRailMetrics();
 }
 
 /**
@@ -1314,7 +1319,16 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
     );
   for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
-  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)]);
+  // Tint map pins by how many changes each place takes: direct = green, each
+  // extra connection pushes toward red (see RouteMap.reachColor).
+  const mapInfo = new Map<string, MarkerInfo>();
+  for (const g of groups) mapInfo.set(g.station, { title: registry.label(g.station), connections: 0 });
+  for (const tr of connecting)
+    mapInfo.set(tr.station, {
+      title: registry.label(tr.station),
+      connections: tr.journey.legs.length - 1,
+    });
+  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)], mapInfo);
 }
 
 /**
@@ -2015,8 +2029,9 @@ function ensureMap(): RouteMap {
   return map;
 }
 
-function showMap(hub: string, others: string[]): void {
+function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>): void {
   const m = ensureMap();
+  m.setInfo(info ?? new Map());
   m.show(hub, [...new Set(others)]);
   requestAnimationFrame(() => m.invalidate());
 }
@@ -2209,6 +2224,21 @@ function buildLayout(root: HTMLElement): void {
   });
   if (isTouch()) keysBtn.style.display = "none";
 
+  // List ⇄ Map view switch — Map flips the layout to a big, map-first canvas
+  // with the results floating over it. Persisted in settings.
+  const viewToggle = el("div", { class: "view-toggle", attrs: { role: "group", "aria-label": t("view_label") } }, [
+    viewBtn(
+      "list",
+      t("view_list"),
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
+    ),
+    viewBtn(
+      "map",
+      t("view_map"),
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3.5 6v14l5.5-2 6 2 5.5-2V4l-5.5 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>`,
+    ),
+  ]);
+
   // Card (pass) is a global preference, kept at the top and persisted at once.
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
     optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
@@ -2258,7 +2288,7 @@ function buildLayout(root: HTMLElement): void {
         ]),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, viewToggle, keysBtn, themeBtn, installBtn]),
   ]);
 
   // form
@@ -2314,24 +2344,75 @@ function buildLayout(root: HTMLElement): void {
   ]);
 
   root.append(header, layout, footer);
+  root.dataset.view = settings.view;
 
   refs = {
     ...built.refs,
     title,
     results,
     mapEl,
+    viewToggle,
     favList,
     tripList,
     card: cardSel,
   };
   map = null;
+  updateViewToggle();
   renderFavorites();
   renderSavedTrips();
 }
 
+/** A single segment of the List ⇄ Map view switch. */
+function viewBtn(view: store.ViewMode, label: string, iconHtml: string): HTMLElement {
+  return el("button", {
+    class: "view-btn",
+    type: "button",
+    dataset: { view },
+    attrs: { "aria-label": label, title: label },
+    html: iconHtml,
+    on: { click: () => setView(view) },
+  });
+}
+
+/** Reflect the current view on the toggle's pressed state. */
+function updateViewToggle(): void {
+  for (const btn of Array.from(refs.viewToggle.children)) {
+    const active = (btn as HTMLElement).dataset.view === settings.view;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  }
+}
+
+/** Switch between the list layout and the big map-first canvas (persisted). */
+function setView(view: store.ViewMode): void {
+  if (settings.view === view) return;
+  settings = { ...settings, view };
+  store.saveSettings(settings);
+  rootRef.dataset.view = view;
+  updateViewToggle();
+  updateRailMetrics();
+  // The map container changed size — let Leaflet recompute over two frames so the
+  // new layout has settled before invalidateSize/refit.
+  requestAnimationFrame(() => requestAnimationFrame(() => map?.invalidate()));
+}
+
+// Distance from the document top to the results/map row (navbar + form + margins).
+// Published as a CSS var so the map-first canvas can fill the viewport below the
+// bars instead of a flat 100vh that overflows under them.
+let lastAboveH = -1;
+function updateRailMetrics(): void {
+  const layoutEl = rootRef.querySelector<HTMLElement>(".layout");
+  if (!layoutEl) return;
+  const top = Math.round(layoutEl.getBoundingClientRect().top + window.scrollY);
+  if (top === lastAboveH) return;
+  lastAboveH = top;
+  rootRef.style.setProperty("--above-h", `${top}px`);
+  requestAnimationFrame(() => map?.invalidate());
+}
+
 interface FormBuild {
   form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "tripList" | "card">;
+  refs: Omit<Refs, "title" | "results" | "mapEl" | "viewToggle" | "favList" | "tripList" | "card">;
 }
 
 function buildForm(): FormBuild {
