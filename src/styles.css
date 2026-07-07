@@ -187,6 +187,14 @@ a {
 .install-btn[hidden] {
   display: none;
 }
+/* Installing as an app ("Add to Home Screen") only makes sense on phones and
+   tablets. On laptops/desktops there's no meaningful install, so hide the
+   button on mouse/fine-pointer devices and keep it for touch devices. */
+@media (hover: hover) and (pointer: fine) {
+  .install-btn {
+    display: none;
+  }
+}
 .gh-link {
   text-decoration: none;
   display: inline-flex;
