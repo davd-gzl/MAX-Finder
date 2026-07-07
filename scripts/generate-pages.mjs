@@ -84,6 +84,7 @@ function pageShell({ lang, title, description, path, body, jsonld }) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://ressources.data.sncf.com; worker-src 'self'; base-uri 'self'" />
     <title>${esc(title)}</title>
     <meta name="description" content="${esc(description)}" />
     <link rel="canonical" href="${canonical}" />
