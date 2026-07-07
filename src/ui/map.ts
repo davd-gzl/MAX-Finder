@@ -14,7 +14,9 @@ function reachColor(connections: number): string {
   // gradient stays legible for realistic data (which rarely needs >2 changes).
   const tNorm = Math.min(Math.max(connections, 0), 2) / 2;
   const hue = 150 - 150 * tNorm; // 150° green → 0° red
-  return `hsl(${Math.round(hue)}, 70%, 45%)`;
+  // Deep, saturated fills read clearly against the basemap and, paired with the
+  // white pin outline, stay distinct where destinations cluster together.
+  return `hsl(${Math.round(hue)}, 75%, 34%)`;
 }
 
 /** Optional rich detail for a station marker (hover tooltip + click popup). */
@@ -45,8 +47,9 @@ export class RouteMap {
     this.info = info;
   }
 
-  private ensure(): { map: L.Map; layer: L.LayerGroup } {
-    if (!this.map) {
+  private ensure(): { map: L.Map; layer: L.LayerGroup } | null {
+    if (this.map && this.layer) return { map: this.map, layer: this.layer };
+    try {
       this.map = L.map(this.container, { scrollWheelZoom: true }).setView([46.6, 2.4], 5);
       this.map.attributionControl.setPrefix(false); // drop the default "Leaflet" + flag prefix
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -54,12 +57,30 @@ export class RouteMap {
         maxZoom: 18,
       }).addTo(this.map);
       this.layer = L.layerGroup().addTo(this.map);
+      return { map: this.map, layer: this.layer };
+    } catch {
+      // Leaflet needs a laid-out DOM; in environments without one (e.g. jsdom
+      // unit tests) it throws. Degrade to a no-op map rather than crash the app.
+      this.map = null;
+      this.layer = null;
+      return null;
     }
-    return { map: this.map, layer: this.layer as L.LayerGroup };
   }
 
   invalidate(): void {
     this.map?.invalidateSize();
+  }
+
+  /**
+   * Show the bare basemap of France with no markers — the resting state before a
+   * search has run, so the map reads as "ready" instead of an empty grey box.
+   */
+  base(): void {
+    const e = this.ensure();
+    if (!e) return;
+    e.layer.clearLayers();
+    this.info = new Map();
+    e.map.setView([46.6, 2.4], 5);
   }
 
   /** Pan/zoom to a station (if its coordinates are known). */
@@ -82,7 +103,9 @@ export class RouteMap {
         ? { radius: 8, color: "#ffffff", fillColor: EMERALD, weight: 2.5 }
         : role === "via"
           ? { radius: 5, color: EMERALD, fillColor: "#ffffff", weight: 2 }
-          : { radius: 6, color: tint, fillColor: tint, weight: 1.5 };
+          : // A white ring around each destination pin keeps clustered pins
+            // readable — without it, same-coloured fills merge into one blob.
+            { radius: 6, color: "#ffffff", fillColor: tint, weight: 2 };
     const m = L.circleMarker(c, { ...style, fillOpacity: 1 });
     const title = inf?.title ?? this.registry.label(id);
 
@@ -136,7 +159,9 @@ export class RouteMap {
 
   /** Render a hub station linked to each of `others`. Unknown coords are skipped. */
   show(hub: string, others: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     layer.clearLayers();
     const pts: L.LatLngExpression[] = [];
 
@@ -170,7 +195,9 @@ export class RouteMap {
    * "via Paris" stop is visible as a secondary point along the line.
    */
   route(stations: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     layer.clearLayers();
     // Drop any connection-count tints left over from a previous browse (showMap):
     // an exact-trip/route destination is a plain endpoint, not a heat-map pin, so
@@ -203,7 +230,9 @@ export class RouteMap {
    * the view is widened so the whole radius is visible.
    */
   radius(centers: { id: string; km: number }[], nearby: string[]): void {
-    const { map, layer } = this.ensure();
+    const e = this.ensure();
+    if (!e) return;
+    const { map, layer } = e;
     let bounds: L.LatLngBounds | null = null;
     for (const { id, km } of centers) {
       const c = this.registry.coords(id);

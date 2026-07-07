@@ -658,6 +658,7 @@ function isPageReload(): boolean {
 function showSearchPrompt(): void {
   clear(refs.results);
   refs.results.append(render.emptyEl(t("prompt_search")));
+  showBaseMap();
 }
 
 // --- station resolution -----------------------------------------------------
@@ -1191,6 +1192,11 @@ function runSearch(): void {
 
 function renderSearch(): void {
   const c = ctx();
+
+  // Default the map to the bare France basemap; a mode that has something to plot
+  // overrides this with its own markers below. This keeps the map from sitting
+  // empty when a search can't run yet (e.g. no origin entered).
+  showBaseMap();
 
   // Back to the previous list (instant — journeys are memoized).
   if (navStack.length) {
@@ -2039,6 +2045,13 @@ function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>):
 function showRoute(stations: string[]): void {
   const m = ensureMap();
   m.route(stations);
+  requestAnimationFrame(() => m.invalidate());
+}
+
+/** Reset the map to the bare France basemap (no markers) — the pre-search state. */
+function showBaseMap(): void {
+  const m = ensureMap();
+  m.base();
   requestAnimationFrame(() => m.invalidate());
 }
 
