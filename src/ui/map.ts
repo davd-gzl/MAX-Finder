@@ -6,7 +6,7 @@ const EMERALD = "#0f7a52";
 
 /**
  * Reachability tint: direct (0 changes) reads green, and each extra connection
- * pushes the hue toward red (capped at 3) — so the map doubles as a heat map of
+ * pushes the hue toward red (capped at 2) — so the map doubles as a heat map of
  * how easy each destination is to reach.
  */
 function reachColor(connections: number): string {
@@ -172,6 +172,10 @@ export class RouteMap {
   route(stations: string[]): void {
     const { map, layer } = this.ensure();
     layer.clearLayers();
+    // Drop any connection-count tints left over from a previous browse (showMap):
+    // an exact-trip/route destination is a plain endpoint, not a heat-map pin, so
+    // it must read emerald rather than a stale reachColor() from the earlier view.
+    this.info = new Map();
     const known = stations
       .map((id) => ({ id, c: this.registry.coords(id) }))
       .filter((s): s is { id: string; c: [number, number] } => Boolean(s.c));
