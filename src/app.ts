@@ -441,13 +441,14 @@ function growTour(mode: "nearest" | "random", count: number): void {
   const added = tourCities.length - base.length;
 
   if (added === 0) {
-    // Couldn't add any city. Reflect a freshly-filled departure, but add nothing.
-    if (origin !== query.origin) {
-      query = { ...query, origin };
-      navStack = [];
-      syncFormFromQuery();
-      applyAndRun();
-    }
+    // Couldn't add any city. Still commit the snapshotted form (a freshly-filled
+    // departure, a removed finish/filter) so the view and URL reflect what's now in
+    // the form — not a stale query that would keep a just-removed destination — then
+    // flag that nothing was added.
+    query = { ...query, origin };
+    navStack = [];
+    syncFormFromQuery();
+    applyAndRun();
     setSurpriseMsg(t("surprise_none"));
     return;
   }
@@ -459,6 +460,10 @@ function growTour(mode: "nearest" | "random", count: number): void {
 
 /** Tour "nearest stop": fill up to N closest reachable stops that keep it feasible. */
 function addNearestCity(): void {
+  // Snapshot the live form first (see surpriseMe): growTour rebuilds the query and
+  // re-syncs the form, so it must start from the current form state — not a stale
+  // query that would bring back a just-removed destination / staged edit.
+  query = readQueryFromForm();
   growTour("nearest", tourAddCount());
 }
 
@@ -1935,6 +1940,11 @@ function onGlobalKey(e: KeyboardEvent): void {
  * departure elsewhere. Purely random, never a city that's already selected.
  */
 function surpriseMe(): void {
+  // Snapshot the live form first: "Surprise me" builds on top of the current query
+  // and then re-syncs the form from it, so it must start from what's ACTUALLY in the
+  // form (a cleared destination, a toggled filter) — not the stale last-searched
+  // query, which would resurrect edits the user just made (e.g. a removed city).
+  query = readQueryFromForm();
   const avail = deps.trains.filter((tr) => tr.available);
   const pickFrom = (xs: string[], not?: string): string | undefined => {
     const pool = not ? xs.filter((x) => x !== not) : xs;
