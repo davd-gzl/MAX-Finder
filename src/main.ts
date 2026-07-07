@@ -10,7 +10,14 @@ import { registerServiceWorker } from "./pwa/register";
 
 const root = document.getElementById("app");
 if (root) {
-  root.innerHTML = '<div class="app-loading"><span class="spinner" aria-hidden="true"></span></div>';
+  // The SEO build prerenders the home shell into #app. When present, keep that
+  // static markup painted while the dataset loads (initApp rebuilds #app anyway)
+  // instead of flashing it away to a spinner; only show the spinner when #app is
+  // empty — a normal, non-prerendered build.
+  const prerendered = root.querySelector(".mode-tabs") != null;
+  if (!prerendered) {
+    root.innerHTML = '<div class="app-loading"><span class="spinner" aria-hidden="true"></span></div>';
+  }
   const registry = new StationRegistry(stationData as Station[]);
   loadDataset()
     .then((dataset) => initApp(root, dataset, registry))
