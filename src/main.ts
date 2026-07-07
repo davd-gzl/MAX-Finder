@@ -5,6 +5,7 @@ import type { Station } from "./types";
 import stationData from "../data/stations.json";
 import { initApp } from "./app";
 import { registerServiceWorker } from "./pwa/register";
+import { initNative } from "./native/capacitor";
 import { el } from "./ui/dom";
 import { t, setLang, detectLang } from "./i18n";
 
@@ -50,3 +51,4 @@ if (root) {
 }
 
 registerServiceWorker();
+void initNative();

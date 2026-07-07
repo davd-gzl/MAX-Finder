@@ -98,6 +98,33 @@ specs/       constitution.md (guiding principles)
 - **[Algorithms](docs/algorithms.md)** — how it actually finds trains (free-seat filter, connections, one-pass sweeps, round trips, tours, station naming) with diagrams.
 - **[Vision / roadmap](VISION.md)** — V1 today is SNCF, done well; V2 adds Deutsche Bahn, Renfe and more of Europe into the same search. Principles in [`specs/constitution.md`](./specs/constitution.md).
 
+## Mobile app (Capacitor)
+
+The same static app is wrapped as a native Android/iOS app with
+[Capacitor](https://capacitorjs.com/). The native build uses base `/` (assets
+load from the app bundle, not the GitHub Pages sub-path), the service worker is
+skipped on native, and the Android hardware back button navigates in-app history.
+
+```bash
+npm run cap:sync          # build for native (base "/") + copy assets & plugins into the platform
+npx cap open android      # open in Android Studio to run / build an APK/AAB
+```
+
+The `android/` native project is already committed, so there's nothing to
+generate first. (If it's ever deleted, `npm run cap:add:android` regenerates it.)
+
+Requires the Android SDK / Android Studio to compile — the web build itself
+needs only Node. To add iOS: `npm i @capacitor/ios && npx cap add ios`.
+
+### Releases & F-Droid
+
+Publishing a **GitHub Release** triggers the
+[`Release Android APK`](.github/workflows/release-apk.yml) workflow, which builds
+the app, signs it with the configured keystore and attaches the APK to the release
+(it fails early if the keystore secrets are not set). The app is also packaged for
+**F-Droid**, which builds and signs from source. Signing setup, the per-release version bump, and the F-Droid build
+recipe are documented in **[docs/FDROID.md](docs/FDROID.md)**.
+
 Contributions welcome — fork, `npm install`, `npm test`, then open a PR; principles in [`specs/constitution.md`](./specs/constitution.md).
 
 ## For agents / data API
