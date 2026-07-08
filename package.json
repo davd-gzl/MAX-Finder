@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "FOSS, serverless finder for free MAX JEUNE / MAX SENIOR (ex-TGVmax) seats, built on SNCF Open Data.",
-  "license": "MPL-2.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
