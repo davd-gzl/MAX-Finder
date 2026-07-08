@@ -7,7 +7,7 @@ import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { isAirportStation } from "../data/stations";
-import { formatDuration, dayIndex } from "../util/time";
+import { formatDuration, dayIndex, addDays } from "../util/time";
 import { t } from "../i18n";
 
 export interface RenderCtx {
@@ -118,28 +118,6 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
   return el("div", { class: "train-row" }, [time, meta]);
 }
 
-function bookLink(
-  ctx: RenderCtx,
-  origin: string,
-  destination: string,
-  date: string,
-  time?: string,
-): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "btn btn-book",
-      href: ctx.bookUrl(origin, destination, date, time),
-      attrs: { target: "_blank", rel: "noopener noreferrer" },
-    },
-    [
-      el("span", { text: t("act_book") }),
-      icon(I.external),
-      el("span", { class: "sr-only", text: t("link_newtab") }),
-    ],
-  );
-}
-
 /** External travel-guide link styled as a button (matches the Save button). */
 export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
   return el(
@@ -230,6 +208,7 @@ export function journeyEl(
   opts: {
     saveable?: boolean;
     onPick?: (journey: Journey) => void;
+    onArrow?: (journey: Journey) => void;
     selected?: boolean;
     /** Container within which the active/selected highlight is exclusive (defaults
      * to the card's parent). Use it when the cards aren't direct siblings — e.g. the
@@ -292,16 +271,49 @@ export function journeyEl(
   // Connect search (the connection time isn't settable from a deep link, so it
   // re-optimises to the earliest connection). So a connecting trip books train by
   // train via the step modal; a direct trip deep-links straight through.
-  const actions = el("div", { class: "actions" }, [
-    connecting
-      ? el(
-          "button",
-          { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
-          // A "steps" icon (not the new-tab arrow): this opens the book-each-train
-          // modal rather than deep-linking straight to SNCF Connect.
-          [el("span", { text: t("act_book") }), icon(I.steps)],
-        )
-      : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
+  const bookBtn = opts.onArrow
+    ? el(
+        "button",
+        {
+          class: "book-arrow",
+          type: "button",
+          attrs: { "aria-label": t("act_next"), title: t("act_next") },
+          on: {
+            click: () => {
+              select("is-selected");
+              opts.onArrow!(j);
+            },
+          },
+        },
+        [icon(I.arrow)],
+      )
+    : connecting
+    ? el(
+        "button",
+        {
+          class: "book-arrow",
+          type: "button",
+          attrs: { "aria-label": t("act_book"), title: t("act_book") },
+          on: { click: () => ctx.onBookSteps(j) },
+        },
+        [icon(I.arrow)],
+      )
+    : el(
+        "a",
+        {
+          class: "book-arrow",
+          href: ctx.bookUrl(j.origin, j.destination, j.date, j.legs[0]?.depart),
+          attrs: {
+            target: "_blank",
+            rel: "noopener noreferrer",
+            "aria-label": t("act_book"),
+            title: t("act_book"),
+          },
+        },
+        [icon(I.arrow), el("span", { class: "sr-only", text: t("link_newtab") })],
+      );
+
+  const secondary = el("div", { class: "journey-sub" }, [
     el(
       "button",
       { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
@@ -319,33 +331,31 @@ export function journeyEl(
     ...(saveable ? [tripSaveBtn(j, ctx)] : []),
   ]);
 
-  const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
+  const article = el("article", { class: "journey is-clickable" }, [
+    el("div", { class: "journey-main" }, [el("div", { class: "journey-body" }, [head, legs]), secondary]),
+    el("div", { class: "journey-book" }, [bookBtn]),
+  ]);
   if (opts.selected) article.classList.add("is-selected");
 
-  // The scope within which only one card may be highlighted at a time.
   const scope = (): HTMLElement | null => opts.group ?? article.parentElement;
-  // Clicking the card (anywhere but the action buttons) draws this journey on
-  // the map and marks it active among its siblings.
+  function select(cls: "is-active" | "is-selected"): void {
+    scope()
+      ?.querySelectorAll(".journey.is-active, .journey.is-selected")
+      .forEach((x) => x.classList.remove("is-active", "is-selected"));
+    article.classList.add(cls);
+  }
   function showOnMap(): void {
     ctx.onShowJourney(j);
-    scope()
-      ?.querySelectorAll(".journey.is-active")
-      .forEach((x) => x.classList.remove("is-active"));
-    article.classList.add("is-active");
-  }
-  // Pick mode: clicking selects this card (exclusively within its scope), then
-  // runs onPick. Used to pick the round-trip outbound and to highlight one leg.
-  function pick(): void {
-    scope()
-      ?.querySelectorAll(".journey.is-selected")
-      .forEach((x) => x.classList.remove("is-selected"));
-    article.classList.add("is-selected");
-    opts.onPick!(j);
   }
   article.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".actions")) return;
-    if (opts.onPick) pick();
-    else showOnMap();
+    if ((e.target as HTMLElement).closest("button, a")) return;
+    if (opts.onPick) {
+      select("is-selected");
+      opts.onPick(j);
+    } else {
+      select("is-active");
+      showOnMap();
+    }
   });
 
   return article;
@@ -757,6 +767,9 @@ export function calendarEl(
       : cells.length - 1;
     cells[Math.max(0, Math.min(cells.length - 1, target))]?.focus();
   });
+  const first = days[0]?.date ?? "";
+  const leading = first ? (new Date(`${first}T00:00:00`).getDay() + 6) % 7 : 0;
+  for (let i = 0; i < leading; i++) grid.append(el("span", { class: "cal-blank", attrs: { "aria-hidden": "true" } }));
   let anyNearby = false;
   let anyBoth = false;
   for (const d of days) {
@@ -791,8 +804,6 @@ export function calendarEl(
         on: { click: () => ctx.onSelectDay(d.date) },
       },
       [
-        // Weekday above the day number, so each cell reads as a real date.
-        el("span", { class: "cal-dow", text: ctx.formatWeekday(d.date), attrs: { "aria-hidden": "true" } }),
         el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
         // A tiny per-day count, shown only where it's exact (route / return strips).
         ...(showCount && d.available && d.count > 0
@@ -808,8 +819,13 @@ export function calendarEl(
     ...(anyNearby ? [t("cal_legend_nearby")] : []),
     ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
   ].join(" · ");
+  const dowHead = el("div", { class: "cal-dow-head", attrs: { "aria-hidden": "true" } });
+  const refMonday = first ? addDays(first, -leading) : "";
+  for (let i = 0; i < 7; i++)
+    dowHead.append(el("span", { class: "cal-dow-c", text: refMonday ? ctx.formatWeekday(addDays(refMonday, i)) : "" }));
   return el("section", { class: "calendar" }, [
     el("h3", { text: opts?.title ?? t("cal_title") }),
+    dowHead,
     grid,
     el("p", { class: "cal-legend muted", text: legend }),
   ]);
@@ -916,6 +932,33 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
       guideButtonEl(ctx, outbound.destination),
     ]),
   );
+  return view;
+}
+
+export function multiTripViewEl(legs: Journey[], ctx: RenderCtx): HTMLElement {
+  const first = legs[0];
+  const stops = first ? [first.origin, ...legs.map((l) => l.destination)] : [];
+  const title = stops.map((s) => ctx.label(s)).join(" → ");
+  const totalTravel = legs.reduce((sum, l) => sum + l.totalDurationMin, 0);
+  const view = el("div", { class: "trip-view" }, [
+    el("h2", { class: "modal-title trip-title", text: title }),
+    el("p", { class: "muted trip-summary" }, [
+      icon(I.clock),
+      el("span", { text: formatDuration(totalTravel) }),
+    ]),
+  ]);
+  legs.forEach((leg) => {
+    view.append(
+      el("section", { class: "trip-leg" }, [
+        el("h3", { class: "trip-leg-title" }, [
+          el("bdi", { text: ctx.label(leg.origin) }),
+          el("span", { class: "muted", text: " → " }),
+          el("bdi", { text: ctx.label(leg.destination) }),
+        ]),
+        journeyEl(leg, ctx, { saveable: false, hideMap: true }),
+      ]),
+    );
+  });
   return view;
 }
 

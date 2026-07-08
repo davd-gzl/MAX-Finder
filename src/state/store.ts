@@ -1,4 +1,4 @@
-import type { SearchQuery, SearchMode, CardType, Journey, SortKey } from "../types";
+import type { SearchQuery, SearchMode, CardType, Journey, SortKey, TripLeg } from "../types";
 import type { Tour } from "../core/tour";
 import { isLang, detectLang, type Lang } from "../i18n";
 
@@ -176,6 +176,9 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.destination) p.set("to", q.destination);
   if (q.via) p.set("via", q.via);
   if (q.flexDays != null && q.flexDays > 0) p.set("flex", String(q.flexDays));
+  if (q.returnDate) p.set("rdate", q.returnDate);
+  if (q.returnFlexDays != null && q.returnFlexDays > 0) p.set("rflex", String(q.returnFlexDays));
+  if (q.legs && q.legs.length > 0) p.set("legs", q.legs.map((l) => `${l.from}>${l.to}@${l.date}`).join("~"));
   p.set("date", q.date);
   p.set("card", q.card);
   if (q.departAfter) p.set("after", q.departAfter);
@@ -236,6 +239,9 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     // Clamp to the stepper's 0..7 range (like setStepper) — an out-of-range link
     // should mean "the widest window", not silently fall back to no flexibility.
     flexDays: Number.isFinite(Number(p.get("flex"))) && Math.floor(Number(p.get("flex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("flex")))) : undefined,
+    returnDate: p.get("rdate") ?? undefined,
+    returnFlexDays: Number.isFinite(Number(p.get("rflex"))) && Math.floor(Number(p.get("rflex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("rflex")))) : undefined,
+    legs: parseLegs(p.get("legs")),
     date: p.get("date") ?? fallbackDate,
     card: p.get("card") === "senior" ? "senior" : "jeune",
     departAfter: p.get("after") ?? undefined,
@@ -274,6 +280,20 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
 /** Validate a URL sort value against the known keys (undefined = the default rank). */
 function parseSort(raw: string | null): SortKey | undefined {
   return raw && (SORT_KEYS as readonly string[]).includes(raw) ? (raw as SortKey) : undefined;
+}
+
+/** Parse the "legs" param (from>to@date, ~-joined) into multi-city legs. */
+function parseLegs(raw: string | null): TripLeg[] | undefined {
+  if (!raw) return undefined;
+  const legs = raw
+    .split("~")
+    .map((s) => {
+      const [od, date] = s.split("@");
+      const [from, to] = (od ?? "").split(">");
+      return { from: from ?? "", to: to ?? "", date: date ?? "" };
+    })
+    .filter((l) => l.from && l.to && l.date);
+  return legs.length > 0 ? legs : undefined;
 }
 
 export function updateUrl(q: SearchQuery): void {

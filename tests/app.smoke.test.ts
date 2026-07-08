@@ -244,29 +244,23 @@ describe("app (jsdom smoke)", () => {
     expect(nightBox()!.checked).toBe(true);
   });
 
-  it("Surprise me does not resurrect a tour finish the user just removed", () => {
-    // Regression: exact-trip destination carries into Tour as the "finish"; removing
-    // it is a staged edit. "Surprise me" used to rebuild from the stale last-searched
-    // query and push the removed city right back into the form and URL.
+  it("Multi-city builds explicit leg rows and can add another leg", () => {
+    const root = setup("");
+    const multiTab = root.querySelector('[data-trip="multi"]');
+    expect(multiTab).toBeTruthy();
+    (multiTab as HTMLElement).click();
+    // Starts with two leg rows; "Add another leg" appends a third.
+    expect(root.querySelectorAll(".mc-leg").length).toBe(2);
+    (root.querySelector(".mc-add") as HTMLElement).click();
+    expect(root.querySelectorAll(".mc-leg").length).toBe(3);
+  });
+
+  it("renders a multi-city deep-link as one result section per leg", () => {
     const root = setup(
-      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+      `?mode=tour&legs=${encodeURIComponent(
+        "PARIS (intramuros)>LYON (intramuros)@2026-06-25~LYON (intramuros)>TOULON@2026-06-27",
+      )}`,
     );
-    // Switch to Tour — Lyon becomes the tour finish (destination) field.
-    const tourTab = Array.from(root.querySelectorAll(".mode-tab")).find((t) => /Tour/i.test(t.textContent ?? ""));
-    expect(tourTab).toBeTruthy();
-    (tourTab as HTMLElement).click();
-    const dest = Array.from(root.querySelectorAll<HTMLInputElement>(".search-form input")).find((i) =>
-      /Lyon/i.test(i.value),
-    );
-    expect(dest).toBeTruthy();
-    // Remove it (staged), then hit "Surprise me".
-    dest!.value = "";
-    dest!.dispatchEvent(new Event("change", { bubbles: true }));
-    const surprise = root.querySelector(".surprise-btn") as HTMLElement;
-    expect(surprise).not.toBeNull();
-    surprise.click();
-    // The removed finish must stay gone — not in the field, not in the URL.
-    expect(dest!.value).toBe("");
-    expect(new URLSearchParams(location.search).get("to")).toBeNull();
+    expect(root.querySelectorAll(".mc-result").length).toBe(2);
   });
 });

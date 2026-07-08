@@ -1,6 +1,6 @@
 import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
-import type { SearchQuery, MaxTrain, Journey, SortKey } from "./types";
+import type { SearchQuery, SearchMode, MaxTrain, Journey, SortKey } from "./types";
 import {
   reachableDestinations,
   reachableOrigins,
@@ -13,7 +13,7 @@ import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
-import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
@@ -42,11 +42,15 @@ interface Deps {
 
 interface Refs {
   modeTabs: HTMLElement;
+  ideasBtn: HTMLElement;
   modeDesc: HTMLElement;
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
   dateField: HTMLElement;
+  departDate: DateFieldCtl;
+  legsBlock: HTMLElement;
+  surpriseBtn: HTMLElement;
   endDate: HTMLInputElement;
   endDateField: HTMLElement;
   card: HTMLSelectElement;
@@ -73,8 +77,6 @@ interface Refs {
   roundTripField: HTMLElement;
   roundTripOpts: HTMLElement;
   via: HTMLInputElement;
-  flex: HTMLElement; // segmented button group (data-value holds the selection)
-  flexField: HTMLElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
   viaField: HTMLElement;
@@ -100,7 +102,6 @@ interface Refs {
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
-  viewToggle: HTMLElement;
   favList: HTMLElement;
   tripList: HTMLElement;
 }
@@ -129,6 +130,27 @@ let navStack: SearchQuery[] = [];
 // "Ideas" (best) mode: when no specific day is picked, show every destination
 // reachable across the whole window. A calendar-day click narrows to that day.
 let bestAllDays = true;
+
+type TripType = "simple" | "return" | "multi" | "ideas";
+let tripType: TripType = "simple";
+const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
+
+function tripTypeForQuery(q: SearchQuery): TripType {
+  if (q.mode === "tour") return "multi";
+  if (q.mode === "best") return "ideas";
+  if (q.mode === "od" && q.returnDate) return "return";
+  return "simple";
+}
+
+function deriveMode(): SearchMode {
+  if (tripType === "multi") return "tour";
+  if (tripType === "ideas") return "best";
+  const o = resolveStation(refs.origin.value);
+  const d = resolveStation(refs.destination.value);
+  if (o && d) return "od";
+  if (d && !o) return "to";
+  return "from";
+}
 
 // Ordered list of station ids for the tour "cities to visit" chip input.
 let tourCities: string[] = [];
@@ -863,6 +885,29 @@ function showTripModal(outbound: Journey, inbound?: Journey): void {
   dialog.showModal();
 }
 
+function showMultiTripModal(legs: Journey[]): void {
+  const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
+  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
+  const closeBtn = el("button", {
+    class: "btn btn-ghost modal-close",
+    type: "button",
+    text: t("act_close"),
+    on: { click: () => dialog.close() },
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      render.multiTripViewEl(legs, modalCtx),
+      el("div", { class: "modal-actions" }, [closeBtn]),
+    ]),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 /**
  * A saved multi-city tour on one page (a modal): the full itinerary with every
  * bookable leg and a Save toggle. Map actions are no-ops here — there's no map
@@ -895,15 +940,24 @@ function showTourModal(tour: Tour): void {
 
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
-  setActiveTab(query.mode);
-  refs.modeDesc.textContent = t(`desc_${query.mode}` as const);
+  tripType = tripTypeForQuery(query);
+  setActiveTab(tripType);
+  refs.modeDesc.textContent = t(`desc_${tripType}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  setStepper(refs.flex, query.flexDays ?? 0);
+  refs.departDate.setRange(tripType === "return");
+  refs.departDate.setMargin(query.flexDays ?? 0);
+  refs.departDate.setDates(query.date, query.returnDate ?? "");
   refs.date.value = query.date;
+  if (query.legs && query.legs.length > 0) {
+    legRows = query.legs.map((l) =>
+      makeLeg(l.from ? deps.registry.label(l.from) : "", l.to ? deps.registry.label(l.to) : "", l.date),
+    );
+    renderLegs();
+  }
   refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
@@ -942,22 +996,24 @@ function readQueryFromForm(): SearchQuery {
   const minLegDur = Number(refs.minLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
-  const stayHours = Number(refs.stayHours.value.trim());
-  // Round trip lives in "Where to?" and "Ideas" — gate it to those so it never leaks.
-  const roundTrip = (query.mode === "from" || query.mode === "best") && refs.roundTrip.checked;
-  const flexNights = refs.nights.value === "flex";
-  const nightsVal = flexNights ? 3 : Number(refs.nights.value) || 0;
+  const mode = deriveMode();
   return {
-    mode: query.mode,
+    mode,
     origin: resolveStation(refs.origin.value),
     destination: resolveStation(refs.destination.value),
-    via: resolveStation(refs.via.value),
-    // Flexibility only applies to from/to/tour (its field is hidden elsewhere).
-    // Gate it like the other mode-specific fields so a value set here doesn't leak
-    // into the URL — or silently reapply — after switching to Ideas / exact trip.
-    flexDays:
-      query.mode === "from" || query.mode === "to" || query.mode === "tour"
-        ? getStepper(refs.flex) || undefined
+    via: mode === "od" ? resolveStation(refs.via.value) : undefined,
+    flexDays: refs.departDate.getMargin() || undefined,
+    returnDate: tripType === "return" && mode === "od" ? refs.departDate.getReturn() || undefined : undefined,
+    returnFlexDays: tripType === "return" && mode === "od" ? refs.departDate.getMargin() || undefined : undefined,
+    legs:
+      mode === "tour"
+        ? legRows
+            .map((l) => ({
+              from: resolveStation(l.from.value) ?? "",
+              to: resolveStation(l.to.value) ?? "",
+              date: l.dateCtl.input.value || query.date,
+            }))
+            .filter((l) => l.from && l.to)
         : undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
@@ -976,7 +1032,7 @@ function readQueryFromForm(): SearchQuery {
     // Chips hold the committed cities; also fold in any text still in the input
     // (typed but not yet turned into a chip) so a pending entry isn't lost.
     cities:
-      query.mode === "tour"
+      mode === "tour"
         ? [
             ...new Set([
               ...tourCities,
@@ -991,35 +1047,20 @@ function readQueryFromForm(): SearchQuery {
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
     maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
-    // Per-train time cap (tour mode). Floor at 30 min so a too-tight value can't
-    // silently rule out every train.
     maxLegDurationMin:
-      query.mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
+      mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
         ? Math.max(30, Math.floor(maxLegDur))
         : undefined,
-    // Per-train time floor (tour mode) — e.g. require long legs / night trains.
     minLegDurationMin:
-      query.mode === "tour" && Number.isFinite(minLegDur) && minLegDur > 0
+      mode === "tour" && Number.isFinite(minLegDur) && minLegDur > 0
         ? Math.floor(minLegDur)
         : undefined,
-    // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
-      query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
-    // Search radius (km) is an exact-trip feature only.
+      mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
     radiusKm:
-      query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
-    // Round-trip view (day trips + N-night getaways) — a "Where to?" feature only.
-    roundTrip: roundTrip || undefined,
-    nights: roundTrip && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
-    flexNights: (roundTrip && flexNights) || undefined,
-    stayMinHours:
-      roundTrip && nightsVal === 0 && Number.isFinite(stayHours) && stayHours >= 1
-        ? Math.min(12, Math.floor(stayHours))
-        : undefined,
-    lateReturn: (roundTrip && refs.lateReturn.checked) || undefined,
-    // Tour finish-by date — only meaningful with a tour destination set.
+      mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
     tourEndDate:
-      query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
+      mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
     // The sort lives in the results toolbar, not the form — carry it through.
     sort: query.sort,
   };
@@ -1058,6 +1099,7 @@ function refreshInPlace(): void {
   // `tourCities`) but aren't folded into `query` until Search. Re-syncing silently
   // reset them, which is the "my filter / cities disappeared" bug.
   refs.date.value = query.date;
+  refs.departDate.setDate(query.date);
   refreshTourEndDate();
   clear(refs.results);
   renderSearch();
@@ -1250,6 +1292,7 @@ async function shareCurrentUrl(onCopied: () => void): Promise<void> {
 function renderSearch(): void {
   const c = ctx();
   updateDocTitle();
+  rootRef.dataset.detail = navStack.length ? "on" : "";
 
   // Default the map to the bare France basemap; a mode that has something to plot
   // overrides this with its own markers below. This keeps the map from sitting
@@ -1434,8 +1477,63 @@ function runGetaways(c: RenderCtx, origin: string): void {
   );
 }
 
+function runMultiCity(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  const legs = (query.legs ?? []).filter((l) => l.from && l.to);
+  if (legs.length === 0) {
+    refs.results.append(render.emptyEl(t("multi_hint")));
+    showBaseMap();
+    return;
+  }
+  refs.title.textContent = t("multi_title", { n: legs.length });
+  const stations: string[] = [];
+  const legSections: HTMLElement[] = [];
+  const chosen: (Journey | null)[] = legs.map(() => null);
+  legs.forEach((leg, i) => {
+    const opts = { ...filterOpts(), maxConnections: query.maxConnections };
+    const journeys = findJourneys(trains, leg.from, leg.to, leg.date, opts).sort(
+      (a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin,
+    );
+    chosen[i] = journeys[0] ?? null;
+    const sec = el("section", { class: "mc-result" }, [
+      el("div", { class: "mc-result-head" }, [
+        el("span", { class: "mc-num", text: String(i + 1) }),
+        el("span", { class: "mc-route" }, [
+          el("bdi", { text: registry.label(leg.from) }),
+          el("span", { class: "muted", text: " → " }),
+          el("bdi", { text: registry.label(leg.to) }),
+        ]),
+        el("span", { class: "mc-date muted", text: formatDate(leg.date) }),
+      ]),
+    ]);
+    if (journeys.length === 0) sec.append(render.emptyEl(t("res_none")));
+    else
+      for (const j of journeys)
+        sec.append(
+          render.journeyEl(j, c, {
+            onPick: (jj) => {
+              chosen[i] = jj;
+            },
+            onArrow: (jj) => {
+              chosen[i] = jj;
+              const nextSec = legSections[i + 1];
+              if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
+              else showMultiTripModal(chosen.filter((x): x is Journey => x != null));
+            },
+          }),
+        );
+    legSections.push(sec);
+    refs.results.append(sec);
+    stations.push(leg.from);
+    const next = legs[i + 1];
+    if (!next || next.from !== leg.to) stations.push(leg.to);
+  });
+  showRoute(stations);
+}
+
 function runTourSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
+  if (query.legs || tripType === "multi") return runMultiCity(c);
   if (!query.origin) return showHint(refs.origin);
   refs.title.textContent = t("tour_title", {
     station: registry.label(query.origin),
@@ -1648,7 +1746,7 @@ function runOdSearch(c: RenderCtx): void {
   if (!query.origin || !query.destination) {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
-  odReturnDate = null; // a fresh outbound search re-proposes the return (outbound + 2)
+  odReturnDate = query.returnDate ?? null;
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
     destination: registry.label(query.destination),
@@ -1743,15 +1841,23 @@ function runOdSearch(c: RenderCtx): void {
         refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
       }
     }
+    const ret = tripType === "return";
     for (const j of journeys)
       refs.results.append(
-        render.journeyEl(j, c, {
-          selected: j === chosenOutbound,
-          onPick: (jj) => {
-            chosenOutbound = jj;
-            c.onShowJourney(jj);
-          },
-        }),
+        ret
+          ? render.journeyEl(j, c, {
+              selected: j === chosenOutbound,
+              onPick: (jj) => {
+                chosenOutbound = jj;
+              },
+              onArrow: (jj) => {
+                chosenOutbound = jj;
+                refs.results
+                  .querySelector<HTMLElement>(".od-return")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              },
+            })
+          : render.journeyEl(j, c),
       );
   }
 
@@ -1798,7 +1904,8 @@ function runOdSearch(c: RenderCtx): void {
   // "Do you want to come back?": a return availability calendar (every bookable
   // return day at a glance) plus a stay-N-nights quick pick. Picking a day lists
   // that day's free-MAX returns and lets you open the whole round trip on one page.
-  if (journeys.length > 0) {
+  // Only for a round trip (aller-retour) — a one-way search shows no return.
+  if (tripType === "return" && journeys.length > 0) {
     const origin = query.origin;
     const destination = query.destination;
     const proposed =
@@ -1837,7 +1944,12 @@ function runOdSearch(c: RenderCtx): void {
       // Clicking a return opens the whole round trip (the chosen outbound + this
       // return) on one page, ready to book both legs and save.
       for (const j of back)
-        retList.append(render.journeyEl(j, c, { onPick: (rj) => showTripModal(chosenOutbound!, rj) }));
+        retList.append(
+          render.journeyEl(j, c, {
+            onPick: () => {},
+            onArrow: (rj) => showTripModal(chosenOutbound!, rj),
+          }),
+        );
     };
     selectReturn = (retDate: string): void => {
       odReturnDate = retDate;
@@ -1898,18 +2010,24 @@ function goHome(): void {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-/** Switch search mode (tab click or 1–5 shortcut), starting a fresh history. */
-function switchMode(mode: SearchQuery["mode"]): void {
+/** Switch trip type (tab click or 1–4 shortcut), starting a fresh history. */
+function switchTab(next: TripType): void {
   navStack = [];
-  if (mode === "best") bestAllDays = true; // a fresh "ideas" view shows every day
-  query = { ...readQueryFromForm(), mode };
-  syncFormFromQuery();
+  tripType = next;
+  if (next === "ideas") bestAllDays = true;
+  setActiveTab(tripType);
+  refs.modeDesc.textContent = t(`desc_${tripType}` as const);
+  updateFieldVisibility();
+  query = readQueryFromForm();
   applyAndRun();
 }
 
 /** Run a fresh search from the current form (submit or "g" shortcut). */
 function runFromForm(): void {
   navStack = [];
+  // In Ideas, running the search honours the date picked in the form (that day's
+  // ideas), rather than the whole-window "all days" overview.
+  if (tripType === "ideas") bestAllDays = false;
   query = readQueryFromForm();
   applyAndRun();
 }
@@ -1938,7 +2056,6 @@ function showShortcutsHelp(): void {
   ]);
 }
 
-const SHORTCUT_MODES = ["from", "to", "od", "tour", "best"] as const;
 
 /**
  * Global keyboard shortcuts. Order matters: Escape first (also closes the help
@@ -1979,12 +2096,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (tgt && (/^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName) || tgt.isContentEditable)) return;
   if (document.querySelector("dialog[open]")) return; // not while a modal is up
 
-  if (/^[1-5]$/.test(e.key)) {
+  if (/^[1-4]$/.test(e.key)) {
     e.preventDefault();
-    switchMode(SHORTCUT_MODES[Number(e.key) - 1]!);
+    switchTab(TRIP_TABS[Number(e.key) - 1]!);
   } else if (e.key === "/") {
     e.preventDefault();
-    const f = query.mode === "to" ? refs.destination : refs.origin;
+    const f = deriveMode() === "to" ? refs.destination : refs.origin;
     f.focus();
     f.select();
   } else if (e.key === "[") {
@@ -1996,10 +2113,10 @@ function onGlobalKey(e: KeyboardEvent): void {
   } else if (e.key === "s") {
     e.preventDefault();
     surpriseMe();
-  } else if (e.key === "n" && query.mode === "tour") {
+  } else if (e.key === "n" && tripType === "multi") {
     e.preventDefault();
     addNearestCity(); // tour-only: grow the trip to the nearest reachable stop
-  } else if (e.key === "c" && query.mode === "tour") {
+  } else if (e.key === "c" && tripType === "multi") {
     e.preventDefault();
     clearTourCities(); // tour-only: clear every "city to visit" at once
   } else if (e.key === "g") {
@@ -2092,6 +2209,7 @@ function ensureMap(): Promise<RouteMap> {
       ({ RouteMap: MapCtor }) => {
         const m = new MapCtor(host, deps.registry);
         m.onSelect = selectStation;
+        m.onHover = onMarkerHover;
         mapInstance = m;
         return m;
       },
@@ -2143,16 +2261,18 @@ function showRadius(centers: { id: string; km: number }[], nearby: string[]): vo
     .catch(() => {});
 }
 
-/** Reveal & expand the destination card matching a clicked map marker. */
+/** Open the destination matching a clicked map marker — navigates to its calendar. */
 function selectStation(id: string): void {
   const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
   const card = refs.results.querySelector<HTMLElement>(sel);
   if (!card) return;
-  const panel = card.querySelector<HTMLElement>(".dest-panel");
-  if (panel?.hasAttribute("hidden")) {
-    panel.removeAttribute("hidden");
-    card.querySelector(".dest-main")?.setAttribute("aria-expanded", "true");
+  const open = card.querySelector<HTMLElement>(".dest-main");
+  if (open) {
+    open.click();
+    return;
   }
+  const panel = card.querySelector<HTMLElement>(".dest-panel");
+  if (panel?.hasAttribute("hidden")) panel.removeAttribute("hidden");
   markSelected(id);
   card.scrollIntoView({ behavior: "smooth", block: "center" });
   card.classList.add("flash");
@@ -2168,6 +2288,16 @@ function markSelected(id: string): void {
   const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
   refs.results.querySelector<HTMLElement>(sel)?.classList.add("is-selected");
   mapInstance?.highlight(id);
+}
+
+function onMarkerHover(id: string | null): void {
+  for (const c of refs.results.querySelectorAll(".is-hover")) c.classList.remove("is-hover");
+  if (!id) return;
+  const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
+  const card = refs.results.querySelector<HTMLElement>(sel);
+  if (!card) return;
+  card.classList.add("is-hover");
+  card.scrollIntoView({ block: "nearest" });
 }
 
 // --- watched routes ---------------------------------------------------------
@@ -2196,83 +2326,49 @@ function applyTheme(theme: store.Theme): void {
 
 // --- layout -----------------------------------------------------------------
 
-function setActiveTab(mode: SearchQuery["mode"]): void {
-  for (const btn of Array.from(refs.modeTabs.children)) {
-    const active = (btn as HTMLElement).dataset.mode === mode;
+function setActiveTab(trip: TripType): void {
+  for (const btn of [...Array.from(refs.modeTabs.children), refs.ideasBtn]) {
+    const active = (btn as HTMLElement).dataset.trip === trip;
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-pressed", String(active));
   }
 }
 
 function updateFieldVisibility(): void {
-  // "D'où venir" (to) picks a destination, so the departure field is irrelevant.
-  refs.originField.style.display = query.mode === "to" ? "none" : "";
-  // Destination: required in od/to; in tour it's the optional finish (can equal the
-  // start for a loop), so the field appears there too with a clarifying placeholder.
-  const needsDest = query.mode === "od" || query.mode === "to" || query.mode === "tour";
-  refs.destinationField.style.display = needsDest ? "" : "none";
-  refs.destination.placeholder = query.mode === "tour" ? t("tour_end_ph") : "";
+  const ret = tripType === "return";
+  const multi = tripType === "multi";
+  const ideas = tripType === "ideas";
+  const single = tripType === "simple" || ret;
+
+  refs.originField.style.display = multi ? "none" : "";
+  refs.destinationField.style.display = ideas || multi ? "none" : "";
+  refs.dateField.style.display = multi ? "none" : "";
+  refs.legsBlock.style.display = multi ? "" : "none";
+  refs.origin.placeholder = single ? t("ph_anywhere") : "";
+  refs.destination.placeholder = single ? t("ph_anywhere") : "";
+  refs.departDate.setRange(ret);
   refreshTourEndDate();
-  refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  // Flexible dates: in the "where to / where from" browse, widening to ±N days
-  // surfaces more places; in a tour it lets the departure slip a few days later to
-  // find a feasible start. Exact trip already has the 30-day calendar (the flex list
-  // would just duplicate it); best has its ideas-by-day calendar.
-  refs.flexField.style.display =
-    query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
 
-  // Round trip (day trips + N-night getaways) is offered in "Where to?" and in
-  // "Ideas" (discover good month-long escapes); its options appear once the toggle
-  // is on, and "min hours on site" only for a same-day (0-night) trip.
-  const canRound = query.mode === "from" || query.mode === "best";
-  refs.roundTripField.style.display = canRound ? "" : "none";
-  refs.roundTripOpts.style.display = canRound && refs.roundTrip.checked ? "" : "none";
-  refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
-  // "Only night trains" is a sub-option of the night-trains checkbox.
+  refs.viaField.style.display = single ? "" : "none";
   refs.onlyNightField.style.display = refs.night.checked ? "" : "none";
+  refs.surpriseBtn.style.display = multi ? "none" : "";
 
-  // Field placement per mode: every mode now promotes Connections (with
-  // Overnight/Night) into the prominent main form — they're central to where you
-  // can actually get. The exact trip also promotes its search radius. Single
-  // elements moved between the main fields grid and Advanced, never duplicated.
-  const tour = query.mode === "tour";
-  const od = query.mode === "od";
-  // Connections (with Overnight/Night) sits right after the Date field — it's
-  // central to where you can actually get, so it belongs up top, not by Region.
-  refs.dateField.after(refs.connGroupField);
-  if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
-  else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
+  refs.maxDurationField.style.display = multi ? "none" : "";
+  refs.maxLegDurationField.style.display = "none";
+  refs.minLegDurationField.style.display = "none";
 
-  // Duration caps differ by mode. A single journey (od / from / to / best) caps its
-  // TOTAL time. A multi-city tour instead caps the time of each hop ("max per
-  // train") — a whole-tour total would be meaningless across multi-day stays.
-  refs.maxDurationField.style.display = tour ? "none" : "";
-  refs.maxLegDurationField.style.display = tour ? "" : "none";
-  refs.minLegDurationField.style.display = tour ? "" : "none";
-
-  // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
-  refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
-  refs.citiesField.style.display = tour ? "" : "none";
-  refs.tourCountField.style.display = tour ? "" : "none";
-  refs.stayField.style.display = tour ? "" : "none";
-  // Km caps live in Advanced, shown only for a tour. Max trip span (days) lives in
-  // Advanced too, shown only for the exact trip.
-  refs.maxKmField.style.display = tour ? "" : "none";
-  refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
-  refs.radiusField.style.display = query.mode === "od" ? "" : "none";
-  // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
-  // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
-  if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
+  refs.regionField.style.display = ideas ? "" : "none";
+  refs.citiesField.style.display = "none";
+  refs.tourCountField.style.display = "none";
+  refs.stayField.style.display = "none";
+  refs.maxKmField.style.display = "none";
+  refs.maxSpanDaysField.style.display = single ? "" : "none";
+  refs.radiusField.style.display = single ? "" : "none";
+  if (nearestBtnEl) nearestBtnEl.style.display = "none";
 }
 
-/**
- * The tour "finish by" date only makes sense with a destination set, so it appears
- * the moment a tour destination is filled (and tracks the start as its lower bound).
- */
 function refreshTourEndDate(): void {
-  const show = query.mode === "tour" && Boolean(resolveStation(refs.destination.value));
-  refs.endDateField.style.display = show ? "" : "none";
-  refs.endDate.min = query.date; // can't finish before you leave
+  refs.endDateField.style.display = "none";
 }
 
 function buildLayout(root: HTMLElement): void {
@@ -2330,21 +2426,6 @@ function buildLayout(root: HTMLElement): void {
   });
   if (isTouch()) keysBtn.style.display = "none";
 
-  // List ⇄ Map view switch — Map flips the layout to a big, map-first canvas
-  // with the results floating over it. Persisted in settings.
-  const viewToggle = el("div", { class: "view-toggle", attrs: { role: "group", "aria-label": t("view_label") } }, [
-    viewBtn(
-      "list",
-      t("view_list"),
-      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
-    ),
-    viewBtn(
-      "map",
-      t("view_map"),
-      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3.5 6v14l5.5-2 6 2 5.5-2V4l-5.5 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>`,
-    ),
-  ]);
-
   // Card (pass) is a global preference, kept at the top and persisted at once.
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
     optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
@@ -2387,10 +2468,10 @@ function buildLayout(root: HTMLElement): void {
 
   // GitHub link with a star, to invite stars on the repo.
   const ghLink = el("a", {
-    class: "ctl gh-link",
-    html: `<span aria-hidden="true">★</span> GitHub`,
+    class: "ctl icon-ctl gh-link",
+    html: `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.3a10.7 10.7 0 0 0-3.38 20.86c.53.1.73-.23.73-.51 0-.25-.01-.92-.01-1.8-2.98.65-3.6-1.44-3.6-1.44-.49-1.24-1.19-1.57-1.19-1.57-.97-.66.08-.65.08-.65 1.07.08 1.64 1.1 1.64 1.1.95 1.64 2.5 1.16 3.11.89.1-.69.37-1.16.68-1.43-2.38-.27-4.88-1.19-4.88-5.3 0-1.17.42-2.13 1.1-2.88-.11-.27-.48-1.36.1-2.84 0 0 .9-.29 2.95 1.1a10.2 10.2 0 0 1 5.36 0c2.05-1.39 2.95-1.1 2.95-1.1.58 1.48.21 2.57.1 2.84.69.75 1.1 1.71 1.1 2.88 0 4.12-2.5 5.02-4.89 5.29.38.33.72.98.72 1.98 0 1.43-.01 2.58-.01 2.93 0 .28.19.62.74.51A10.7 10.7 0 0 0 12 1.3Z"/></svg>`,
     href: GITHUB_URL,
-    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub" },
+    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub", title: "GitHub" },
   });
 
   const header = el("header", { class: "site-header" }, [
@@ -2402,19 +2483,12 @@ function buildLayout(root: HTMLElement): void {
         on: { click: goHome },
         html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
       }),
-      el("div", {}, [
-        el("div", { class: "brand-head" }, [
-          el("h1", { text: t("appName") }),
-          el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
-        ]),
-        el("p", { class: "tagline", text: t("tagline") }),
-        el("p", { class: "updated", attrs: { title: t("data_why"), tabindex: "0" } }, [
-          el("span", { text: updated }),
-          el("span", { class: "sr-only", text: t("data_why") }),
-        ]),
+      el("div", { class: "brand-head" }, [
+        el("h1", { text: t("appName") }),
+        el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, viewToggle, keysBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, shareBtn, installBtn]),
   ]);
 
   // form
@@ -2442,6 +2516,7 @@ function buildLayout(root: HTMLElement): void {
   ]);
 
   const footer = el("footer", { class: "site-footer" }, [
+    el("p", { class: "muted small updated", attrs: { title: t("data_why") }, text: updated }),
     el("p", { class: "muted", text: t("foot_source") }),
     el("p", { class: "muted small", text: t("foot_disclaimer") }),
     el("div", { class: "foot-actions" }, [
@@ -2460,17 +2535,15 @@ function buildLayout(root: HTMLElement): void {
     ]),
   ]);
 
-  const mapSection = el("section", { class: "map-section" }, [
-    el("h3", { text: t("map_title") }),
+  const mapSection = el("section", { class: "map-section", attrs: { "aria-label": t("map_title") } }, [
     mapEl,
   ]);
   const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [built.form, title, results]),
-    el("div", { class: "side-col" }, [savedAside, aside, mapSection]),
+    el("div", { class: "main-col" }, [built.form, title, results, savedAside, aside, footer]),
+    el("div", { class: "side-col" }, [mapSection]),
   ]);
 
-  root.append(header, layout, footer);
-  root.dataset.view = settings.view;
+  root.append(header, layout);
 
   // Clicking a destination card highlights it (card + its map pin), so the list
   // and map stay in sync. A map-pin click already routes through selectStation().
@@ -2479,57 +2552,33 @@ function buildLayout(root: HTMLElement): void {
     if (card?.dataset.station) markSelected(card.dataset.station);
   });
 
+  let peekedStation: string | null = null;
+  results.addEventListener("mouseover", (ev) => {
+    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
+    const id = card?.dataset.station ?? null;
+    if (id !== peekedStation) {
+      peekedStation = id;
+      mapInstance?.peek(id);
+    }
+  });
+  results.addEventListener("mouseleave", () => {
+    peekedStation = null;
+    mapInstance?.peek(null);
+  });
+
   refs = {
     ...built.refs,
     title,
     results,
     mapEl,
-    viewToggle,
     favList,
     tripList,
     card: cardSel,
   };
   mapPromise = null;
   mapInstance = null;
-  updateViewToggle();
   renderFavorites();
   renderSavedTrips();
-}
-
-/** A single segment of the List ⇄ Map view switch. */
-function viewBtn(view: store.ViewMode, label: string, iconHtml: string): HTMLElement {
-  return el("button", {
-    class: "view-btn",
-    type: "button",
-    dataset: { view },
-    attrs: { "aria-label": label, title: label },
-    html: iconHtml,
-    on: { click: () => setView(view) },
-  });
-}
-
-/** Reflect the current view on the toggle's pressed state. */
-function updateViewToggle(): void {
-  for (const btn of Array.from(refs.viewToggle.children)) {
-    const active = (btn as HTMLElement).dataset.view === settings.view;
-    btn.classList.toggle("active", active);
-    btn.setAttribute("aria-pressed", String(active));
-  }
-}
-
-/** Switch between the list layout and the big map-first canvas (persisted). */
-function setView(view: store.ViewMode): void {
-  if (settings.view === view) return;
-  settings = { ...settings, view };
-  store.saveSettings(settings);
-  rootRef.dataset.view = view;
-  updateViewToggle();
-  updateRailMetrics();
-  // The map container changed size — let Leaflet recompute over two frames so the
-  // new layout has settled before invalidateSize/refit, then once more after the
-  // 0.3s height transition finishes so tiles fill the final size.
-  requestAnimationFrame(() => requestAnimationFrame(() => mapInstance?.invalidate()));
-  window.setTimeout(() => mapInstance?.invalidate(), 340);
 }
 
 // Distance from the document top to the results/map row (navbar + form + margins).
@@ -2548,7 +2597,374 @@ function updateRailMetrics(): void {
 
 interface FormBuild {
   form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "viewToggle" | "favList" | "tripList" | "card">;
+  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "tripList" | "card">;
+}
+
+interface DateFieldCtl {
+  root: HTMLElement;
+  input: HTMLInputElement;
+  getMargin(): number;
+  setMargin(n: number): void;
+  setRange(on: boolean): void;
+  setDate(date: string): void;
+  setDates(out: string, ret: string): void;
+  getReturn(): string;
+  refresh(): void;
+}
+
+function popoverOpts() {
+  return {
+    maxConnections: Number(refs.maxConnections.value) || 0,
+    departAfter: refs.departAfter.value || undefined,
+    departBefore: refs.departBefore.value || undefined,
+    arriveBefore: refs.arriveBefore.value || undefined,
+    ...(refs.night.checked ? {} : { excludeNight: true }),
+    ...(refs.night.checked && refs.onlyNight.checked ? { onlyNight: true } : {}),
+    ...(refs.overnight.checked ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
+  };
+}
+
+function computeAvail(
+  o: string | undefined,
+  d: string | undefined,
+  kind: "out" | "ret",
+  dates: string[],
+): Map<string, number> {
+  const opts = popoverOpts();
+  const map = new Map<string, number>();
+  let cal: { date: string; available: boolean; count: number }[] | null = null;
+  if (kind === "ret") {
+    if (o && d) cal = availabilityCalendar(deps.trains, d, o, dates, opts);
+  } else if (o && d) {
+    cal = availabilityCalendar(deps.trains, o, d, dates, opts);
+  } else if (o) {
+    cal = destinationCalendar(deps.trains, o, dates, opts);
+  }
+  if (cal) for (const c of cal) map.set(c.date, c.available ? c.count : 0);
+  return map;
+}
+
+function makeDateField(label: string, routeFn?: () => { o?: string; d?: string }, bare = false): DateFieldCtl {
+  const route = routeFn ?? (() => ({ o: resolveStation(refs.origin.value), d: resolveStation(refs.destination.value) }));
+  const days = dateRange(today, BOOKING_WINDOW_DAYS);
+  const lastBookable = days[days.length - 1] ?? today;
+  const input = inputEl("date");
+  input.min = today;
+  input.max = lastBookable;
+  input.classList.add("dp-native");
+
+  let margin = 0;
+  let isOpen = false;
+  let range = false;
+  let retDate = "";
+  let awaitReturn = false;
+  let avail = new Map<string, number>();
+  const fmtShort = (d: string): string =>
+    new Intl.DateTimeFormat(getLang(), { day: "numeric", month: "short" }).format(new Date(`${d}T00:00:00`));
+  const phase = (): "out" | "ret" => (range && awaitReturn ? "ret" : "out");
+
+  const valueText = el("span", { class: "dp-value-text" });
+  const valueBadge = el("span", { class: "dp-value-badge", attrs: { hidden: "" } });
+  const trigger = el(
+    "button",
+    { class: "dp-trigger input", type: "button", attrs: { "aria-haspopup": "dialog", "aria-expanded": "false" } },
+    [valueText, valueBadge],
+  );
+
+  const marginVal = el("span", { class: "dp-margin-val", text: "0" });
+  const marginMinus = el("button", { class: "dp-step", type: "button", text: "−", attrs: { "aria-label": "−1" } });
+  const marginPlus = el("button", { class: "dp-step", type: "button", text: "+", attrs: { "aria-label": "+1" } });
+  const marginRow = el("div", { class: "dp-margin" }, [
+    el("span", { class: "dp-margin-label muted", text: t("field_flex") }),
+    el("div", { class: "dp-margin-ctl" }, [
+      marginMinus,
+      el("span", { class: "dp-margin-box" }, [
+        el("span", { class: "muted", text: "±" }),
+        marginVal,
+        el("span", { class: "muted", text: ` ${t("flex_days")}` }),
+      ]),
+      marginPlus,
+    ]),
+  ]);
+
+  const dow = el("div", { class: "dp-dow" });
+  const grid = el("div", { class: "dp-grid" });
+  const legend = el("p", { class: "dp-legend muted" });
+  const pop = el("div", { class: "datepop", attrs: { role: "dialog", hidden: "" } }, [marginRow, dow, grid, legend]);
+  const wrap = el("div", { class: "datefield" }, [trigger, input]);
+  const root = bare ? wrap : field(label, wrap);
+  document.body.append(pop);
+
+  const leading = (new Date(`${today}T00:00:00`).getDay() + 6) % 7;
+  const refMonday = addDays(today, -leading);
+  for (let i = 0; i < 7; i++) dow.append(el("span", { class: "dp-dow-c", text: formatWeekday(addDays(refMonday, i)) }));
+
+  const setLabel = (): void => {
+    if (range) {
+      const a = input.value ? fmtShort(input.value) : t("field_depart");
+      const b = retDate ? fmtShort(retDate) : t("field_ret");
+      valueText.textContent = `${a} → ${b}`;
+    } else {
+      valueText.textContent = input.value ? formatDate(input.value) : t("field_date");
+    }
+    if (margin > 0) {
+      valueBadge.textContent = `±${margin}`;
+      valueBadge.removeAttribute("hidden");
+    } else {
+      valueBadge.setAttribute("hidden", "");
+    }
+  };
+
+  const pick = (date: string): void => {
+    if (range) {
+      if (awaitReturn && date >= input.value) {
+        retDate = date;
+        awaitReturn = false;
+        setLabel();
+        paint();
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        close();
+        return;
+      }
+      input.value = date;
+      retDate = "";
+      awaitReturn = true;
+      setLabel();
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      refresh();
+      return;
+    }
+    input.value = date;
+    setLabel();
+    paint();
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    close();
+  };
+
+  const paint = (): void => {
+    clear(grid);
+    for (let i = 0; i < leading; i++) grid.append(el("span", { class: "dp-cell dp-blank" }));
+    const out = input.value;
+    const outIdx = out ? dayIndex(out) : -1;
+    const retIdx = retDate ? dayIndex(retDate) : -1;
+    const picking = range && awaitReturn;
+    const known = avail.size > 0;
+    let anyOk = false;
+    for (const date of days) {
+      const di = dayIndex(date);
+      const before = picking && di < outIdx;
+      const ok = !before && (avail.get(date) ?? 0) > 0;
+      if (ok) anyOk = true;
+      const isSel = date === out || (range && date === retDate);
+      const inRange = range && outIdx >= 0 && retIdx >= 0 && di > outIdx && di < retIdx;
+      const nearOut = margin > 0 && outIdx >= 0 && Math.abs(di - outIdx) <= margin;
+      const nearRet = range && margin > 0 && retIdx >= 0 && Math.abs(di - retIdx) <= margin;
+      const inWin = !isSel && !inRange && (nearOut || nearRet);
+      const cls = [
+        "dp-cell",
+        ok ? "ok" : before || known ? "no" : "",
+        isSel ? "sel" : "",
+        inRange ? "range" : "",
+        inWin ? "win" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      grid.append(
+        el("button", {
+          class: cls,
+          type: "button",
+          text: date.slice(8, 10),
+          attrs: { "aria-label": formatDate(date), "data-date": date, ...(isSel ? { "aria-current": "date" } : {}) },
+          on: { click: () => pick(date) },
+        }),
+      );
+    }
+    legend.textContent = margin > 0 ? t("datepick_window") : anyOk ? t("cal_legend") : "";
+  };
+
+  const refresh = (): void => {
+    const r = route();
+    avail = computeAvail(r.o, r.d, phase(), days);
+    paint();
+  };
+
+  const onDocClick = (e: MouseEvent): void => {
+    const n = e.target as Node;
+    if (!wrap.contains(n) && !pop.contains(n)) close();
+  };
+  const place = (): void => {
+    const r = trigger.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    let left = r.left;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - w);
+    pop.style.top = `${Math.round(r.bottom + 6)}px`;
+    pop.style.left = `${Math.round(left)}px`;
+  };
+  function close(): void {
+    if (!isOpen) return;
+    isOpen = false;
+    pop.setAttribute("hidden", "");
+    trigger.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDocClick, true);
+    window.removeEventListener("scroll", place, true);
+    window.removeEventListener("resize", place);
+  }
+  const openPop = (): void => {
+    isOpen = true;
+    refresh();
+    pop.removeAttribute("hidden");
+    place();
+    trigger.setAttribute("aria-expanded", "true");
+    document.addEventListener("click", onDocClick, true);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+  };
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    isOpen ? close() : openPop();
+  });
+  pop.addEventListener("click", (e) => e.stopPropagation());
+  pop.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      close();
+      trigger.focus();
+    }
+  });
+  grid.addEventListener("mouseover", (e) => {
+    if (!range || !awaitReturn) return;
+    const cell = (e.target as HTMLElement).closest<HTMLElement>(".dp-cell");
+    const hover = cell?.getAttribute("data-date");
+    if (!hover) return;
+    const outIdx = dayIndex(input.value);
+    const hi = dayIndex(hover);
+    for (const c of Array.from(grid.children) as HTMLElement[]) {
+      const cd = c.getAttribute("data-date");
+      c.classList.toggle("preview", Boolean(cd) && hi >= outIdx && dayIndex(cd!) > outIdx && dayIndex(cd!) <= hi);
+    }
+  });
+  grid.addEventListener("mouseleave", () => {
+    for (const c of Array.from(grid.children) as HTMLElement[]) c.classList.remove("preview");
+  });
+
+  const setMarginVal = (n: number): void => {
+    margin = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
+    marginVal.textContent = String(margin);
+    setLabel();
+    if (isOpen) paint();
+  };
+  marginMinus.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setMarginVal(margin - 1);
+  });
+  marginPlus.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setMarginVal(margin + 1);
+  });
+
+  setLabel();
+
+  return {
+    root,
+    input,
+    getMargin: () => margin,
+    setMargin: (n) => setMarginVal(n),
+    setRange: (on) => {
+      range = on;
+      if (!on) retDate = "";
+      awaitReturn = false;
+      setLabel();
+      if (isOpen) refresh();
+    },
+    setDate: (d) => {
+      input.value = d;
+      setLabel();
+      if (isOpen) paint();
+    },
+    setDates: (out, ret) => {
+      input.value = out;
+      retDate = range ? ret : "";
+      awaitReturn = false;
+      setLabel();
+      if (isOpen) refresh();
+    },
+    getReturn: () => retDate,
+    refresh,
+  };
+}
+
+interface LegCtl {
+  from: HTMLInputElement;
+  to: HTMLInputElement;
+  dateCtl: DateFieldCtl;
+  row: HTMLElement;
+  remove: HTMLElement;
+}
+let legRows: LegCtl[] = [];
+let legsContainer: HTMLElement | null = null;
+
+function makeLeg(fromVal = "", toVal = "", dateVal = ""): LegCtl {
+  const from = inputEl("text", "station-list");
+  const to = inputEl("text", "station-list");
+  from.value = fromVal;
+  to.value = toVal;
+  from.placeholder = t("field_origin");
+  to.placeholder = t("field_destination");
+  for (const inp of [from, to]) {
+    inp.addEventListener("input", () => inp.classList.remove("is-invalid"));
+    inp.addEventListener("change", () => {
+      const v = inp.value.trim();
+      inp.classList.toggle("is-invalid", v !== "" && !resolveStation(v));
+    });
+  }
+  const dateCtl = makeDateField(
+    t("field_date"),
+    () => ({ o: resolveStation(from.value), d: resolveStation(to.value) }),
+    true,
+  );
+  if (dateVal) dateCtl.setDate(dateVal);
+  const remove = el("button", {
+    class: "mc-remove",
+    type: "button",
+    text: "×",
+    attrs: { "aria-label": t("leg_remove"), title: t("leg_remove") },
+  });
+  const row = el("div", { class: "mc-leg" }, [from, to, dateCtl.root, remove]);
+  const ctl: LegCtl = { from, to, dateCtl, row, remove };
+  remove.addEventListener("click", () => removeLeg(ctl));
+  to.addEventListener("change", () => {
+    const id = resolveStation(to.value);
+    const next = legRows[legRows.indexOf(ctl) + 1];
+    if (next && id && !next.from.value.trim()) next.from.value = deps.registry.label(id);
+  });
+  return ctl;
+}
+
+function renderLegs(): void {
+  if (!legsContainer) return;
+  clear(legsContainer);
+  const removable = legRows.length > 2;
+  legRows.forEach((l) => {
+    l.remove.style.display = removable ? "" : "none";
+    legsContainer!.append(l.row);
+  });
+}
+
+function addLeg(): void {
+  const prev = legRows[legRows.length - 1];
+  const id = prev ? resolveStation(prev.to.value) : undefined;
+  legRows.push(makeLeg(id ? deps.registry.label(id) : ""));
+  renderLegs();
+}
+
+function removeLeg(ctl: LegCtl): void {
+  if (legRows.length <= 2) return;
+  legRows = legRows.filter((l) => l !== ctl);
+  renderLegs();
+}
+
+function clearTripLegs(): void {
+  legRows = [makeLeg(), makeLeg()];
+  renderLegs();
 }
 
 function buildForm(): FormBuild {
@@ -2556,17 +2972,26 @@ function buildForm(): FormBuild {
   for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  (["from", "to", "od", "tour", "best"] as const).forEach((m, i) => {
+  (["simple", "return", "multi"] as const).forEach((trip, i) => {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
-      text: t(`mode_${m}` as const),
-      dataset: { mode: m },
-      on: { click: () => switchMode(m) },
+      text: t(`tab_${trip}` as const),
+      dataset: { trip },
+      on: { click: () => switchTab(trip) },
     });
-    withShortcut(btn, String(i + 1)); // 1–5 mode shortcuts (see onGlobalKey)
+    withShortcut(btn, String(i + 1));
     modeTabs.append(btn);
   });
+  const ideasBtn = el("button", {
+    class: "mode-tab ideas-tab",
+    type: "button",
+    text: t("tab_ideas"),
+    dataset: { trip: "ideas" },
+    on: { click: () => switchTab("ideas") },
+  });
+  withShortcut(ideasBtn, "4");
+  const modeBar = el("div", { class: "mode-bar" }, [modeTabs, ideasBtn]);
   const modeDesc = el("p", { class: "mode-desc" });
 
   const origin = inputEl("text", "station-list");
@@ -2592,13 +3017,10 @@ function buildForm(): FormBuild {
       destination.focus();
     }
   });
-  const date = inputEl("date");
-  // Constrain dates to exactly the window the 30-day calendar renders.
-  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const lastBookable = windowDates[windowDates.length - 1] ?? today;
-  date.min = today;
-  date.max = lastBookable;
-  const dateField = field(t("field_date"), date);
+  const departDate = makeDateField(t("field_date"));
+  const date = departDate.input;
+  const dateField = departDate.root;
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   // Optional tour finish-by date (shown only when a tour has a destination).
   const endDate = inputEl("date");
   endDate.min = today;
@@ -2700,10 +3122,6 @@ function buildForm(): FormBuild {
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
   nights.addEventListener("change", syncRoundTripOpts);
-  // Flexible dates ("± N days"): a compact −/+ stepper (fewer controls than a row
-  // of buttons). Widens the browse to a window around the chosen date.
-  const flex = buildStepper(t("field_flex"));
-  const flexField = field(t("field_flex"), flex);
   const regionList = [
     ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
   ].sort();
@@ -2856,10 +3274,11 @@ function buildForm(): FormBuild {
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
     el("div", { class: "advanced-grid" }, [
+      connGroupField,
+      viaField,
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
       field(t("field_arriveBefore"), arriveBefore),
-      connGroupField,
       maxDurationField,
       minLegDurationField,
       maxLegDurationField,
@@ -2882,6 +3301,23 @@ function buildForm(): FormBuild {
   withShortcut(surpriseBtn, "S"); // "s" = surprise me
   // Inline status for "surprise" (e.g. no city can be added to a tour).
   surpriseMsgEl = el("p", { class: "surprise-msg", attrs: { role: "status" } });
+
+  const addLegBtn = el("button", { class: "linklike mc-add", type: "button", text: t("leg_add"), on: { click: addLeg } });
+  const clearLegsBtn = el("button", { class: "linklike mc-clear", type: "button", text: t("cities_clear"), on: { click: clearTripLegs } });
+  const legsHead = el("div", { class: "mc-head" }, [
+    el("span", { class: "field-label", text: t("field_origin") }),
+    el("span", { class: "field-label", text: t("field_destination") }),
+    el("span", { class: "field-label", text: t("field_date") }),
+    el("span", {}),
+  ]);
+  const legsBlock = el("div", { class: "mc-block" }, [
+    legsHead,
+    el("div", { class: "mc-legs" }),
+    el("div", { class: "mc-actions" }, [addLegBtn, clearLegsBtn]),
+  ]);
+  legsContainer = legsBlock.querySelector(".mc-legs");
+  legRows = [makeLeg(), makeLeg()];
+  renderLegs();
 
   const howto = el("details", { class: "howto" }, [
     el("summary", { text: t("how_title") }),
@@ -2908,17 +3344,15 @@ function buildForm(): FormBuild {
 
   const form = el("form", { class: "search-form" }, [
     el("div", { class: "form-body" }, [
-      modeTabs,
+      modeBar,
       modeDesc,
       el("div", { class: "fields" }, [
         originField,
         destinationField,
-        viaField,
         dateField,
-        flexField,
         endDateField,
-        roundTripField,
         regionField,
+        legsBlock,
         citiesField,
         stayField,
         tourCountField,
@@ -2947,11 +3381,15 @@ function buildForm(): FormBuild {
     form,
     refs: {
       modeTabs,
+      ideasBtn,
       modeDesc,
       origin,
       destination,
       date,
       dateField,
+      departDate,
+      legsBlock,
+      surpriseBtn,
       endDate,
       endDateField,
       departAfter,
@@ -2977,8 +3415,6 @@ function buildForm(): FormBuild {
       roundTripField,
       roundTripOpts,
       via,
-      flex,
-      flexField,
       originField,
       destinationField,
       viaField,
@@ -3224,43 +3660,6 @@ function field(label: string, control: HTMLElement): HTMLElement {
 }
 
 const FLEX_MAX = 7;
-
-/**
- * A compact −/+ stepper with a writable number in the middle (used for date
- * flexibility): nudge with the buttons or just type the number of ± days. The
- * value lives on `data-value`.
- */
-function buildStepper(ariaLabel: string): HTMLElement {
-  const stepper = el("div", { class: "stepper", attrs: { role: "group", "aria-label": ariaLabel } });
-  const input = el("input", {
-    class: "step-input",
-    type: "number",
-    attrs: { min: "0", max: String(FLEX_MAX), inputmode: "numeric", "aria-label": ariaLabel },
-  }) as HTMLInputElement;
-  const minus = el("button", { class: "step-btn", type: "button", text: "−", attrs: { "aria-label": "−1" } });
-  const plus = el("button", { class: "step-btn", type: "button", text: "+", attrs: { "aria-label": "+1" } });
-  // Nudging the value only updates the field — like every other form control, the
-  // new flexibility is applied when the search is run, not on the spot.
-  minus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) - 1));
-  plus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) + 1));
-  input.addEventListener("change", () => setStepper(stepper, Number(input.value)));
-  stepper.append(minus, input, el("span", { class: "step-unit muted", text: t("flex_days") }), plus);
-  setStepper(stepper, 0);
-  return stepper;
-}
-
-/** Set the stepper value (0..FLEX_MAX), clamping, and update its number field. */
-function setStepper(stepper: HTMLElement, n: number): void {
-  const v = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
-  stepper.dataset.value = String(v);
-  const input = stepper.querySelector<HTMLInputElement>(".step-input");
-  if (input) input.value = String(v);
-}
-
-/** Read the stepper value. */
-function getStepper(stepper: HTMLElement): number {
-  return Number(stepper.dataset.value ?? 0);
-}
 
 /**
  * A field whose text input carries a clear "×" button (shown only when there's
