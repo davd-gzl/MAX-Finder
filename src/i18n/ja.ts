@@ -76,6 +76,8 @@ export const ja: Dict = {
   nearby_both: "近くで出発して近くに到着",
   nearby_km: "{km} km",
   nearby_none: "この経路に MAX 席のある近隣駅はありません。",
+  nearby_browse_from: "近くの駅まで短い区間を支払えば行ける、追加の目的地。",
+  nearby_browse_to: "目的地の近くの駅に着く追加の出発地 — そこから短い区間だけ支払います。",
   field_hidden: "隠れ列車（途中下車）",
   hidden_title: "隠れ列車",
   hidden_hint: "希望の区間に MAX 席がない？あなたの駅に停まる列車で、目的地より先の駅までの切符を予約し、手前で降りましょう。出発駅は同じです。手荷物のみ・自己責任で：列車が迂回・運休した場合、切符は保証されません — 必ず SNCF Connect で確認してください。",

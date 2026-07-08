@@ -76,6 +76,8 @@ export const nl: Dict = {
   nearby_both: "Vertrek en aankomst in de buurt",
   nearby_km: "{km} km",
   nearby_none: "Geen nabijgelegen station heeft een MAX-plaats voor deze route.",
+  nearby_browse_from: "Extra bestemmingen die je bereikt door een korte hop naar een nabijgelegen station te betalen.",
+  nearby_browse_to: "Extra vertrekpunten die een station bij je bestemming bereiken — betaal daar een korte hop.",
   field_hidden: "Verborgen trein (eerder uitstappen)",
   hidden_title: "Verborgen treinen",
   hidden_hint: "Geen MAX-plaats voor je exacte route? Boek een kaartje naar een station voorbij het jouwe op een trein die op jouw station stopt, en stap eerder uit. Zelfde vertrek. Alleen handbagage en op eigen risico: het kaartje dekt je niet als de trein wordt omgeleid of geschrapt — controleer altijd op SNCF Connect.",

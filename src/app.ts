@@ -7,11 +7,11 @@ import {
   reachableGroups,
   windowStats,
 } from "./core/destinations";
-import { filterTrains, isNightTrain } from "./core/search";
+import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
 import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
-import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
 import { findHiddenTrains } from "./core/hidden";
@@ -238,6 +238,66 @@ function nearbyAlternatives(
     }
   }
   return { fromOrigin, toDest, bothEnds };
+}
+
+// How many nearby anchor substitutes to probe in a browse-mode radius search
+// (nearest-first), and how many extra places to surface. Kept modest so the
+// section stays scannable and the (linear-per-neighbour) scan stays quick.
+const NEARBY_ANCHOR_CAP = 12;
+const NEARBY_BROWSE_RESULTS = 30;
+
+/** One extra browse destination/origin unlocked by hopping to a nearby anchor. */
+interface NearbyBrowseTrip {
+  /** The newly-reachable "other" station (a destination for "from", an origin for "to"). */
+  station: string;
+  /** The nearby anchor substitute you'd hop to/from, and its distance from the anchor. */
+  via: string;
+  km: number;
+  /** The free-MAX direct leg between the nearby anchor and the other station. */
+  journey: Journey;
+}
+
+/**
+ * Browse-mode radius search. The anchor (your origin in "Where to?", your
+ * destination in "Where from?") is substituted for stations within `radiusKm`,
+ * surfacing extra places you could reach by paying a short hop to/from a
+ * neighbouring station — the browse twin of {@link nearbyAlternatives}. Direct
+ * free-MAX legs only, nearest-anchor-first, excluding places already listed.
+ */
+function nearbyBrowse(
+  anchor: string,
+  dir: "from" | "to",
+  date: string,
+  radiusKm: number,
+  opts: FilterOptions,
+  exclude: Set<string>,
+): NearbyBrowseTrip[] {
+  const near = deps.registry
+    .list()
+    .map((s) => ({ id: s.id, km: stationDistanceKm(anchor, s.id) }))
+    .filter((x) => x.id !== anchor && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
+    .sort((a, b) => a.km - b.km)
+    .slice(0, NEARBY_ANCHOR_CAP);
+  // Keep the nearest-anchor option per newly-reachable station.
+  const best = new Map<string, NearbyBrowseTrip>();
+  for (const n of near) {
+    const groups =
+      dir === "from"
+        ? reachableDestinations(deps.trains, n.id, date, opts)
+        : reachableOrigins(deps.trains, n.id, date, opts);
+    for (const g of groups) {
+      const other = g.station;
+      if (other === anchor || exclude.has(other)) continue;
+      // Fastest direct leg between the neighbour and this station, as a one-leg journey.
+      const leg = [...g.trains].sort((a, b) => a.durationMin - b.durationMin)[0];
+      if (!leg) continue;
+      const prev = best.get(other);
+      if (!prev || n.km < prev.km) best.set(other, { station: other, via: n.id, km: n.km, journey: toJourney([leg]) });
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => a.km - b.km || a.journey.totalDurationMin - b.journey.totalDurationMin)
+    .slice(0, NEARBY_BROWSE_RESULTS);
 }
 
 /**
@@ -1009,9 +1069,14 @@ function readQueryFromForm(): SearchQuery {
     // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
     maxSpanDays:
       query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
-    // Search radius (km) is an exact-trip feature only.
+    // Search radius (km): exact trip, plus the browse modes ("Where to?" /
+    // "Where from?"), where it substitutes the anchor for a nearby station.
     radiusKm:
-      query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+      (query.mode === "od" || query.mode === "from" || query.mode === "to") &&
+      Number.isFinite(rad) &&
+      rad >= 10
+        ? Math.min(300, Math.floor(rad))
+        : undefined,
     // "Hidden train" (hidden-city ticketing) is an exact-trip feature only — gate it
     // to od so the flag never leaks into another mode's URL.
     hidden: (query.mode === "od" && refs.hidden.checked) || undefined,
@@ -1365,31 +1430,58 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   })();
 
   const total = groups.length + connecting.length;
+
+  // Radius (browse): extra places reachable by hopping to a nearby anchor station,
+  // excluding everywhere already listed. Computed on the selected day (like the
+  // exact-trip nearby section), and used both to fill an otherwise-empty result and
+  // as a supplement below the main list.
+  const already = new Set<string>([...directStations, ...connecting.map((tr) => tr.station)]);
+  const nearby = query.radiusKm
+    ? nearbyBrowse(anchor, dir, query.date, query.radiusKm, filterOpts(), already)
+    : [];
+
   if (total === 0) {
-    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
-    showMap(anchor, []);
-    return;
-  }
-  // Sort applies to the direct destinations (the rich cards); "rec" keeps the
-  // most-served default. Via rows stay appended after, in their duration order.
-  const sortedGroups = applySort(groups, {
-    name: (g) => registry.label(g.station),
-    distanceKm: (g) => stationDistanceKm(anchor, g.station),
-    durationMin: (g) => g.minDurationMin,
-  });
-  refs.results.append(
-    render.listToolbarEl(
-      t(countKey, { n: total }),
-      query.sort ?? "rec",
-      sortOptions(["rec", "fastest", "closest", "name"]),
-      onSort,
-    ),
-  );
-  for (const g of sortedGroups)
+    // Suppress the empty message when nearby alternatives will fill the gap below.
+    if (nearby.length === 0) {
+      refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+      showMap(anchor, []);
+      return;
+    }
+  } else {
+    // Sort applies to the direct destinations (the rich cards); "rec" keeps the
+    // most-served default. Via rows stay appended after, in their duration order.
+    const sortedGroups = applySort(groups, {
+      name: (g) => registry.label(g.station),
+      distanceKm: (g) => stationDistanceKm(anchor, g.station),
+      durationMin: (g) => g.minDurationMin,
+    });
     refs.results.append(
-      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      render.listToolbarEl(
+        t(countKey, { n: total }),
+        query.sort ?? "rec",
+        sortOptions(["rec", "fastest", "closest", "name"]),
+        onSort,
+      ),
     );
-  for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+    for (const g of sortedGroups)
+      refs.results.append(
+        render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      );
+    for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+  }
+
+  // Nearby paid-hop alternatives: a station near your anchor reaches (or is reached
+  // by) somewhere your exact anchor doesn't. Each row opens that nearby leg's route.
+  if (query.radiusKm) {
+    const sec = el("section", { class: "nearby" }, [
+      el("h3", { text: t("nearby_title", { km: query.radiusKm }) }),
+      el("p", { class: "muted small", text: t(dir === "from" ? "nearby_browse_from" : "nearby_browse_to") }),
+    ]);
+    if (nearby.length === 0) sec.append(render.emptyEl(t("nearby_none")));
+    else for (const n of nearby) sec.append(render.nearbyTripRowEl(n.station, Math.round(n.km), n.journey, c));
+    refs.results.append(sec);
+  }
+
   // Tint map pins by how many changes each place takes: direct = green, each
   // extra connection pushes toward red (see RouteMap.reachColor).
   const mapInfo = new Map<string, MarkerInfo>();
@@ -1399,7 +1491,13 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       title: registry.label(tr.station),
       connections: tr.journey.legs.length - 1,
     });
-  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)], mapInfo);
+  showMap(
+    anchor,
+    [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station), ...nearby.map((n) => n.station)],
+    mapInfo,
+  );
+  // Draw the search-radius circle around the anchor and mark the nearby substitutes.
+  if (query.radiusKm) showRadius([{ id: anchor, km: query.radiusKm }], nearby.map((n) => n.via));
 }
 
 /**
@@ -2287,7 +2385,8 @@ function updateFieldVisibility(): void {
   // Advanced too, shown only for the exact trip.
   refs.maxKmField.style.display = tour ? "" : "none";
   refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
-  refs.radiusField.style.display = query.mode === "od" ? "" : "none";
+  refs.radiusField.style.display =
+    query.mode === "od" || query.mode === "from" || query.mode === "to" ? "" : "none";
   // "Hidden train" (hidden-city ticketing) is an exact-trip-only toggle.
   refs.hiddenField.style.display = query.mode === "od" ? "" : "none";
   // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the

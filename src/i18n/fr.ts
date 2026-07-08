@@ -78,6 +78,8 @@ export const fr = {
   nearby_both: "Partir et arriver près",
   nearby_km: "à {km} km",
   nearby_none: "Aucune gare voisine n'a de place MAX pour ce trajet.",
+  nearby_browse_from: "Des destinations en plus, en payant un court trajet jusqu'à une gare voisine.",
+  nearby_browse_to: "Des points de départ en plus qui atteignent une gare proche de votre arrivée — payez un court trajet depuis là.",
   field_hidden: "Train caché (descente anticipée)",
   hidden_title: "Trains cachés",
   hidden_hint: "Aucune place MAX pour votre trajet exact ? Réservez un billet jusqu'à une gare située après la vôtre, sur un train qui dessert votre gare, et descendez plus tôt. Même départ. Bagage à main uniquement et à vos risques : le billet ne vous couvre pas si le train est dérouté ou supprimé — vérifiez toujours sur SNCF Connect.",

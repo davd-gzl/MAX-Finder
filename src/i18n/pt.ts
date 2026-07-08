@@ -76,6 +76,8 @@ export const pt: Dict = {
   nearby_both: "Partir e chegar perto",
   nearby_km: "a {km} km",
   nearby_none: "Nenhuma estação próxima tem lugar MAX para este trajeto.",
+  nearby_browse_from: "Destinos extra que pode alcançar pagando um pequeno trajeto até uma estação próxima.",
+  nearby_browse_to: "Origens extra que chegam a uma estação perto do seu destino — pague um pequeno trajeto a partir daí.",
   field_hidden: "Comboio oculto (saída antecipada)",
   hidden_title: "Comboios ocultos",
   hidden_hint: "Sem lugar MAX para o seu trajeto exato? Reserve um bilhete até uma estação depois da sua num comboio que pare na sua estação e saia mais cedo. Mesma partida. Apenas bagagem de mão e por sua conta e risco: o bilhete não o cobre se o comboio for desviado ou cancelado — confirme sempre no SNCF Connect.",

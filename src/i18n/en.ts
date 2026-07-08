@@ -80,6 +80,8 @@ export const en: Dict = {
   nearby_both: "Leave from and arrive near",
   nearby_km: "{km} km away",
   nearby_none: "No nearby station has a free MAX seat for this route.",
+  nearby_browse_from: "Extra destinations you can reach by paying a short hop to a nearby station.",
+  nearby_browse_to: "Extra origins that reach a station near your destination — pay a short hop from there.",
   field_hidden: "Hidden train (early exit)",
   hidden_title: "Hidden trains",
   hidden_hint: "No MAX seat for your exact route? Book a ticket to a station past yours on a train that calls at your stop, and get off early. Same départ. Carry-on only and at your own risk: the ticket won't cover you if the train is re-routed or cancelled — always confirm on SNCF Connect.",

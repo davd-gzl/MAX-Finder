@@ -76,6 +76,8 @@ export const de: Dict = {
   nearby_both: "Abfahrt und Ankunft in der Nähe",
   nearby_km: "{km} km entfernt",
   nearby_none: "Kein naher Bahnhof hat einen MAX-Platz für diese Strecke.",
+  nearby_browse_from: "Zusätzliche Ziele, die du mit einem kurzen bezahlten Sprung zu einem nahen Bahnhof erreichst.",
+  nearby_browse_to: "Zusätzliche Startbahnhöfe, die einen Bahnhof nahe deinem Ziel erreichen — von dort ein kurzer bezahlter Sprung.",
   field_hidden: "Versteckter Zug (früher aussteigen)",
   hidden_title: "Versteckte Züge",
   hidden_hint: "Kein MAX-Platz für deine genaue Strecke? Buche ein Ticket bis zu einem Bahnhof hinter deinem Ziel auf einem Zug, der an deinem Halt hält, und steige früher aus. Gleiche Abfahrt. Nur Handgepäck und auf eigenes Risiko: Das Ticket schützt dich nicht, wenn der Zug umgeleitet oder gestrichen wird — prüfe es immer auf SNCF Connect.",

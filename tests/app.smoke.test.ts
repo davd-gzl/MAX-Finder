@@ -275,6 +275,43 @@ describe("app (jsdom smoke)", () => {
     expect(decodeURIComponent(book!.href)).toContain("Frasne");
   });
 
+  it("radius on 'Where to?' surfaces a destination reachable via a nearby origin", () => {
+    // Paris reaches Lyon directly, but Rennes only from MASSY TGV (16 km away).
+    // With a radius set, Rennes shows in the "nearby" section (pay a short hop to
+    // Massy, then ride free), not the main direct list.
+    localStorage.clear();
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById("app") as HTMLElement;
+    history.replaceState(null, "", `/?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-07-10&conn=0&rad=50`);
+    const raw: RawRecord[] = [
+      { date: "2026-07-10", origine: "PARIS (intramuros)", destination: "LYON (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "6601", od_happy_card: "OUI", axe: "SUD EST" },
+      { date: "2026-07-10", origine: "MASSY TGV", destination: "RENNES", heure_depart: "09:00", heure_arrivee: "10:30", train_no: "8801", od_happy_card: "OUI", axe: "ATLANTIQUE" },
+    ];
+    initApp(root, { trains: normalizeRecords(raw), meta }, new StationRegistry(stations as Station[]));
+    const nearby = root.querySelector(".nearby");
+    expect(nearby).not.toBeNull();
+    expect(nearby!.textContent ?? "").toContain("Rennes");
+    // Rennes is only in the nearby section, never a direct destination card.
+    const directCards = Array.from(root.querySelectorAll(".group-card")).filter((c) => !nearby!.contains(c));
+    expect(directCards.some((c) => (c.textContent ?? "").includes("Rennes"))).toBe(false);
+    expect(directCards.some((c) => (c.textContent ?? "").includes("Lyon"))).toBe(true);
+  });
+
+  it("radius on 'Where from?' surfaces an origin that reaches a nearby destination", () => {
+    localStorage.clear();
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById("app") as HTMLElement;
+    history.replaceState(null, "", `/?mode=to&to=${encodeURIComponent("PARIS (intramuros)")}&date=2026-07-10&conn=0&rad=50`);
+    const raw: RawRecord[] = [
+      { date: "2026-07-10", origine: "LYON (intramuros)", destination: "PARIS (intramuros)", heure_depart: "08:00", heure_arrivee: "10:00", train_no: "6650", od_happy_card: "OUI", axe: "SUD EST" },
+      { date: "2026-07-10", origine: "RENNES", destination: "MASSY TGV", heure_depart: "09:00", heure_arrivee: "10:30", train_no: "8800", od_happy_card: "OUI", axe: "ATLANTIQUE" },
+    ];
+    initApp(root, { trains: normalizeRecords(raw), meta }, new StationRegistry(stations as Station[]));
+    const nearby = root.querySelector(".nearby");
+    expect(nearby).not.toBeNull();
+    expect(nearby!.textContent ?? "").toContain("Rennes"); // an extra origin, via Massy
+  });
+
   it("Surprise me does not resurrect a tour finish the user just removed", () => {
     // Regression: exact-trip destination carries into Tour as the "finish"; removing
     // it is a staged edit. "Surprise me" used to rebuild from the stale last-searched

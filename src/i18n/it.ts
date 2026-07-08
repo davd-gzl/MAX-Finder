@@ -76,6 +76,8 @@ export const it: Dict = {
   nearby_both: "Partenza e arrivo nelle vicinanze",
   nearby_km: "a {km} km",
   nearby_none: "Nessuna stazione vicina ha un posto MAX per questo tragitto.",
+  nearby_browse_from: "Destinazioni in più raggiungibili pagando un breve tratto fino a una stazione vicina.",
+  nearby_browse_to: "Partenze in più che raggiungono una stazione vicino al tuo arrivo — paga un breve tratto da lì.",
   field_hidden: "Treno nascosto (discesa anticipata)",
   hidden_title: "Treni nascosti",
   hidden_hint: "Nessun posto MAX per il tuo tragitto esatto? Prenota un biglietto fino a una stazione oltre la tua su un treno che ferma alla tua stazione, e scendi prima. Stessa partenza. Solo bagaglio a mano e a tuo rischio: il biglietto non ti copre se il treno viene deviato o soppresso — verifica sempre su SNCF Connect.",

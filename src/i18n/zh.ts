@@ -76,6 +76,8 @@ export const zh: Dict = {
   nearby_both: "就近出发并就近到达",
   nearby_km: "{km} 公里",
   nearby_none: "附近没有车站为此线路提供 MAX 座位。",
+  nearby_browse_from: "支付一小段车程到邻近车站，即可抵达的额外目的地。",
+  nearby_browse_to: "可到达你目的地附近车站的额外出发地——从那里再付一小段车程。",
   field_hidden: "隐藏列车（提前下车）",
   hidden_title: "隐藏列车",
   hidden_hint: "你的确切行程没有 MAX 座位？在停靠你所在车站的列车上，预订一张到你目的地之后车站的车票，然后提前下车。出发站相同。仅限手提行李，风险自负：如果列车改道或取消，车票不予保障——请务必在 SNCF Connect 上确认。",

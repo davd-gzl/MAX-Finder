@@ -49,6 +49,7 @@ Query params:
 - `flex`: `1` | `2` | `3` | `7` — also search ± N days around `date` (`mode=od`)
 - `span`: max journey length in days (`mode=od`; overnight stopovers can chain days)
 - `hidden`: `1` — hidden-city: also show trains that call at the destination en route to a stop beyond it, booked to that stop (`mode=od`; same départ)
+- `rad`: `10`–`300` km — also suggest nearby stations with a free seat, reached by a short paid hop (`mode=od`, `from`, `to`)
 - `night`: `1` to allow long overnight layovers at a hub
 - `rg`: region label (`mode=best` or `tour`) ; `cities`: `~`-separated station ids (`mode=tour`)
 - `lang`: UI language for the opened page (`fr en es de it pt nl ko ja zh ar`)

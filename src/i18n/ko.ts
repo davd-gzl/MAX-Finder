@@ -76,6 +76,8 @@ export const ko: Dict = {
   nearby_both: "근처에서 출발하고 도착",
   nearby_km: "{km} km",
   nearby_none: "이 경로에 MAX 좌석이 있는 인근 역이 없습니다.",
+  nearby_browse_from: "가까운 역까지 짧은 구간을 결제하면 갈 수 있는 추가 목적지.",
+  nearby_browse_to: "도착지 근처 역에 닿는 추가 출발지 — 거기서 짧은 구간만 결제하세요.",
   field_hidden: "히든 트레인 (조기 하차)",
   hidden_title: "히든 트레인",
   hidden_hint: "정확한 구간에 MAX 좌석이 없나요? 내 역에 정차하는 열차에서 목적지보다 더 먼 역까지 예약한 뒤 먼저 내리세요. 출발지는 동일합니다. 기내 수하물만 가능하며 본인 책임입니다. 열차가 우회하거나 운행 취소되면 승차권이 보장되지 않습니다 — 항상 SNCF Connect에서 확인하세요.",

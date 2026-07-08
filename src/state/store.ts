@@ -261,7 +261,8 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     minLegDurationMin: Number.isFinite(legdurmin) && legdurmin > 0 ? Math.floor(legdurmin) : undefined,
     // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
-    // od-only search radius (km) for nearby paid-connection alternatives.
+    // Search radius (km) for nearby paid-hop alternatives (od + browse modes).
+    // readQueryFromForm re-gates it to those modes so it never leaks elsewhere.
     radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
     // "Round trip" (day trips + N-night getaways) — readQueryFromForm re-gates to "from".
     roundTrip: p.get("rt") === "1" || undefined,
