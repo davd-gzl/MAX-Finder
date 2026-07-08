@@ -1,4 +1,5 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay, SortKey } from "../types";
+import type { HiddenTrain } from "../core/hidden";
 import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
@@ -714,6 +715,64 @@ export function nearbyBothRowEl(
   return el("article", { class: "group-card", dataset: { station: fromId } }, [
     el("div", { class: "dest-row" }, [favStarEl({ origin: j.origin, destination: j.destination }, ctx), main]),
   ]);
+}
+
+/**
+ * A hidden-city ("hidden train") row: board at your origin, ride the free-MAX
+ * ticket booked to a stop *past* your destination, and step off at your
+ * destination. Shows your real origin → destination with the boarding and
+ * calling-at times, tags the over-shoot stop you ticket to, and its Book link
+ * deep-links the longer origin → beyond fare (the same départ).
+ */
+export function hiddenTrainRowEl(h: HiddenTrain, ctx: RenderCtx): HTMLElement {
+  const b = h.book;
+  const time = el("span", { class: "train-time" }, [
+    el("strong", { text: b.depart }),
+    icon(I.arrow),
+    el("strong", { text: h.alight }),
+    ...(h.alightMin >= 1440
+      ? [el("span", { class: "day-offset", text: t("lbl_dayoffset", { n: Math.floor(h.alightMin / 1440) }) })]
+      : []),
+  ]);
+  const route = el("div", { class: "leg-route" }, [
+    stationNameEl("", h.origin, ctx.label(h.origin)),
+    icon(I.arrow),
+    stationNameEl("", h.destination, ctx.label(h.destination)),
+  ]);
+  const meta = el("span", { class: "train-meta" }, [
+    icon(I.clock),
+    el("bdi", { text: formatDuration(h.durationMin) }),
+    el("span", { class: "train-no", text: t("lbl_train", { no: b.trainNo }) }),
+    ...(b.axe ? [el("span", { class: "train-axe", text: b.axe })] : []),
+  ]);
+  const head = el("div", { class: "journey-head" }, [
+    el("span", { class: "chip chip-hidden", text: t("hidden_chip") }),
+    el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(h.durationMin) })]),
+  ]);
+  // The ticket you actually buy runs origin → beyond; you alight early at your
+  // destination. Spell that out so the over-shoot is never a surprise.
+  const note = el("p", {
+    class: "hidden-note muted small",
+    text: t("hidden_row_note", { beyond: ctx.label(h.beyond), stop: ctx.label(h.destination) }),
+  });
+  const actions = el("div", { class: "actions" }, [
+    // Book the longer origin → beyond fare (the same départ time as your ride).
+    el(
+      "a",
+      {
+        class: "btn btn-book",
+        href: ctx.bookUrl(h.origin, h.beyond, b.date, b.depart),
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      },
+      [
+        el("span", { text: t("hidden_book", { beyond: ctx.label(h.beyond) }) }),
+        icon(I.external),
+        el("span", { class: "sr-only", text: t("link_newtab") }),
+      ],
+    ),
+  ]);
+  const legs = el("div", { class: "legs" }, [el("div", { class: "leg" }, [route, el("div", { class: "train-row" }, [time, meta])])]);
+  return el("article", { class: "journey journey-hidden" }, [head, legs, note, actions]);
 }
 
 /**

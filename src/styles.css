@@ -1172,6 +1172,24 @@ a {
 .chip-soft {
   background: var(--surface-2);
 }
+/* Hidden-city ("hidden train") accent — a dashed, distinct chip and card so it
+   reads as a clever workaround, visually apart from the normal journey list. */
+.chip-hidden {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+  border-style: dashed;
+  font-weight: 600;
+}
+.hidden-trains {
+  margin-top: 1rem;
+}
+.journey-hidden {
+  border-style: dashed;
+}
+.hidden-note {
+  margin: 0.1rem 0 0.4rem;
+}
 .chip-onsite {
   background: var(--accent-soft);
   color: var(--accent);

@@ -178,3 +178,33 @@ flowchart TD
   D -- "IC NUIT" --> I["Paris Austerlitz"]
   D -- "Unknown family" --> J["Keep plain 'Paris'"]
 ```
+
+---
+
+## 7. Hidden trains — riding one stop too far, on purpose
+
+**In one line:** When there's no free MAX seat sold to your exact stop, the app looks for a train that *calls at your stop on the way to somewhere further*, and offers you the longer ticket to get off early.
+
+**Analogy:** You want Paris → Dijon, but every Paris → Dijon seat is taken. Yet a Paris → Frasne train rolls through Dijon on its way south, and *it* still has a free seat. So you buy the Paris → Frasne ticket and simply step off at Dijon. The one rule: you can only ride *past* your stop, never sneak on *before* your origin — your ticket only lets you board where it starts. So the **départ must stay the same**; only the far end over-shoots.
+
+**How it works, step by step:**
+
+- **The puzzle:** the open data lists one row per marketed origin→destination, with no in-between stops. So how does the app know a Paris → Frasne train even calls at Dijon? It never sees a stop list.
+- **The trick — shared train numbers.** Every marketed sub-relation of one physical train carries the *same* train number, date, and arrival at its final stop. So if the feed holds both a **Paris → Frasne** and a **Dijon → Frasne** with the same number, same day, and same arrival at Frasne, they are provably the *one* train calling Paris … Dijon … Frasne. The Dijon → Frasne row's departure time is exactly when that train leaves Dijon — i.e. when you'd get off.
+- **What counts as a hidden train to your stop (D), from your origin (O):**
+  - a bookable free-MAX leg **O → B** (some station B), and
+  - any leg **D → B** with the same train number that day and the same arrival at B (proof the train calls at D, and after it left O).
+  - Only the **O → B** leg you actually book needs a free MAX seat; the D → B row is used purely as proof of the stop.
+- **Same départ, always.** The booked leg always starts at your origin, so the app never changes where you board — it only ever rides past your destination.
+- **Nearest overshoot wins.** If one train sells several stops past yours (Dole *and* Frasne), it keeps the closest one — the shortest ride past your stop, the cheapest ticket, the least risk.
+- **Not "hidden" if it's just bookable.** If the plain O → D ticket has a free seat on that train, it's shown in the normal list, not here.
+- **Caveats (surfaced in the UI):** carry-on only (checked bags travel to the ticketed destination), and it's at your own risk — a re-route or cancellation leaves you uncovered. Always confirm on SNCF Connect.
+
+```mermaid
+flowchart TD
+  A["Want O -> D, but no free seat sold to D"] --> B{"A free-MAX train O -> B exists?"}
+  B -- "No" --> X["No hidden train"]
+  B -- "Yes" --> C{"Same train number also runs D -> B, same day, same arrival at B?"}
+  C -- "No" --> X
+  C -- "Yes" --> K["Hidden train: book O -> B (same départ), get off at D"]
+```

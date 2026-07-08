@@ -244,6 +244,37 @@ describe("app (jsdom smoke)", () => {
     expect(nightBox()!.checked).toBe(true);
   });
 
+  it("renders a hidden train (Paris→Frasne) when the exact stop (Dijon) isn't sold", () => {
+    // The traveller's scenario: PARIS → DIJON has no free MAX seat, but the same
+    // train runs on to FRASNE (which it reaches via Dijon) and that IS bookable.
+    // With hidden mode on, the exact-trip page must surface "book to Frasne, get
+    // off at Dijon" — same départ, ridden past the stop.
+    localStorage.clear();
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById("app") as HTMLElement;
+    history.replaceState(
+      null,
+      "",
+      `/?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("DIJON VILLE")}&date=2026-06-25&conn=0&hidden=1`,
+    );
+    const raw: RawRecord[] = [
+      { date: "2026-06-25", origine: "PARIS (intramuros)", destination: "FRASNE", heure_depart: "06:00", heure_arrivee: "09:00", train_no: "9765", od_happy_card: "OUI", axe: "SUD EST" },
+      { date: "2026-06-25", origine: "DIJON VILLE", destination: "FRASNE", heure_depart: "07:40", heure_arrivee: "09:00", train_no: "9765", od_happy_card: "OUI", axe: "SUD EST" },
+    ];
+    const trains = normalizeRecords(raw);
+    const registry = new StationRegistry(stations as Station[]);
+    initApp(root, { trains, meta }, registry);
+    const section = root.querySelector(".hidden-trains");
+    expect(section).not.toBeNull();
+    const text = section!.textContent ?? "";
+    expect(text).toContain("Frasne"); // the ticketed over-shoot stop
+    expect(text).toContain("07:40"); // when the train calls at Dijon
+    // The Book link targets the longer Paris → Frasne fare (same départ), not Dijon.
+    const book = section!.querySelector("a.btn-book") as HTMLAnchorElement | null;
+    expect(book).not.toBeNull();
+    expect(decodeURIComponent(book!.href)).toContain("Frasne");
+  });
+
   it("Surprise me does not resurrect a tour finish the user just removed", () => {
     // Regression: exact-trip destination carries into Tour as the "finish"; removing
     // it is a staged edit. "Surprise me" used to rebuild from the stale last-searched

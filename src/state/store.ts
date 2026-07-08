@@ -175,6 +175,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.origin) p.set("from", q.origin);
   if (q.destination) p.set("to", q.destination);
   if (q.via) p.set("via", q.via);
+  if (q.hidden) p.set("hidden", "1");
   if (q.flexDays != null && q.flexDays > 0) p.set("flex", String(q.flexDays));
   p.set("date", q.date);
   p.set("card", q.card);
@@ -233,6 +234,8 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     origin: p.get("from") ?? undefined,
     destination: p.get("to") ?? undefined,
     via: p.get("via") ?? undefined,
+    // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
+    hidden: p.get("hidden") === "1" || undefined,
     // Clamp to the stepper's 0..7 range (like setStepper) — an out-of-range link
     // should mean "the widest window", not silently fall back to no flexibility.
     flexDays: Number.isFinite(Number(p.get("flex"))) && Math.floor(Number(p.get("flex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("flex")))) : undefined,

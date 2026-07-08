@@ -14,6 +14,7 @@ import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } fr
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
+import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear } from "./ui/dom";
@@ -58,6 +59,8 @@ interface Refs {
   maxSpanDaysField: HTMLElement;
   radius: HTMLInputElement;
   radiusField: HTMLElement;
+  hidden: HTMLInputElement;
+  hiddenField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
   connGroupField: HTMLElement;
@@ -912,6 +915,7 @@ function syncFormFromQuery(): void {
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
   refs.radius.value = query.radiusKm != null ? String(query.radiusKm) : "";
+  refs.hidden.checked = Boolean(query.hidden);
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
@@ -1008,6 +1012,9 @@ function readQueryFromForm(): SearchQuery {
     // Search radius (km) is an exact-trip feature only.
     radiusKm:
       query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+    // "Hidden train" (hidden-city ticketing) is an exact-trip feature only — gate it
+    // to od so the flag never leaks into another mode's URL.
+    hidden: (query.mode === "od" && refs.hidden.checked) || undefined,
     // Round-trip view (day trips + N-night getaways) — a "Where to?" feature only.
     roundTrip: roundTrip || undefined,
     nights: roundTrip && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
@@ -1755,6 +1762,27 @@ function runOdSearch(c: RenderCtx): void {
       );
   }
 
+  // "Hidden train" (hidden-city ticketing): trains that call at your destination on
+  // the way to a stop past it. You book the longer ticket — same départ — and step
+  // off early. Only shown when the toggle is on; the départ is always your origin,
+  // so this never changes where you board, only how far the ticket runs.
+  if (query.hidden) {
+    const hidden = findHiddenTrains(trains, query.origin, query.destination, query.date, {
+      departAfter: query.departAfter,
+      departBefore: query.departBefore,
+      trainType: query.trainType,
+      excludeNight: query.excludeNight,
+    });
+    if (hidden.length > 0) {
+      const sec = el("section", { class: "hidden-trains" }, [
+        el("h3", { text: t("hidden_title") }),
+        el("p", { class: "muted small", text: t("hidden_hint") }),
+      ]);
+      for (const h of hidden) sec.append(render.hiddenTrainRowEl(h, c));
+      refs.results.append(sec);
+    }
+  }
+
   // Nearby paid-connection alternatives (radius search): surface nearby stations
   // that DO have a free MAX seat, so you can pay a short hop to/from one when the
   // exact route has none. Most useful with zero direct journeys, but always shown
@@ -2260,6 +2288,8 @@ function updateFieldVisibility(): void {
   refs.maxKmField.style.display = tour ? "" : "none";
   refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
   refs.radiusField.style.display = query.mode === "od" ? "" : "none";
+  // "Hidden train" (hidden-city ticketing) is an exact-trip-only toggle.
+  refs.hiddenField.style.display = query.mode === "od" ? "" : "none";
   // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
   // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
   if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
@@ -2621,6 +2651,14 @@ function buildForm(): FormBuild {
   radius.placeholder = "100";
   radius.setAttribute("aria-label", t("field_radius"));
   const radiusField = field(t("field_radius"), radius);
+  // "Hidden train" (hidden-city ticketing): also surface trains that call at your
+  // destination on the way to a stop past it — book the longer ticket (same
+  // départ), step off early. Exact-trip only; updateFieldVisibility gates it.
+  const hidden = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const hiddenField = el("label", { class: "field field-check" }, [
+    hidden,
+    el("span", { class: "field-label", text: t("field_hidden") }),
+  ]);
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
@@ -2862,6 +2900,7 @@ function buildForm(): FormBuild {
       maxLegDurationField,
       maxSpanDaysField,
       radiusField,
+      hiddenField,
       maxKmField,
       trainTypeField,
     ]),
@@ -2955,6 +2994,8 @@ function buildForm(): FormBuild {
       maxSpanDaysField,
       radius,
       radiusField,
+      hidden,
+      hiddenField,
       trainType,
       maxConnections,
       connGroupField,

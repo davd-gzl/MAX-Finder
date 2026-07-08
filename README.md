@@ -41,6 +41,7 @@ Free, no account, open-source, and serverless — it runs entirely in your brows
 | | |
 | --- | --- |
 | **Connections** | Multi-leg up to 6 changes via hubs, optional **Via** stopover, overnight-stopover mode |
+| **Hidden trains** | Hidden-city ticketing: when your exact stop has no free seat, surface trains that call there on the way to a stop *beyond* it — book the longer ticket (same départ) and get off early |
 | **Round trips & night trains** | Round trips pair the earliest-arriving outbound with the latest feasible return to maximize time there; night mode covers genuine *Intercités de Nuit* only |
 | **Filters** | Time window, max duration, MAX JEUNE vs SENIOR, train type, region |
 | **Map** | Leaflet map of every station, with correspondences plotted as intermediate points; click to select |

@@ -56,6 +56,7 @@
       "via": "station id to route through (mode=od)",
       "flex": "1 | 2 | 3 | 7 (also search +/- N days around date; mode=od)",
       "span": "integer (max journey length in days; mode=od)",
+      "hidden": "1 to also surface hidden-city trains that call at the destination on the way to a stop beyond it (mode=od; same départ)",
       "night": "1 to allow long overnight layovers at a hub",
       "rg": "region label (mode=best or tour)",
       "cities": "~-separated station ids to visit (mode=tour)",
