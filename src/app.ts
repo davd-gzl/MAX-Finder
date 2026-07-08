@@ -2403,7 +2403,10 @@ function buildLayout(root: HTMLElement): void {
         html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
       }),
       el("div", {}, [
-        el("h1", { text: t("appName") }),
+        el("div", { class: "brand-head" }, [
+          el("h1", { text: t("appName") }),
+          el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
+        ]),
         el("p", { class: "tagline", text: t("tagline") }),
         el("p", { class: "updated", attrs: { title: t("data_why"), tabindex: "0" } }, [
           el("span", { text: updated }),
@@ -2904,25 +2907,29 @@ function buildForm(): FormBuild {
   ]);
 
   const form = el("form", { class: "search-form" }, [
-    modeTabs,
-    modeDesc,
-    el("div", { class: "fields" }, [
-      originField,
-      destinationField,
-      viaField,
-      dateField,
-      flexField,
-      endDateField,
-      roundTripField,
-      regionField,
-      citiesField,
-      stayField,
-      tourCountField,
+    el("div", { class: "form-body" }, [
+      modeTabs,
+      modeDesc,
+      el("div", { class: "fields" }, [
+        originField,
+        destinationField,
+        viaField,
+        dateField,
+        flexField,
+        endDateField,
+        roundTripField,
+        regionField,
+        citiesField,
+        stayField,
+        tourCountField,
+      ]),
+      advanced,
     ]),
-    advanced,
-    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
-    surpriseMsgEl,
-    howto,
+    el("div", { class: "form-stub" }, [
+      el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
+      surpriseMsgEl,
+      howto,
+    ]),
     stationList,
   ]);
   form.addEventListener("submit", (e) => {
