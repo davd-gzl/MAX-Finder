@@ -139,3 +139,7 @@ Machine-readable and serverless — [`llms.txt`](public/llms.txt) and [`api.json
 **Data:** [SNCF Open Data — Disponibilité à 30 jours de places MAX JEUNE et MAX SENIOR](https://ressources.data.sncf.com/explore/dataset/tgvmax/information/) (the `tgvmax` dataset), licensed under the [Licence Ouverte / Open Licence](https://www.etalab.gouv.fr/licence-ouverte-open-licence). Availability is updated roughly once a day and is **indicative** — always confirm and book on [SNCF Connect](https://www.sncf-connect.com/). This project does not sell tickets and is not affiliated with SNCF.
 
 **Code:** [AGPL-3.0](./LICENSE).
+
+## Credits
+
+- **[@AhmedFr](https://github.com/AhmedFr)** — designed the **map-first view** (List/Map toggle, full-bleed map with a floating results panel) and the **connection-count pin tinting**, originally in [#2](https://github.com/davd-gzl/MAX-Finder/pull/2). That work was salvaged onto the current codebase in [#21](https://github.com/davd-gzl/MAX-Finder/pull/21) and refined in [#26](https://github.com/davd-gzl/MAX-Finder/pull/26).
