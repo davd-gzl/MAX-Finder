@@ -187,7 +187,7 @@ const faq = [
   },
   {
     q: "MAX Finder est-il un site officiel SNCF ? Vend-il des billets ?",
-    a: "Non et non. C'est un projet indépendant, open source (licence MIT), qui ne vend rien et n'est pas affilié à la SNCF. Il réutilise l'open data SNCF publié sous Licence Ouverte, et renvoie vers SNCF Connect pour la réservation.",
+    a: "Non et non. C'est un projet indépendant, open source (licence AGPL-3.0), qui ne vend rien et n'est pas affilié à la SNCF. Il réutilise l'open data SNCF publié sous Licence Ouverte, et renvoie vers SNCF Connect pour la réservation.",
   },
   {
     q: "Que fait MAX Finder de mes données personnelles ?",

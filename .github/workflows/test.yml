@@ -36,6 +36,12 @@ jobs:
       - name: Type-check + build
         run: npm run build
 
+      - name: Prerender the shell (SEO build the deploy ships)
+        run: npm run prerender
+
+      - name: Generate static pages + sitemap
+        run: npm run generate-pages
+
       - name: Unit tests
         run: npm test
 
