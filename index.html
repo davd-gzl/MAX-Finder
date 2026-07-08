@@ -7,22 +7,126 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://ressources.data.sncf.com; worker-src 'self'; base-uri 'self'"
     />
-    <title>MAX Finder — places MAX JEUNE / MAX SENIOR réservables</title>
+    <title>Trains MAX JEUNE / MAX SENIOR (ex-TGVmax) réservables — MAX Finder</title>
     <meta
       name="description"
-      content="Trouvez les trains où une place MAX JEUNE ou MAX SENIOR (ex-TGVmax) est réservable. Données ouvertes SNCF, projet libre, non affilié à la SNCF."
+      content="Trouvez les trains où une place TGV Max (MAX JEUNE ou MAX SENIOR) est réservable : trajet précis, carte des destinations, calendrier 30 jours, allers-retours. Open data SNCF, gratuit, open source, non affilié à la SNCF."
     />
+    <link rel="canonical" href="https://davd-gzl.github.io/MAX-Finder/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MAX Finder" />
+    <meta property="og:title" content="MAX Finder — trouver un train TGVmax avec une place réservable" />
+    <meta
+      property="og:description"
+      content="Toutes les places MAX JEUNE / MAX SENIOR ouvertes à la réservation, mises à jour chaque jour depuis l'open data SNCF. Gratuit, sans compte."
+    />
+    <meta property="og:url" content="https://davd-gzl.github.io/MAX-Finder/" />
+    <meta property="og:image" content="https://davd-gzl.github.io/MAX-Finder/icons/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MAX Finder — trouver un train TGVmax avec une place réservable" />
+    <meta
+      name="twitter:description"
+      content="Toutes les places MAX JEUNE / MAX SENIOR ouvertes à la réservation, mises à jour chaque jour depuis l'open data SNCF."
+    />
+    <meta name="twitter:image" content="https://davd-gzl.github.io/MAX-Finder/icons/og.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#0f7a52" />
     <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
-    <!-- White-page guard: self-heals a blank page (stale cache / dead bundle).
-         Separate same-origin script so it runs even if the app bundle fails. -->
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM instructions" />
+    <link rel="alternate" type="application/json" href="api.json" title="MAX Finder machine API" />
+    <link rel="preload" href="%BASE_URL%data/tgvmax.json" as="fetch" crossorigin />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://davd-gzl.github.io/MAX-Finder/#website",
+            "url": "https://davd-gzl.github.io/MAX-Finder/",
+            "name": "MAX Finder",
+            "alternateName": "MAX Finder TGVmax",
+            "description": "Recherche de places TGV Max (MAX JEUNE / MAX SENIOR) ouvertes à la réservation, à partir de l'open data SNCF.",
+            "inLanguage": ["fr", "en", "es", "de", "it", "pt", "nl", "ko", "ja", "zh", "ar"]
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://davd-gzl.github.io/MAX-Finder/#app",
+            "isPartOf": { "@id": "https://davd-gzl.github.io/MAX-Finder/#website" },
+            "name": "MAX Finder",
+            "url": "https://davd-gzl.github.io/MAX-Finder/",
+            "applicationCategory": "TravelApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "license": "https://github.com/davd-gzl/MAX-Finder/blob/main/LICENSE",
+            "sameAs": ["https://github.com/davd-gzl/MAX-Finder"],
+            "author": {
+              "@type": "Organization",
+              "name": "MAX Finder contributors",
+              "url": "https://github.com/davd-gzl/MAX-Finder"
+            },
+            "description": "Application gratuite et open source qui affiche les trains avec une place MAX JEUNE ou MAX SENIOR (ex-TGVmax) ouverte à la réservation. Projet indépendant, non affilié à la SNCF ; la réservation se fait sur SNCF Connect.",
+            "featureList": [
+              "Destinations accessibles depuis une gare, classées par disponibilité",
+              "Recherche origine → destination avec calendrier de disponibilité sur 30 jours",
+              "Correspondances jusqu'à 6 changements",
+              "Allers-retours et week-ends",
+              "Itinéraires multi-villes (tour)",
+              "Carte des gares, 11 langues, PWA hors-ligne"
+            ],
+            "screenshot": "https://davd-gzl.github.io/MAX-Finder/icons/og.png"
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": "Places MAX JEUNE / MAX SENIOR ouvertes à la réservation — snapshot quotidien",
+        "description": "Snapshot quotidien des places TGV Max (MAX JEUNE / MAX SENIOR) ouvertes à la réservation sur environ 30 jours glissants : date, gare d'origine, gare de destination, heures de départ et d'arrivée, numéro de train, disponibilité. Environ 32 000 enregistrements dérivés de l'open data SNCF (jeu de données tgvmax).",
+        "url": "https://davd-gzl.github.io/MAX-Finder/",
+        "isAccessibleForFree": true,
+        "license": "https://www.etalab.gouv.fr/licence-ouverte-open-licence",
+        "creator": { "@type": "Organization", "name": "SNCF" },
+        "isBasedOn": "https://ressources.data.sncf.com/explore/dataset/tgvmax/",
+        "spatialCoverage": "France",
+        "keywords": ["TGVmax", "TGV Max", "MAX JEUNE", "MAX SENIOR", "SNCF", "train", "places disponibles", "open data"],
+        "distribution": [
+          {
+            "@type": "DataDownload",
+            "contentUrl": "https://davd-gzl.github.io/MAX-Finder/data/tgvmax.json",
+            "encodingFormat": "application/json"
+          },
+          {
+            "@type": "DataDownload",
+            "contentUrl": "https://davd-gzl.github.io/MAX-Finder/data/stations.json",
+            "encodingFormat": "application/json"
+          },
+          {
+            "@type": "DataDownload",
+            "contentUrl": "https://davd-gzl.github.io/MAX-Finder/data/meta.json",
+            "encodingFormat": "application/json"
+          }
+        ]
+      }
+    </script>
     <script src="%BASE_URL%guard.js"></script>
   </head>
   <body>
-    <div id="app">
-      <noscript>Cette application nécessite JavaScript.</noscript>
-    </div>
+    <noscript>
+      <p>
+        MAX Finder est une application de recherche de places TGV Max (MAX JEUNE / MAX SENIOR) ouvertes à la
+        réservation, basée sur l'open data SNCF. La recherche interactive nécessite JavaScript ; la présentation
+        complète de l'outil se trouve ci-dessous.
+      </p>
+    </noscript>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -50,6 +50,7 @@ Query params:
 - `span`: max journey length in days (`mode=od`; overnight stopovers can chain days)
 - `night`: `1` to allow long overnight layovers at a hub
 - `rg`: region label (`mode=best` or `tour`) ; `cities`: `~`-separated station ids (`mode=tour`)
+- `lang`: UI language for the opened page (`fr en es de it pt nl ko ja zh ar`)
 - `dmin` / `dmax`: min / max days per city (`mode=tour`; default 1 / 3)
 - `maxkm`: cap on the tour's total straight-line distance, km (`mode=tour`)
 - `legkm`: cap on each hop's straight-line distance, km (`mode=tour`)
@@ -61,6 +62,13 @@ Examples:
   `https://davd-gzl.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
 - A Bretagne tour from Rennes, 1–2 days per city, no hop over 300 km:
   `https://davd-gzl.github.io/MAX-Finder/?mode=tour&from=RENNES&rg=Bretagne&dmin=1&dmax=2&legkm=300&date=2026-06-25`
+
+## Docs (HTML, crawlable)
+
+- FAQ (French): https://davd-gzl.github.io/MAX-Finder/faq/
+- How it works: https://davd-gzl.github.io/MAX-Finder/docs/how-it-works.html
+- Algorithms: https://davd-gzl.github.io/MAX-Finder/docs/algorithms.html
+- Full context in one fetch (this file + docs + FAQ): https://davd-gzl.github.io/MAX-Finder/llms-full.txt
 
 ## Disclaimer
 

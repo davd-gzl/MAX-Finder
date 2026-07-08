@@ -35,12 +35,21 @@ function errorStateEl(): HTMLElement {
   ]);
 }
 
+(window as unknown as { __mfBoot?: boolean }).__mfBoot = true;
+
 const root = document.getElementById("app");
 if (root) {
   // The boot UI (loading/error) renders before initApp picks up the saved
   // language, so localize it from the browser here.
   setLang(detectLang());
-  root.replaceChildren(loadingStateEl());
+  // The SEO build prerenders the home shell into #app. When present, keep that
+  // static markup painted while the dataset loads (initApp rebuilds #app anyway)
+  // instead of flashing it away to a spinner; only show the spinner when #app is
+  // empty — a normal, non-prerendered build.
+  const prerendered = root.querySelector(".mode-tabs") != null;
+  if (!prerendered) {
+    root.replaceChildren(loadingStateEl());
+  }
   const registry = new StationRegistry(stationData as Station[]);
   loadDataset()
     .then((dataset) => initApp(root, dataset, registry))

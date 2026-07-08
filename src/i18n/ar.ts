@@ -92,6 +92,8 @@ export const ar: Dict = {
   book_steps_title: "احجز كل قطار",
   book_steps_note: "يتم حجز التوصيلة MAX قطارًا تلو الآخر — افتح كل رابط بالترتيب.",
   act_ics: "أضف إلى التقويم",
+  act_share: "مشاركة",
+  share_copied: "تم نسخ الرابط",
   act_calendar: "التقويم",
   act_fav_add: "أضف إلى المفضلة",
   act_fav_remove: "أزل من المفضلة",

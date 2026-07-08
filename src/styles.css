@@ -2355,3 +2355,6 @@ select.input::-ms-expand {
     left: 1.4rem;
   }
 }
+.share-feedback {
+  min-width: 0;
+}

@@ -1,0 +1,72 @@
+import http from "node:http";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync } from "node:fs";
+import { join, extname } from "node:path";
+import { tmpdir } from "node:os";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+
+const DIST = join(process.cwd(), "dist");
+const TYPES = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webmanifest": "application/manifest+json",
+  ".map": "application/json",
+};
+
+const server = http.createServer((req, res) => {
+  let p = decodeURIComponent((req.url || "/").split("?")[0]).replace(/^\/MAX-Finder\//, "/").replace(/^\/+/, "");
+  let file = join(DIST, p);
+  if (!file.startsWith(DIST)) return res.writeHead(403).end();
+  if (!existsSync(file) || statSync(file).isDirectory()) file = join(DIST, "index.html");
+  if (!existsSync(file)) return res.writeHead(404).end("not found");
+  res.writeHead(200, { "Content-Type": TYPES[extname(file)] || "application/octet-stream" });
+  res.end(readFileSync(file));
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const BASE = `http://127.0.0.1:${server.address().port}/MAX-Finder/`;
+
+const args = chromium.args.filter((a) => !a.startsWith("--user-data-dir") && !a.startsWith("--proxy"));
+const browser = await puppeteer.launch({
+  args: [...args, "--no-sandbox", "--disable-setuid-sandbox", "--no-proxy-server"],
+  executablePath: await chromium.executablePath(),
+  headless: true,
+  userDataDir: mkdtempSync(join(tmpdir(), "prerender-")),
+});
+
+const page = await browser.newPage();
+await page.evaluateOnNewDocument(() => {
+  Object.defineProperty(navigator, "language", { get: () => "fr-FR" });
+  Object.defineProperty(navigator, "languages", { get: () => ["fr-FR", "fr"] });
+});
+await page.goto(BASE, { waitUntil: "networkidle2", timeout: 60000 });
+await page.waitForFunction(
+  () => {
+    const app = document.getElementById("app");
+    return !!app && app.innerHTML.length > 5000 && !app.querySelector(".loading");
+  },
+  { timeout: 45000 },
+);
+await new Promise((r) => setTimeout(r, 500));
+
+const html = await page.evaluate(() => "<!doctype html>\n" + document.documentElement.outerHTML);
+await browser.close();
+server.close();
+
+const failures = [];
+if (html.length < 20000) failures.push(`prerendered HTML is only ${html.length} bytes`);
+if (!html.includes('<html lang="fr"')) failures.push("prerendered HTML is not in French");
+if (!html.includes('id="app"')) failures.push("prerendered HTML lost #app");
+if (!html.includes("application/ld+json")) failures.push("prerendered HTML lost JSON-LD");
+if (!html.includes("<noscript")) failures.push("prerendered HTML lost the noscript fallback");
+if (failures.length) {
+  console.error("PRERENDER FAILED:");
+  for (const f of failures) console.error("  ✗ " + f);
+  process.exit(1);
+}
+
+writeFileSync(join(DIST, "index.html"), html);
+console.log(`prerendered index.html: ${html.length} bytes`);

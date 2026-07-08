@@ -14,8 +14,14 @@
       "contentType": "application/json",
       "shape": "Array<Record>"
     },
-    "meta": { "url": "data/meta.json", "contentType": "application/json" },
-    "stations": { "url": "data/stations.json", "contentType": "application/json" }
+    "meta": {
+      "url": "data/meta.json",
+      "contentType": "application/json"
+    },
+    "stations": {
+      "url": "data/stations.json",
+      "contentType": "application/json"
+    }
   },
   "record": {
     "date": "string (YYYY-MM-DD)",
@@ -31,7 +37,13 @@
     "base": "https://davd-gzl.github.io/MAX-Finder/",
     "method": "GET (query string deep-link)",
     "params": {
-      "mode": ["from", "to", "od", "tour", "best"],
+      "mode": [
+        "from",
+        "to",
+        "od",
+        "tour",
+        "best"
+      ],
       "from": "origin station id",
       "to": "destination station id (in tour mode: optional finish city; = from for a loop)",
       "date": "YYYY-MM-DD",
@@ -50,7 +62,15 @@
       "dmin": "integer (min days per city; mode=tour, default 1)",
       "dmax": "integer (max days per city; mode=tour, default 3)",
       "maxkm": "integer (cap on the tour's total straight-line distance in km; mode=tour)",
-      "legkm": "integer (cap on each hop's straight-line distance in km; mode=tour)"
+      "legkm": "integer (cap on each hop's straight-line distance in km; mode=tour)",
+      "lang": "UI language: fr | en | es | de | it | pt | nl | ko | ja | zh | ar"
     }
+  },
+  "docs": {
+    "faq": "https://davd-gzl.github.io/MAX-Finder/faq/",
+    "howItWorks": "https://davd-gzl.github.io/MAX-Finder/docs/how-it-works.html",
+    "algorithms": "https://davd-gzl.github.io/MAX-Finder/docs/algorithms.html",
+    "llms": "https://davd-gzl.github.io/MAX-Finder/llms.txt",
+    "llmsFull": "https://davd-gzl.github.io/MAX-Finder/llms-full.txt"
   }
 }

@@ -13,16 +13,8 @@
 (function () {
   var KEY = "mf-healed-at";
 
-  // True once the app module has started: main.ts replaces the initial
-  // <noscript> placeholder with a spinner immediately, so any non-<noscript>
-  // child of #app means the bundle executed (even if data is still loading).
   function bundleRan() {
-    var app = document.getElementById("app");
-    if (!app) return false;
-    for (var i = 0; i < app.children.length; i++) {
-      if (app.children[i].tagName !== "NOSCRIPT") return true;
-    }
-    return false;
+    return window.__mfBoot === true;
   }
 
   function heal() {

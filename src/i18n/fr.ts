@@ -96,6 +96,8 @@ export const fr = {
   book_steps_title: "Réserver chaque train",
   book_steps_note: "Une correspondance MAX se réserve train par train — ouvrez chaque lien dans l’ordre.",
   act_ics: "Ajouter au calendrier",
+  act_share: "Partager",
+  share_copied: "Lien copié",
   act_calendar: "Calendrier",
   act_fav_add: "Ajouter aux favoris",
   act_fav_remove: "Retirer des favoris",

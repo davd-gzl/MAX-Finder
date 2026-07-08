@@ -92,6 +92,8 @@ export const ja: Dict = {
   book_steps_title: "各列車を予約",
   book_steps_note: "MAX の乗り継ぎは列車ごとに予約します。順番に各リンクを開いてください。",
   act_ics: "カレンダーに追加",
+  act_share: "共有",
+  share_copied: "リンクをコピーしました",
   act_calendar: "カレンダー",
   act_fav_add: "お気に入りに追加",
   act_fav_remove: "お気に入りから削除",
