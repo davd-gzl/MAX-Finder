@@ -21,6 +21,13 @@ import type { RouteMap, MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
+import {
+  showInfoModal,
+  showBookingModal,
+  showTripModal,
+  showMultiTripModal,
+  showTourModal,
+} from "./ui/modals";
 import { generateBookingUrl } from "./util/booking";
 import { t, setLang, getLang, LANGS, isLang } from "./i18n";
 import * as store from "./state/store";
@@ -513,87 +520,6 @@ function addNearestCity(): void {
   growTour("nearest", tourAddCount());
 }
 
-/** A simple accessible modal dialog: a title and one or more message lines. */
-function showInfoModal(title: string, lines: string[]): void {
-  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-primary modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      el("h2", { class: "modal-title", text: title }),
-      ...lines.map((line) => el("p", { class: "modal-text", text: line })),
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  // Remove from the DOM once dismissed; click on the backdrop closes it.
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-/**
- * Step-by-step booking modal for a connecting journey: one SNCF Connect deep link
- * per train, in order. A single via search can't be pinned to the exact free trains
- * (SNCF re-optimises the route), so each leg is booked on its own — this lays out
- * exactly which buttons to click, in sequence.
- */
-function showBookingModal(j: Journey): void {
-  const label = (id: string): string => deps.registry.label(id);
-  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  const steps = el("ol", { class: "book-steps" });
-  j.legs.forEach((leg, i) => {
-    const href = generateBookingUrl(label(leg.origin), label(leg.destination), leg.date, leg.depart);
-    steps.append(
-      el("li", { class: "book-step" }, [
-        el("div", { class: "book-step-info" }, [
-          el("div", { class: "book-step-route" }, [
-            el("strong", { text: label(leg.origin) }),
-            el("span", { class: "muted", text: " → " }),
-            el("strong", { text: label(leg.destination) }),
-          ]),
-          el("div", {
-            class: "book-step-meta muted small",
-            text: `${leg.depart} → ${leg.arrive} · ${t("lbl_train", { no: leg.trainNo })}`,
-          }),
-        ]),
-        el("a", {
-          class: "btn btn-primary book-step-btn",
-          href,
-          attrs: { target: "_blank", rel: "noopener noreferrer" },
-          text: t("act_book_leg", { n: i + 1 }),
-        }),
-      ]),
-    );
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      el("h2", { class: "modal-title", text: t("book_steps_title") }),
-      el("p", { class: "modal-text", text: t("book_steps_note") }),
-      steps,
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
 async function promptInstall(): Promise<void> {
   // Use the browser's native prompt when it offered one (Chromium/Android).
   if (installPrompt) {
@@ -815,7 +741,7 @@ function ctx(): RenderCtx {
       const slug = j.legs.map((l) => l.trainNo.replace(/[^a-zA-Z0-9-]/g, "")).join("-");
       downloadText(`max-${j.date}-${slug}.ics`, journeyToIcs(j, summary));
     },
-    onBookSteps: (j) => showBookingModal(j),
+    onBookSteps: (j) => showBookingModal(j, ctx()),
     isFavorite: (route) => store.isFavorite(route),
     onToggleFavorite: (route) => {
       store.toggleFavorite(route);
@@ -826,7 +752,7 @@ function ctx(): RenderCtx {
       store.toggleTrip(buildSavedTrip(out, inb));
       renderSavedTrips();
     },
-    onShowTrip: (out, inb) => showTripModal(out, inb),
+    onShowTrip: (out, inb) => showTripModal(out, ctx(), { inbound: inb, onShare: shareCurrentUrl }),
     isTourSaved: (tour) => store.isTripSaved(store.tourId(tour)),
     onToggleTour: (tour) => {
       store.toggleTrip(buildSavedTour(tour));
@@ -855,112 +781,6 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
     ...(inbound ? { inbound } : {}),
     savedAt: Date.now(),
   };
-}
-
-/**
- * The whole trip on one page (a modal): a single journey or a round trip, with both
- * legs bookable, a Save toggle, and a shortcut to the route's full calendar.
- */
-function showTripModal(outbound: Journey, inbound?: Journey): void {
-  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  const moreDates = el("button", {
-    class: "linklike trip-more",
-    type: "button",
-    text: t("trip_more_dates"),
-    on: {
-      click: () => {
-        dialog.close();
-        ctx().onOpenRoute(outbound.origin, outbound.destination);
-      },
-    },
-  });
-  const shareTripBtn = el("button", {
-    class: "btn btn-ghost share-feedback",
-    type: "button",
-    text: t("act_share"),
-    on: {
-      click: () => {
-        void shareCurrentUrl(() => {
-          shareTripBtn.textContent = t("share_copied");
-          setTimeout(() => {
-            shareTripBtn.textContent = t("act_share");
-          }, 1600);
-        });
-      },
-    },
-  });
-  // "Show on map" makes no sense behind a modal (it would scroll the page under
-  // the dialog), so neutralise the map action for the cards shown here.
-  const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      render.tripViewEl(outbound, modalCtx, inbound),
-      el("div", { class: "modal-actions" }, [shareTripBtn, moreDates, closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-function showMultiTripModal(legs: Journey[]): void {
-  const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
-  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      render.multiTripViewEl(legs, modalCtx),
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-/**
- * A saved multi-city tour on one page (a modal): the full itinerary with every
- * bookable leg and a Save toggle. Map actions are no-ops here — there's no map
- * behind the dialog to draw on (and we don't want to scroll the page underneath).
- */
-function showTourModal(tour: Tour): void {
-  const modalCtx: RenderCtx = { ...ctx(), onShowTour: () => {}, onShowJourney: () => {} };
-  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      render.tourEl(tour, modalCtx),
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
 }
 
 // --- query <-> form ---------------------------------------------------------
@@ -1546,7 +1366,7 @@ function runMultiCity(c: RenderCtx): void {
               chosen[i] = jj;
               const nextSec = legSections[i + 1];
               if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
-              else showMultiTripModal(chosen.filter((x): x is Journey => x != null));
+              else showMultiTripModal(chosen.filter((x): x is Journey => x != null), c);
             },
           }),
         );
@@ -1975,7 +1795,7 @@ function runOdSearch(c: RenderCtx): void {
         retList.append(
           render.journeyEl(j, c, {
             onPick: () => {},
-            onArrow: (rj) => showTripModal(chosenOutbound!, rj),
+            onArrow: (rj) => showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl }),
           }),
         );
     };
@@ -3717,13 +3537,13 @@ function savedTripInfo(trip: store.SavedTrip): { label: string; when: string; op
     return {
       label: stops.map((s) => deps.registry.label(s)).join(" → "),
       when: last ? `${formatDate(out.date)} – ${formatDate(last.date)}` : formatDate(out.date),
-      open: () => showTourModal(tour),
+      open: () => showTourModal(tour, ctx()),
     };
   }
   return {
     label: `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`,
     when: inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date),
-    open: () => showTripModal(out, inb),
+    open: () => showTripModal(out, ctx(), { inbound: inb, onShare: shareCurrentUrl }),
   };
 }
 
