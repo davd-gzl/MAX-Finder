@@ -3236,6 +3236,11 @@ select.input::-ms-expand {
     display: none;
   }
 
+  #app[data-mform="results"] {
+    padding-bottom: 0;
+    height: 100dvh;
+    overflow: hidden;
+  }
   [data-mform="results"] .site-header {
     margin-bottom: 0;
   }
