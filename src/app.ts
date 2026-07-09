@@ -16,8 +16,10 @@ import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
-import { el, clear, optionEl, isTouch } from "./ui/dom";
+import { el, clear, isTouch } from "./ui/dom";
 import { buildShell, applyTheme, closeHeaderMenu } from "./ui/shell";
+import { createForm } from "./ui/form";
+import type { FormHandle, FormRefs, TripType } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
@@ -48,70 +50,13 @@ interface Deps {
   registry: StationRegistry;
 }
 
-interface Refs {
-  modeTabs: HTMLElement;
-  ideasBtn: HTMLElement;
-  modeDesc: HTMLElement;
-  origin: HTMLInputElement;
-  destination: HTMLInputElement;
-  date: HTMLInputElement;
-  dateField: HTMLElement;
-  departDate: DateFieldCtl;
-  legsBlock: HTMLElement;
-  surpriseBtn: HTMLElement;
-  endDate: HTMLInputElement;
-  endDateField: HTMLElement;
-  card: HTMLSelectElement;
-  departAfter: HTMLInputElement;
-  departBefore: HTMLInputElement;
-  arriveBefore: HTMLInputElement;
-  maxDuration: HTMLInputElement;
-  maxSpanDays: HTMLInputElement;
-  maxSpanDaysField: HTMLElement;
-  radius: HTMLInputElement;
-  radiusField: HTMLElement;
-  trainType: HTMLSelectElement;
-  maxConnections: HTMLSelectElement;
-  connGroupField: HTMLElement;
-  overnight: HTMLInputElement;
-  night: HTMLInputElement;
-  onlyNight: HTMLInputElement;
-  onlyNightField: HTMLElement;
-  roundTrip: HTMLInputElement;
-  nights: HTMLSelectElement;
-  stayHours: HTMLInputElement;
-  stayHoursField: HTMLElement;
-  lateReturn: HTMLInputElement;
-  roundTripField: HTMLElement;
-  roundTripOpts: HTMLElement;
-  via: HTMLInputElement;
-  originField: HTMLElement;
-  destinationField: HTMLElement;
-  viaField: HTMLElement;
-  maxDurationField: HTMLElement;
-  trainTypeField: HTMLElement;
-  region: HTMLSelectElement;
-  regionField: HTMLElement;
-  cities: HTMLInputElement;
-  citiesField: HTMLElement;
-  tourCount: HTMLInputElement;
-  tourCountField: HTMLElement;
-  cityChips: HTMLElement;
-  minDays: HTMLInputElement;
-  maxDays: HTMLInputElement;
-  stayField: HTMLElement;
-  maxKm: HTMLInputElement;
-  maxLegKm: HTMLInputElement;
-  maxKmField: HTMLElement;
-  maxLegDuration: HTMLInputElement;
-  maxLegDurationField: HTMLElement;
-  minLegDuration: HTMLInputElement;
-  minLegDurationField: HTMLElement;
+interface Refs extends FormRefs {
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
   favList: HTMLElement;
   tripList: HTMLElement;
+  card: HTMLSelectElement;
 }
 
 let deps: Deps;
@@ -119,6 +64,7 @@ let query: SearchQuery;
 let settings: store.Settings;
 let rootRef: HTMLElement;
 let refs: Refs;
+let formApi: FormHandle;
 let mapPromise: Promise<RouteMap> | null = null;
 let mapInstance: RouteMap | null = null;
 let labelToId: Map<string, string>;
@@ -135,7 +81,6 @@ let navStack: SearchQuery[] = [];
 // reachable across the whole window. A calendar-day click narrows to that day.
 let bestAllDays = true;
 
-type TripType = "simple" | "return" | "multi" | "ideas";
 let tripType: TripType = "simple";
 const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
 
@@ -156,32 +101,24 @@ function deriveMode(): SearchMode {
   return "from";
 }
 
-// Ordered list of station ids for the tour "cities to visit" chip input.
-let tourCities: string[] = [];
-
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
 }
 let installPrompt: InstallPromptEvent | null = null;
-let surpriseMsgEl: HTMLElement | null = null;
-let cityClearBtnEl: HTMLElement | null = null;
-let nearestBtnEl: HTMLElement | null = null;
 // Proposed/edited return date for the od "Do you want to come back?" section.
 // Reset on each fresh od search so a new outbound re-proposes (outbound + 2 days).
 let odReturnDate: string | null = null;
 
 /** Set (or clear with "") the inline status next to the "surprise" button. */
 function setSurpriseMsg(text: string): void {
-  if (surpriseMsgEl) surpriseMsgEl.textContent = text;
+  formApi?.setSurpriseMsg(text);
 }
 
 /** Remove every tour "city to visit" at once (staged — the search waits for the button). */
 function clearTourCities(): void {
-  if (tourCities.length === 0) return;
-  tourCities = [];
-  renderCityChips();
+  formApi?.clearCities();
 }
 
 /** Straight-line km between two stations; Infinity if either lacks coordinates. */
@@ -462,16 +399,16 @@ function growTour(mode: "nearest" | "random", count: number): void {
     return deepest;
   };
 
-  const base = [...tourCities];
+  const base = formApi.getTourCities();
   // Seed the arrival at the existing frontier (if any) so the first new hop departs
   // from the right day. If the existing cities don't even plan, there's nothing to grow.
   const baseTour = base.length ? plan(base) : null;
   const baseFrontier = base[base.length - 1];
-  tourCities =
+  const nextCities =
     base.length && !baseTour
       ? base
       : extend(base, count, baseTour && baseFrontier ? arrivalAt(baseTour, baseFrontier) : query.date);
-  const added = tourCities.length - base.length;
+  const added = nextCities.length - base.length;
 
   if (added === 0) {
     // Couldn't add any city. Still commit the snapshotted form (a freshly-filled
@@ -485,7 +422,7 @@ function growTour(mode: "nearest" | "random", count: number): void {
     setSurpriseMsg(t("surprise_none"));
     return;
   }
-  query = { ...query, origin, cities: [...tourCities] };
+  query = { ...query, origin, cities: [...nextCities] };
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
@@ -768,7 +705,7 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
   tripType = tripTypeForQuery(query);
-  setActiveTab(tripType);
+  formApi.setActiveTab(tripType);
   refs.modeDesc.textContent = t(`desc_${tripType}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
@@ -780,10 +717,13 @@ function syncFormFromQuery(): void {
   refs.departDate.setDates(query.date, query.returnDate ?? "");
   refs.date.value = query.date;
   if (query.legs && query.legs.length > 0) {
-    legRows = query.legs.map((l) =>
-      makeLeg(l.from ? deps.registry.label(l.from) : "", l.to ? deps.registry.label(l.to) : "", l.date),
+    formApi.setLegs(
+      query.legs.map((l) => ({
+        from: l.from ? deps.registry.label(l.from) : "",
+        to: l.to ? deps.registry.label(l.to) : "",
+        date: l.date,
+      })),
     );
-    renderLegs();
   }
   refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
@@ -803,16 +743,15 @@ function syncFormFromQuery(): void {
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
   refs.region.value = query.region ?? "";
-  tourCities = [...(query.cities ?? [])];
+  formApi.setTourCities(query.cities ?? []);
   refs.cities.value = "";
-  renderCityChips();
   refs.minDays.value = String(query.minDays ?? 1);
   refs.maxDays.value = String(query.maxDays ?? 3);
   refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
   refs.maxLegKm.value = query.maxLegKm != null ? String(query.maxLegKm) : "";
   refs.maxLegDuration.value = query.maxLegDurationMin != null ? String(query.maxLegDurationMin) : "";
   refs.minLegDuration.value = query.minLegDurationMin != null ? String(query.minLegDurationMin) : "";
-  updateFieldVisibility();
+  formApi.updateFieldVisibility(tripType);
 }
 
 function readQueryFromForm(): SearchQuery {
@@ -834,11 +773,12 @@ function readQueryFromForm(): SearchQuery {
     returnFlexDays: tripType === "return" && mode === "od" ? refs.departDate.getMargin() || undefined : undefined,
     legs:
       mode === "tour"
-        ? legRows
+        ? formApi
+            .getLegValues()
             .map((l) => ({
-              from: resolveStation(l.from.value) ?? "",
-              to: resolveStation(l.to.value) ?? "",
-              date: l.dateCtl.input.value || query.date,
+              from: resolveStation(l.from) ?? "",
+              to: resolveStation(l.to) ?? "",
+              date: l.date || query.date,
             }))
             .filter((l) => l.from && l.to)
         : undefined,
@@ -862,7 +802,7 @@ function readQueryFromForm(): SearchQuery {
       mode === "tour"
         ? [
             ...new Set([
-              ...tourCities,
+              ...formApi.getTourCities(),
               ...refs.cities.value
                 .split(",")
                 .map((s) => resolveStation(s))
@@ -927,7 +867,7 @@ function refreshInPlace(): void {
   // reset them, which is the "my filter / cities disappeared" bug.
   refs.date.value = query.date;
   refs.departDate.setDate(query.date);
-  refreshTourEndDate();
+  formApi.refreshTourEndDate();
   clear(refs.results);
   renderSearch();
   window.scrollTo({ top: scrollY });
@@ -1840,9 +1780,9 @@ function switchTab(next: TripType): void {
   navStack = [];
   tripType = next;
   if (next === "ideas") bestAllDays = true;
-  setActiveTab(tripType);
+  formApi.setActiveTab(tripType);
   refs.modeDesc.textContent = t(`desc_${tripType}` as const);
-  updateFieldVisibility();
+  formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
   applyAndRun();
 }
@@ -2145,54 +2085,7 @@ function checkWatchedRoutes(): void {
   }
 }
 
-// --- theme ------------------------------------------------------------------
-
 // --- layout -----------------------------------------------------------------
-
-function setActiveTab(trip: TripType): void {
-  for (const btn of [...Array.from(refs.modeTabs.children), refs.ideasBtn]) {
-    const active = (btn as HTMLElement).dataset.trip === trip;
-    btn.classList.toggle("active", active);
-    btn.setAttribute("aria-pressed", String(active));
-  }
-}
-
-function updateFieldVisibility(): void {
-  const ret = tripType === "return";
-  const multi = tripType === "multi";
-  const ideas = tripType === "ideas";
-  const single = tripType === "simple" || ret;
-
-  refs.originField.style.display = multi ? "none" : "";
-  refs.destinationField.style.display = ideas || multi ? "none" : "";
-  refs.dateField.style.display = multi ? "none" : "";
-  refs.legsBlock.style.display = multi ? "" : "none";
-  refs.origin.placeholder = single ? t("ph_anywhere") : "";
-  refs.destination.placeholder = single ? t("ph_anywhere") : "";
-  refs.departDate.setRange(ret);
-  refreshTourEndDate();
-
-  refs.viaField.style.display = single ? "" : "none";
-  refs.onlyNightField.style.display = refs.night.checked ? "" : "none";
-  refs.surpriseBtn.style.display = multi ? "none" : "";
-
-  refs.maxDurationField.style.display = multi ? "none" : "";
-  refs.maxLegDurationField.style.display = "none";
-  refs.minLegDurationField.style.display = "none";
-
-  refs.regionField.style.display = ideas ? "" : "none";
-  refs.citiesField.style.display = "none";
-  refs.tourCountField.style.display = "none";
-  refs.stayField.style.display = "none";
-  refs.maxKmField.style.display = "none";
-  refs.maxSpanDaysField.style.display = single ? "" : "none";
-  refs.radiusField.style.display = single ? "" : "none";
-  if (nearestBtnEl) nearestBtnEl.style.display = "none";
-}
-
-function refreshTourEndDate(): void {
-  refs.endDateField.style.display = "none";
-}
 
 /** The footer's "data updated …" line, localized (or the sample-data notice). */
 function footerUpdatedText(): string {
@@ -2212,7 +2105,39 @@ function footerUpdatedText(): string {
 function buildLayout(root: HTMLElement): void {
   clear(root);
 
-  const built = buildForm();
+  formApi = createForm({
+    stationLabels: deps.registry.list().map((s) => s.label),
+    regions: [...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r)))].sort(),
+    today,
+    bookingWindowDays: BOOKING_WINDOW_DAYS,
+    maxTourFill: MAX_TOUR_FILL,
+    overnightMaxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN,
+    jeuneUrl: MAX_JEUNE_URL,
+    seniorUrl: MAX_SENIOR_URL,
+    resolveStation,
+    stationLabel: (id) => deps.registry.label(id),
+    mode: () => query.mode,
+    formatDate,
+    formatWeekday,
+    availabilityFor: (o, d, kind, dates, opts) => {
+      const map = new Map<string, number>();
+      let cal: { date: string; available: boolean; count: number }[] | null = null;
+      if (kind === "ret") {
+        if (o && d) cal = availabilityCalendar(deps.trains, d, o, dates, opts);
+      } else if (o && d) {
+        cal = availabilityCalendar(deps.trains, o, d, dates, opts);
+      } else if (o) {
+        cal = destinationCalendar(deps.trains, o, dates, opts);
+      }
+      if (cal) for (const c of cal) map.set(c.date, c.available ? c.count : 0);
+      return map;
+    },
+    onSwitchTab: switchTab,
+    onSubmit: runFromForm,
+    onSurprise: surpriseMe,
+    onNearest: addNearestCity,
+  });
+  const built = formApi;
   const shell = buildShell({
     theme: settings.theme,
     card: settings.card,
@@ -2293,851 +2218,6 @@ function updateSearchBar(): void {
   if (bar) bar.textContent = refs.title?.textContent || t("appName");
 }
 
-interface FormBuild {
-  form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "favList" | "tripList" | "card">;
-}
-
-interface DateFieldCtl {
-  root: HTMLElement;
-  input: HTMLInputElement;
-  getMargin(): number;
-  setMargin(n: number): void;
-  setRange(on: boolean): void;
-  setDate(date: string): void;
-  setDates(out: string, ret: string): void;
-  getReturn(): string;
-  refresh(): void;
-}
-
-function popoverOpts() {
-  return {
-    maxConnections: Number(refs.maxConnections.value) || 0,
-    departAfter: refs.departAfter.value || undefined,
-    departBefore: refs.departBefore.value || undefined,
-    arriveBefore: refs.arriveBefore.value || undefined,
-    ...(refs.night.checked ? {} : { excludeNight: true }),
-    ...(refs.night.checked && refs.onlyNight.checked ? { onlyNight: true } : {}),
-    ...(refs.overnight.checked ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
-  };
-}
-
-function computeAvail(
-  o: string | undefined,
-  d: string | undefined,
-  kind: "out" | "ret",
-  dates: string[],
-): Map<string, number> {
-  const opts = popoverOpts();
-  const map = new Map<string, number>();
-  let cal: { date: string; available: boolean; count: number }[] | null = null;
-  if (kind === "ret") {
-    if (o && d) cal = availabilityCalendar(deps.trains, d, o, dates, opts);
-  } else if (o && d) {
-    cal = availabilityCalendar(deps.trains, o, d, dates, opts);
-  } else if (o) {
-    cal = destinationCalendar(deps.trains, o, dates, opts);
-  }
-  if (cal) for (const c of cal) map.set(c.date, c.available ? c.count : 0);
-  return map;
-}
-
-function makeDateField(label: string, routeFn?: () => { o?: string; d?: string }, bare = false): DateFieldCtl {
-  const route = routeFn ?? (() => ({ o: resolveStation(refs.origin.value), d: resolveStation(refs.destination.value) }));
-  const days = dateRange(today, BOOKING_WINDOW_DAYS);
-  const lastBookable = days[days.length - 1] ?? today;
-  const input = inputEl("date");
-  input.min = today;
-  input.max = lastBookable;
-  input.classList.add("dp-native");
-
-  let margin = 0;
-  let isOpen = false;
-  let range = false;
-  let retDate = "";
-  let awaitReturn = false;
-  let avail = new Map<string, number>();
-  const fmtShort = (d: string): string =>
-    new Intl.DateTimeFormat(getLang(), { day: "numeric", month: "short" }).format(new Date(`${d}T00:00:00`));
-  const phase = (): "out" | "ret" => (range && awaitReturn ? "ret" : "out");
-
-  const valueText = el("span", { class: "dp-value-text" });
-  const valueBadge = el("span", { class: "dp-value-badge", attrs: { hidden: "" } });
-  const trigger = el(
-    "button",
-    { class: "dp-trigger input", type: "button", attrs: { "aria-haspopup": "dialog", "aria-expanded": "false" } },
-    [valueText, valueBadge],
-  );
-
-  const marginVal = el("span", { class: "dp-margin-val", text: "0" });
-  const marginMinus = el("button", { class: "dp-step", type: "button", text: "−", attrs: { "aria-label": "−1" } });
-  const marginPlus = el("button", { class: "dp-step", type: "button", text: "+", attrs: { "aria-label": "+1" } });
-  const marginRow = el("div", { class: "dp-margin" }, [
-    el("span", { class: "dp-margin-label muted", text: t("field_flex") }),
-    el("div", { class: "dp-margin-ctl" }, [
-      marginMinus,
-      el("span", { class: "dp-margin-box" }, [
-        el("span", { class: "muted", text: "±" }),
-        marginVal,
-        el("span", { class: "muted", text: ` ${t("flex_days")}` }),
-      ]),
-      marginPlus,
-    ]),
-  ]);
-
-  const dow = el("div", { class: "dp-dow" });
-  const grid = el("div", { class: "dp-grid" });
-  const legend = el("p", { class: "dp-legend muted" });
-  const pop = el("div", { class: "datepop", attrs: { role: "dialog", hidden: "" } }, [marginRow, dow, grid, legend]);
-  const wrap = el("div", { class: "datefield" }, [trigger, input]);
-  const root = bare ? wrap : field(label, wrap);
-  document.body.append(pop);
-
-  const leading = (new Date(`${today}T00:00:00`).getDay() + 6) % 7;
-  const refMonday = addDays(today, -leading);
-  for (let i = 0; i < 7; i++) dow.append(el("span", { class: "dp-dow-c", text: formatWeekday(addDays(refMonday, i)) }));
-
-  const setLabel = (): void => {
-    if (range) {
-      const a = input.value ? fmtShort(input.value) : t("field_depart");
-      const b = retDate ? fmtShort(retDate) : t("field_ret");
-      valueText.textContent = `${a} → ${b}`;
-    } else {
-      valueText.textContent = input.value ? formatDate(input.value) : t("field_date");
-    }
-    if (margin > 0) {
-      valueBadge.textContent = `±${margin}`;
-      valueBadge.removeAttribute("hidden");
-    } else {
-      valueBadge.setAttribute("hidden", "");
-    }
-  };
-
-  const pick = (date: string): void => {
-    if (range) {
-      if (awaitReturn && date >= input.value) {
-        retDate = date;
-        awaitReturn = false;
-        setLabel();
-        paint();
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        close();
-        return;
-      }
-      input.value = date;
-      retDate = "";
-      awaitReturn = true;
-      setLabel();
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      refresh();
-      return;
-    }
-    input.value = date;
-    setLabel();
-    paint();
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    close();
-  };
-
-  const paint = (): void => {
-    clear(grid);
-    for (let i = 0; i < leading; i++) grid.append(el("span", { class: "dp-cell dp-blank" }));
-    const out = input.value;
-    const outIdx = out ? dayIndex(out) : -1;
-    const retIdx = retDate ? dayIndex(retDate) : -1;
-    const picking = range && awaitReturn;
-    const known = avail.size > 0;
-    let anyOk = false;
-    for (const date of days) {
-      const di = dayIndex(date);
-      const before = picking && di < outIdx;
-      const ok = !before && (avail.get(date) ?? 0) > 0;
-      if (ok) anyOk = true;
-      const isSel = date === out || (range && date === retDate);
-      const inRange = range && outIdx >= 0 && retIdx >= 0 && di > outIdx && di < retIdx;
-      const nearOut = margin > 0 && outIdx >= 0 && Math.abs(di - outIdx) <= margin;
-      const nearRet = range && margin > 0 && retIdx >= 0 && Math.abs(di - retIdx) <= margin;
-      const inWin = !isSel && !inRange && (nearOut || nearRet);
-      const cls = [
-        "dp-cell",
-        ok ? "ok" : before || known ? "no" : "",
-        isSel ? "sel" : "",
-        inRange ? "range" : "",
-        inWin ? "win" : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-      grid.append(
-        el("button", {
-          class: cls,
-          type: "button",
-          text: date.slice(8, 10),
-          attrs: { "aria-label": formatDate(date), "data-date": date, ...(isSel ? { "aria-current": "date" } : {}) },
-          on: { click: () => pick(date) },
-        }),
-      );
-    }
-    legend.textContent = margin > 0 ? t("datepick_window") : anyOk ? t("cal_legend") : "";
-  };
-
-  const refresh = (): void => {
-    const r = route();
-    avail = computeAvail(r.o, r.d, phase(), days);
-    paint();
-  };
-
-  const onDocClick = (e: MouseEvent): void => {
-    const n = e.target as Node;
-    if (!wrap.contains(n) && !pop.contains(n)) close();
-  };
-  const place = (): void => {
-    const r = trigger.getBoundingClientRect();
-    const w = pop.offsetWidth;
-    let left = r.left;
-    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - w);
-    pop.style.top = `${Math.round(r.bottom + 6)}px`;
-    pop.style.left = `${Math.round(left)}px`;
-  };
-  function close(): void {
-    if (!isOpen) return;
-    isOpen = false;
-    pop.setAttribute("hidden", "");
-    trigger.setAttribute("aria-expanded", "false");
-    document.removeEventListener("click", onDocClick, true);
-    window.removeEventListener("scroll", place, true);
-    window.removeEventListener("resize", place);
-  }
-  const openPop = (): void => {
-    isOpen = true;
-    refresh();
-    pop.removeAttribute("hidden");
-    place();
-    trigger.setAttribute("aria-expanded", "true");
-    document.addEventListener("click", onDocClick, true);
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-  };
-  trigger.addEventListener("click", (e) => {
-    e.stopPropagation();
-    isOpen ? close() : openPop();
-  });
-  pop.addEventListener("click", (e) => e.stopPropagation());
-  pop.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      close();
-      trigger.focus();
-    }
-  });
-  grid.addEventListener("mouseover", (e) => {
-    if (!range || !awaitReturn) return;
-    const cell = (e.target as HTMLElement).closest<HTMLElement>(".dp-cell");
-    const hover = cell?.getAttribute("data-date");
-    if (!hover) return;
-    const outIdx = dayIndex(input.value);
-    const hi = dayIndex(hover);
-    for (const c of Array.from(grid.children) as HTMLElement[]) {
-      const cd = c.getAttribute("data-date");
-      c.classList.toggle("preview", Boolean(cd) && hi >= outIdx && dayIndex(cd!) > outIdx && dayIndex(cd!) <= hi);
-    }
-  });
-  grid.addEventListener("mouseleave", () => {
-    for (const c of Array.from(grid.children) as HTMLElement[]) c.classList.remove("preview");
-  });
-
-  const setMarginVal = (n: number): void => {
-    margin = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
-    marginVal.textContent = String(margin);
-    setLabel();
-    if (isOpen) paint();
-  };
-  marginMinus.addEventListener("click", (e) => {
-    e.stopPropagation();
-    setMarginVal(margin - 1);
-  });
-  marginPlus.addEventListener("click", (e) => {
-    e.stopPropagation();
-    setMarginVal(margin + 1);
-  });
-
-  setLabel();
-
-  return {
-    root,
-    input,
-    getMargin: () => margin,
-    setMargin: (n) => setMarginVal(n),
-    setRange: (on) => {
-      range = on;
-      if (!on) retDate = "";
-      awaitReturn = false;
-      setLabel();
-      if (isOpen) refresh();
-    },
-    setDate: (d) => {
-      input.value = d;
-      setLabel();
-      if (isOpen) paint();
-    },
-    setDates: (out, ret) => {
-      input.value = out;
-      retDate = range ? ret : "";
-      awaitReturn = false;
-      setLabel();
-      if (isOpen) refresh();
-    },
-    getReturn: () => retDate,
-    refresh,
-  };
-}
-
-interface LegCtl {
-  from: HTMLInputElement;
-  to: HTMLInputElement;
-  dateCtl: DateFieldCtl;
-  row: HTMLElement;
-  remove: HTMLElement;
-}
-let legRows: LegCtl[] = [];
-let legsContainer: HTMLElement | null = null;
-
-function makeLeg(fromVal = "", toVal = "", dateVal = ""): LegCtl {
-  const from = inputEl("text", "station-list");
-  const to = inputEl("text", "station-list");
-  from.value = fromVal;
-  to.value = toVal;
-  from.placeholder = t("field_origin");
-  to.placeholder = t("field_destination");
-  for (const inp of [from, to]) {
-    inp.addEventListener("input", () => inp.classList.remove("is-invalid"));
-    inp.addEventListener("change", () => {
-      const v = inp.value.trim();
-      inp.classList.toggle("is-invalid", v !== "" && !resolveStation(v));
-    });
-  }
-  const dateCtl = makeDateField(
-    t("field_date"),
-    () => ({ o: resolveStation(from.value), d: resolveStation(to.value) }),
-    true,
-  );
-  if (dateVal) dateCtl.setDate(dateVal);
-  const remove = el("button", {
-    class: "mc-remove",
-    type: "button",
-    text: "×",
-    attrs: { "aria-label": t("leg_remove"), title: t("leg_remove") },
-  });
-  const row = el("div", { class: "mc-leg" }, [from, to, dateCtl.root, remove]);
-  const ctl: LegCtl = { from, to, dateCtl, row, remove };
-  remove.addEventListener("click", () => removeLeg(ctl));
-  to.addEventListener("change", () => {
-    const id = resolveStation(to.value);
-    const next = legRows[legRows.indexOf(ctl) + 1];
-    if (next && id && !next.from.value.trim()) next.from.value = deps.registry.label(id);
-  });
-  return ctl;
-}
-
-function renderLegs(): void {
-  if (!legsContainer) return;
-  clear(legsContainer);
-  const removable = legRows.length > 2;
-  legRows.forEach((l) => {
-    l.remove.style.display = removable ? "" : "none";
-    legsContainer!.append(l.row);
-  });
-}
-
-function addLeg(): void {
-  const prev = legRows[legRows.length - 1];
-  const id = prev ? resolveStation(prev.to.value) : undefined;
-  legRows.push(makeLeg(id ? deps.registry.label(id) : ""));
-  renderLegs();
-}
-
-function removeLeg(ctl: LegCtl): void {
-  if (legRows.length <= 2) return;
-  legRows = legRows.filter((l) => l !== ctl);
-  renderLegs();
-}
-
-function clearTripLegs(): void {
-  legRows = [makeLeg(), makeLeg()];
-  renderLegs();
-}
-
-function buildForm(): FormBuild {
-  const stationList = el("datalist", { id: "station-list" });
-  for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
-
-  const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  (["simple", "return", "multi"] as const).forEach((trip, i) => {
-    const btn = el("button", {
-      class: "mode-tab",
-      type: "button",
-      text: t(`tab_${trip}` as const),
-      dataset: { trip },
-      on: { click: () => switchTab(trip) },
-    });
-    withShortcut(btn, String(i + 1));
-    modeTabs.append(btn);
-  });
-  const ideasBtn = el("button", {
-    class: "mode-tab ideas-tab",
-    type: "button",
-    text: t("tab_ideas"),
-    dataset: { trip: "ideas" },
-    on: { click: () => switchTab("ideas") },
-  });
-  withShortcut(ideasBtn, "4");
-  const modeBar = el("div", { class: "mode-bar" }, [modeTabs, ideasBtn]);
-  const modeDesc = el("p", { class: "mode-desc" });
-
-  const origin = inputEl("text", "station-list");
-  const destination = inputEl("text", "station-list");
-  const via = inputEl("text", "station-list");
-  // Flag a station field whose text doesn't match any real station, so a typo or a
-  // made-up name reads as invalid instead of silently doing nothing. Neutral while
-  // typing (cleared on input); validated on commit (blur / datalist pick).
-  for (const input of [origin, destination, via]) {
-    input.addEventListener("input", () => input.classList.remove("is-invalid"));
-    input.addEventListener("change", () => {
-      const v = input.value.trim();
-      input.classList.toggle("is-invalid", v !== "" && !resolveStation(v));
-    });
-  }
-  // Mobile UX: in exact-trip mode, committing a valid "from" station jumps focus
-  // straight to the still-empty "to" box, so you can fill the route in one flow
-  // without reaching for the next field. Only on touch, and only when "to" is empty
-  // (don't steal focus while editing an already-complete route).
-  origin.addEventListener("change", () => {
-    if (!isTouch() || query.mode !== "od") return;
-    if (resolveStation(origin.value) && !destination.value.trim()) {
-      destination.focus();
-    }
-  });
-  const departDate = makeDateField(t("field_date"));
-  const date = departDate.input;
-  const dateField = departDate.root;
-  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  // Optional tour finish-by date (shown only when a tour has a destination).
-  const endDate = inputEl("date");
-  endDate.min = today;
-  endDate.max = lastBookable;
-  endDate.setAttribute("aria-label", t("field_end_date"));
-  const endDateField = field(t("field_end_date"), endDate);
-  const departAfter = inputEl("time");
-  const departBefore = inputEl("time");
-  const arriveBefore = inputEl("time");
-  const maxDuration = inputEl("number");
-  // Max trip length in days (exact trip): caps how many calendar days a journey may
-  // straddle — overnight stopovers can chain trains across several days.
-  const maxSpanDays = inputEl("number");
-  maxSpanDays.min = "1";
-  maxSpanDays.max = "14";
-  maxSpanDays.placeholder = "2";
-  maxSpanDays.setAttribute("aria-label", t("field_maxSpanDays"));
-  // Search radius (km) around the endpoints: suggest nearby stations with free MAX
-  // seats, for a paid hop to/from them when the exact route has none ("exact trip").
-  const radius = inputEl("number");
-  radius.min = "10";
-  radius.step = "10";
-  radius.placeholder = "100";
-  radius.setAttribute("aria-label", t("field_radius"));
-  const radiusField = field(t("field_radius"), radius);
-  const trainType = el("select", { class: "input" }, [
-    optionEl("", t("field_anyType"), true),
-    ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
-  ]) as HTMLSelectElement;
-  const maxConnections = el("select", { class: "input" }, [
-    optionEl("0", t("conn_0"), false),
-    optionEl("1", t("conn_1"), true),
-    optionEl("2", t("conn_2"), false),
-    optionEl("3", t("conn_3"), false),
-    optionEl("6", t("conn_max"), false),
-  ]) as HTMLSelectElement;
-  const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const overnightField = el("label", { class: "field field-check" }, [
-    overnight,
-    el("span", { class: "field-label", text: t("field_overnight") }),
-  ]);
-  // Night trains: a checkbox to include them (off by default → trains that leave
-  // late or arrive past midnight are dropped). When it's on, a second checkbox
-  // narrows to ONLY journeys you can sleep aboard. syncFormFromQuery sets both from
-  // the query's excludeNight / onlyNight; the default query carries excludeNight.
-  const night = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const nightField = el("label", { class: "field field-check" }, [
-    night,
-    el("span", { class: "field-label", text: t("field_night") }),
-  ]);
-  const onlyNight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const onlyNightField = el("label", { class: "field field-check field-sub" }, [
-    onlyNight,
-    el("span", { class: "field-label", text: t("night_only") }),
-  ]);
-  // The "only night trains" choice only makes sense once night trains are on.
-  const syncNightOpts = (): void => {
-    onlyNightField.style.display = night.checked ? "" : "none";
-    if (!night.checked) onlyNight.checked = false;
-  };
-  night.addEventListener("change", syncNightOpts);
-  // "Round trip" controls — shown only in "Where to?" mode. The toggle flips the
-  // destinations list into round trips (out and back, both free MAX); its options
-  // (nights away, min hours on site for a day trip, a late ~02:00 return) appear
-  // only once it's on. Nights = 0 is a same-day day trip.
-  const roundTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const roundTripToggle = el("label", { class: "field field-check daytrip-toggle" }, [
-    roundTrip,
-    el("span", { class: "field-label", text: t("field_roundtrip") }),
-  ]);
-  const nights = el("select", { class: "input" }, [
-    optionEl("0", t("nights_sameday"), true),
-    optionEl("1", t("nights_n", { n: 1 }), false),
-    optionEl("2", t("nights_n", { n: 2 }), false),
-    optionEl("3", t("nights_n", { n: 3 }), false),
-    optionEl("flex", t("nights_flex"), false),
-  ]) as HTMLSelectElement;
-  const nightsField = field(t("field_nights"), nights);
-  const stayHours = inputEl("number");
-  stayHours.min = "1";
-  stayHours.max = "12";
-  stayHours.placeholder = "4";
-  stayHours.setAttribute("aria-label", t("field_daytrip_hours"));
-  const stayHoursField = field(t("field_daytrip_hours"), stayHours);
-  const lateReturn = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const lateReturnField = el("label", { class: "field field-check" }, [
-    lateReturn,
-    el("span", { class: "field-label", text: t("field_late_return") }),
-  ]);
-  const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
-  const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
-  // Reveal/hide the round-trip options the moment the toggle or nights change. The
-  // form-level `change` handler only re-syncs the tour finish-by date, so these
-  // mode-specific fields are toggled here directly (staged, without the search
-  // running). The "min hours on site" field is meaningful only for a same-day trip.
-  const syncRoundTripOpts = (): void => {
-    roundTripOpts.style.display = roundTrip.checked ? "" : "none";
-    stayHoursField.style.display = nights.value === "0" ? "" : "none";
-  };
-  roundTrip.addEventListener("change", syncRoundTripOpts);
-  nights.addEventListener("change", syncRoundTripOpts);
-  const regionList = [
-    ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
-  ].sort();
-  const region = el("select", { class: "input" }, [
-    optionEl("", t("region_any"), true),
-    ...regionList.map((r) => optionEl(r, r, false)),
-  ]) as HTMLSelectElement;
-  // Tour "cities to visit": a chip/tag input. Typing a city and pressing Enter
-  // (or comma) turns it into a removable chip; Backspace on an empty field drops
-  // the last one. Much clearer than a comma-separated string when adding several.
-  const cities = inputEl("text", "station-list");
-  cities.placeholder = t("cities_add");
-  const cityChips = el("div", { class: "city-chips" });
-  const citiesBox = el("div", { class: "cities-input" }, [cityChips, cities]);
-  const commitCities = (raw: string): void => {
-    let added = false;
-    for (const part of raw.split(",")) {
-      const id = resolveStation(part);
-      if (id && !tourCities.includes(id)) {
-        tourCities.push(id);
-        added = true;
-      }
-    }
-    if (added) renderCityChips();
-  };
-  cities.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === ",") {
-      // Enter would otherwise submit the form (running the search); intercept it so
-      // the text becomes a chip instead. The staged chip waits for the Search button.
-      e.preventDefault();
-      commitCities(cities.value);
-      cities.value = "";
-    } else if (e.key === "Backspace" && cities.value === "" && tourCities.length) {
-      tourCities.pop();
-      renderCityChips();
-    }
-  });
-  cities.addEventListener("change", () => {
-    // Fired when a datalist suggestion is picked.
-    if (cities.value.trim()) {
-      commitCities(cities.value);
-      cities.value = "";
-    }
-  });
-
-  const originField = clearableField(t("field_origin"), origin);
-  const destinationField = clearableField(t("field_destination"), destination);
-  const viaField = clearableField(t("field_via"), via);
-  const regionField = field(t("field_region"), region);
-  const clearCitiesBtn = el("button", {
-    class: "linklike cities-clear",
-    type: "button",
-    text: t("cities_clear"),
-    attrs: { hidden: "" },
-    on: { click: clearTourCities },
-  });
-  withShortcut(clearCitiesBtn, "C"); // "c" clears every tour city
-  cityClearBtnEl = clearCitiesBtn;
-  // "Nearest stop": greedily extend the trip to the closest reachable new station.
-  // It lives next to "Surprise me" in the form actions and only shows for a tour.
-  const nearestBtn = el("button", {
-    class: "btn btn-ghost nearest-btn",
-    type: "button",
-    text: t("act_nearest"),
-    attrs: { title: t("nearest_hint") },
-    on: { click: addNearestCity },
-  });
-  withShortcut(nearestBtn, "N"); // "n" grows the tour to the nearest stop
-  nearestBtn.style.display = "none"; // shown only in tour mode by updateFieldVisibility()
-  nearestBtnEl = nearestBtn;
-  const citiesField = field(
-    t("field_cities"),
-    el("div", { class: "cities-wrap" }, [
-      citiesBox,
-      el("div", { class: "cities-actions" }, [clearCitiesBtn]),
-    ]),
-  );
-  // How many days to spend in each city before the next hop — a range, so the
-  // planner can find a feasible schedule (a free-MAX, multi-day vacation plan).
-  const minDays = inputEl("number");
-  minDays.min = "1";
-  minDays.max = "14";
-  minDays.value = "1";
-  minDays.setAttribute("aria-label", t("field_stay_min"));
-  const maxDays = inputEl("number");
-  maxDays.min = "1";
-  maxDays.max = "14";
-  maxDays.value = "3";
-  maxDays.setAttribute("aria-label", t("field_stay_max"));
-  const stayField = el("div", { class: "stay-fields" }, [
-    field(t("field_stay_min"), minDays),
-    field(t("field_stay_max"), maxDays),
-  ]);
-  // How many cities Surprise me / Nearest stop add per click — set to 5 and click
-  // once to "find me a tour of 5 cities".
-  const tourCount = inputEl("number");
-  tourCount.min = "1";
-  tourCount.max = String(MAX_TOUR_FILL);
-  tourCount.placeholder = "1";
-  tourCount.setAttribute("aria-label", t("field_tour_count"));
-  const tourCountField = field(t("field_tour_count"), tourCount);
-  // Optional distance caps (km, straight line): the whole tour's total, and each
-  // single hop ("a tour, but no more than ~1000 km total and no train over ~400 km").
-  // No minimum — any positive cap is valid (an empty box means "no cap").
-  const maxKm = inputEl("number");
-  maxKm.step = "50";
-  maxKm.placeholder = "1000";
-  maxKm.setAttribute("aria-label", t("field_maxKm"));
-  const maxLegKm = inputEl("number");
-  maxLegKm.step = "50";
-  maxLegKm.placeholder = "400";
-  maxLegKm.setAttribute("aria-label", t("field_maxLegKm"));
-  const maxKmField = el("div", { class: "stay-fields" }, [
-    field(t("field_maxKm"), maxKm),
-    field(t("field_maxLegKm"), maxLegKm),
-  ]);
-  // Per-train time cap (tour): no single hop longer than N minutes. Time matters
-  // more than distance, so this carries a sensible minimum (a 5-min cap is useless).
-  const maxLegDuration = inputEl("number");
-  maxLegDuration.min = "30";
-  maxLegDuration.step = "15";
-  maxLegDuration.placeholder = "240";
-  maxLegDuration.setAttribute("aria-label", t("field_maxLegDuration"));
-  const maxLegDurationField = field(t("field_maxLegDuration"), maxLegDuration);
-  // Floor on each hop's time — e.g. require ~6 h legs so a tour only chains long
-  // overnight trains, never a quick 1 h regional hop.
-  const minLegDuration = inputEl("number");
-  minLegDuration.min = "0";
-  minLegDuration.step = "15";
-  minLegDuration.placeholder = "0";
-  minLegDuration.setAttribute("aria-label", t("field_minLegDuration"));
-  const minLegDurationField = field(t("field_minLegDuration"), minLegDuration);
-
-  // These three default to Advanced; updateFieldVisibility() promotes them into the
-  // main form for a tour (where connections/overnight/duration matter most). Train
-  // type stays last as a stable insertion anchor. Km caps + max-span sit in Advanced
-  // and are shown per mode (km for tour, span for od).
-  const maxDurationField = field(t("field_maxDuration"), maxDuration);
-  const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
-  const trainTypeField = field(t("field_trainType"), trainType);
-  // Overnight is an option of "Connections" (a long layover is just a slow change),
-  // so group them into one cell — a lone checkbox floating mid-row looks orphaned.
-  const connGroupField = el("div", { class: "conn-group" }, [
-    field(t("field_connections"), maxConnections),
-    overnightField,
-    nightField,
-    onlyNightField,
-  ]);
-
-  const advanced = el("details", { class: "advanced" }, [
-    el("summary", { text: t("field_advanced") }),
-    el("div", { class: "advanced-grid" }, [
-      connGroupField,
-      viaField,
-      field(t("field_departAfter"), departAfter),
-      field(t("field_departBefore"), departBefore),
-      field(t("field_arriveBefore"), arriveBefore),
-      maxDurationField,
-      minLegDurationField,
-      maxLegDurationField,
-      maxSpanDaysField,
-      radiusField,
-      maxKmField,
-      trainTypeField,
-    ]),
-  ]);
-
-  const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
-  withShortcut(searchBtn, "G"); // "g" runs the search (see onGlobalKey)
-  // A discreet, playful shortcut to a random city.
-  const surpriseBtn = el("button", {
-    class: "btn btn-ghost surprise-btn",
-    type: "button",
-    text: t("act_surprise"),
-    on: { click: surpriseMe },
-  });
-  withShortcut(surpriseBtn, "S"); // "s" = surprise me
-  // Inline status for "surprise" (e.g. no city can be added to a tour).
-  surpriseMsgEl = el("p", { class: "surprise-msg", attrs: { role: "status" } });
-
-  const addLegBtn = el("button", { class: "linklike mc-add", type: "button", text: t("leg_add"), on: { click: addLeg } });
-  const clearLegsBtn = el("button", { class: "linklike mc-clear", type: "button", text: t("cities_clear"), on: { click: clearTripLegs } });
-  const legsHead = el("div", { class: "mc-head" }, [
-    el("span", { class: "field-label", text: t("field_origin") }),
-    el("span", { class: "field-label", text: t("field_destination") }),
-    el("span", { class: "field-label", text: t("field_date") }),
-    el("span", {}),
-  ]);
-  const legsBlock = el("div", { class: "mc-block" }, [
-    legsHead,
-    el("div", { class: "mc-legs" }),
-    el("div", { class: "mc-actions" }, [addLegBtn, clearLegsBtn]),
-  ]);
-  legsContainer = legsBlock.querySelector(".mc-legs");
-  legRows = [makeLeg(), makeLeg()];
-  renderLegs();
-
-  const howto = el("details", { class: "howto" }, [
-    el("summary", { text: t("how_title") }),
-    el("ul", { class: "howto-list" }, [
-      el("li", { text: t("how_jeune") }),
-      el("li", { text: t("how_senior") }),
-    ]),
-    el("p", { class: "howto-links" }, [
-      el("span", { class: "muted", text: `${t("how_more")} ` }),
-      el("a", {
-        text: "MAX JEUNE",
-        href: MAX_JEUNE_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-      el("span", { class: "muted", text: " · " }),
-      el("a", {
-        text: "MAX SENIOR",
-        href: MAX_SENIOR_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-    ]),
-    el("p", { class: "muted small", text: t("how_note") }),
-  ]);
-
-  const form = el("form", { class: "search-form" }, [
-    el("div", { class: "form-body" }, [
-      modeBar,
-      modeDesc,
-      el("div", { class: "fields" }, [
-        originField,
-        destinationField,
-        dateField,
-        endDateField,
-        regionField,
-        legsBlock,
-        citiesField,
-        stayField,
-        tourCountField,
-      ]),
-      advanced,
-    ]),
-    el("div", { class: "form-stub" }, [
-      el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
-      surpriseMsgEl,
-      howto,
-    ]),
-    stationList,
-  ]);
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    runFromForm();
-  });
-  // Editing a field stages the change but no longer auto-runs the search: on mobile
-  // with a large dataset, recomputing on every field commit (blur / datalist pick /
-  // select) is slow, so the results now wait for the Search button (or Enter / "g").
-  // The `change` handler still keeps dependent fields in sync as you edit — e.g. it
-  // reveals the tour "finish by" date once a destination is filled.
-  form.addEventListener("change", () => refreshTourEndDate());
-
-  return {
-    form,
-    refs: {
-      modeTabs,
-      ideasBtn,
-      modeDesc,
-      origin,
-      destination,
-      date,
-      dateField,
-      departDate,
-      legsBlock,
-      surpriseBtn,
-      endDate,
-      endDateField,
-      departAfter,
-      departBefore,
-      arriveBefore,
-      maxDuration,
-      maxSpanDays,
-      maxSpanDaysField,
-      radius,
-      radiusField,
-      trainType,
-      maxConnections,
-      connGroupField,
-      overnight,
-      night,
-      onlyNight,
-      onlyNightField,
-      roundTrip,
-      nights,
-      stayHours,
-      stayHoursField,
-      lateReturn,
-      roundTripField,
-      roundTripOpts,
-      via,
-      originField,
-      destinationField,
-      viaField,
-      maxDurationField,
-      trainTypeField,
-      region,
-      regionField,
-      cities,
-      citiesField,
-      tourCount,
-      tourCountField,
-      cityChips,
-      minDays,
-      maxDays,
-      stayField,
-      maxKm,
-      maxLegKm,
-      maxKmField,
-      maxLegDuration,
-      maxLegDurationField,
-      minLegDuration,
-      minLegDurationField,
-    },
-  };
-}
 
 /**
  * Prefill the search form with a saved route (origin + destination, exact-trip
@@ -3151,31 +2231,6 @@ function fillRoute(origin: string, destination: string): void {
   store.updateUrl(query); // keep the URL in step with the prefilled route
   if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-/** Render the tour "cities to visit" chips from `tourCities`. */
-function renderCityChips(): void {
-  clear(refs.cityChips);
-  tourCities.forEach((id, i) => {
-    const chip = el("span", { class: "city-chip" }, [
-      el("span", { text: deps.registry.label(id) }),
-      el("button", {
-        class: "chip-x",
-        type: "button",
-        text: "×",
-        attrs: { "aria-label": `${t("act_fav_remove")} — ${deps.registry.label(id)}` },
-        on: {
-          click: () => {
-            // Staged like every other edit — removing a chip waits for the Search button.
-            tourCities.splice(i, 1);
-            renderCityChips();
-          },
-        },
-      }),
-    ]);
-    refs.cityChips.append(chip);
-  });
-  cityClearBtnEl?.toggleAttribute("hidden", tourCities.length === 0);
 }
 
 function renderFavorites(): void {
@@ -3344,58 +2399,3 @@ function renderSavedPage(): void {
   }
 }
 
-// --- small DOM helpers ------------------------------------------------------
-
-function inputEl(type: string, list?: string): HTMLInputElement {
-  // Accessible name comes from the wrapping <label> built by field().
-  const i = el("input", { class: "input", type }) as HTMLInputElement;
-  if (list) i.setAttribute("list", list);
-  return i;
-}
-
-function field(label: string, control: HTMLElement): HTMLElement {
-  return el("label", { class: "field" }, [el("span", { class: "field-label", text: label }), control]);
-}
-
-const FLEX_MAX = 7;
-
-/**
- * A field whose text input carries a clear "×" button (shown only when there's
- * something to clear). Clearing fires input+change so the field's invalid flag and
- * any dependent fields re-sync — the search itself waits for the Search button.
- */
-function clearableField(label: string, input: HTMLInputElement): HTMLElement {
-  input.classList.add("has-clear");
-  const clearBtn = el("button", {
-    class: "input-clear",
-    type: "button",
-    // An SVG cross centres reliably (the "×" glyph sits optically high in its box).
-    html: '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-    attrs: { "aria-label": t("act_clear"), tabindex: "-1", title: t("act_clear") },
-  });
-  const sync = (): void => {
-    clearBtn.style.display = input.value ? "" : "none";
-  };
-  input.addEventListener("input", sync);
-  clearBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    input.value = "";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.focus();
-    sync();
-  });
-  sync();
-  return field(label, el("span", { class: "input-wrap" }, [input, clearBtn]));
-}
-
-/**
- * Append a keyboard-shortcut badge to a button. The badge stays out of the way
- * until the pointer hovers (or the button is keyboard-focused), when CSS reveals
- * it — so the same key shown in the "?" help is discoverable right on the button.
- */
-function withShortcut(btn: HTMLElement, key: string): HTMLElement {
-  btn.classList.add("has-kbd");
-  btn.append(el("kbd", { class: "kbd-hint", text: key, attrs: { "aria-hidden": "true" } }));
-  return btn;
-}
