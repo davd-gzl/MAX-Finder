@@ -110,6 +110,7 @@ export const fr = {
 
   act_book: "Réserver sur SNCF Connect",
   act_next: "Étape suivante",
+  act_results: "Résultats",
   act_book_leg: "Réserver le train {n}",
   book_steps_title: "Réserver chaque train",
   book_steps_note: "Une correspondance MAX se réserve train par train — ouvrez chaque lien dans l’ordre.",
@@ -164,6 +165,7 @@ export const fr = {
 
   ctl_theme: "Thème",
   ctl_lang: "Langue",
+  ctl_menu: "Menu",
   loading: "Chargement…",
 
   desc_from: "Toutes les destinations avec une place MAX gratuite depuis votre gare.",

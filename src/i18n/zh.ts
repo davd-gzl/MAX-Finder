@@ -106,6 +106,7 @@ export const zh: Dict = {
   lbl_dayoffset: "+{n} 天",
   act_book: "在 SNCF Connect 预订",
   act_next: "下一步",
+  act_results: "结果",
   act_book_leg: "预订第 {n} 趟列车",
   book_steps_title: "逐趟预订列车",
   book_steps_note: "MAX 换乘需逐趟预订，请按顺序打开每个链接。",
@@ -154,6 +155,7 @@ export const zh: Dict = {
     "可用情况仅供参考，每天约更新 1 次。请在 SNCF Connect 上核实并预订。独立的自由开源项目，与 SNCF 无关。",
   ctl_theme: "主题",
   ctl_lang: "语言",
+  ctl_menu: "菜单",
   loading: "加载中…",
 
   desc_from: "从你的车站出发、有免费 MAX 座位的所有目的地。",

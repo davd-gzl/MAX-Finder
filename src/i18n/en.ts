@@ -112,6 +112,7 @@ export const en: Dict = {
 
   act_book: "Book on SNCF Connect",
   act_next: "Next step",
+  act_results: "Results",
   act_book_leg: "Book train {n}",
   book_steps_title: "Book each train",
   book_steps_note: "A MAX connection is booked one train at a time — open each link in order.",
@@ -166,6 +167,7 @@ export const en: Dict = {
 
   ctl_theme: "Theme",
   ctl_lang: "Language",
+  ctl_menu: "Menu",
   loading: "Loading…",
 
   desc_from: "Every destination with a free MAX seat from your station.",

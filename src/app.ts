@@ -123,6 +123,23 @@ const SHARE_SVG =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
 const CHECK_SVG =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 7"/></svg>';
+const MENU_SVG =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+const MENU_CLOSE_SVG =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const INSTALL_SVG =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v10m0 0-3.5-3.5M12 13l3.5-3.5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>';
+
+function closeHeaderMenu(): void {
+  const nav = document.querySelector<HTMLElement>(".header-nav.menu-open");
+  if (!nav) return;
+  nav.classList.remove("menu-open");
+  const btn = nav.querySelector<HTMLButtonElement>(".menu-btn");
+  if (btn) {
+    btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = MENU_SVG;
+  }
+}
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
@@ -634,6 +651,14 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   // Global keyboard shortcuts (mode switch, focus, day nav, surprise, run, help).
   document.addEventListener("keydown", onGlobalKey);
 
+  document.addEventListener("click", (ev) => {
+    const nav = document.querySelector<HTMLElement>(".header-nav.menu-open");
+    if (nav && !nav.contains(ev.target as Node)) closeHeaderMenu();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeHeaderMenu();
+  });
+
   // Native browser Back/Forward: restore the page from the URL. The in-app drill
   // stack is the URL's source of truth here, so clear it to keep the in-app
   // "Retour" button in step with where the browser history now sits.
@@ -665,6 +690,7 @@ function rebuild(autoRun = true): void {
   if (autoRun) runSearch();
   else showSearchPrompt();
   updateRailMetrics();
+  setMobileForm(!(autoRun && store.urlHasQuery()));
 }
 
 /**
@@ -756,6 +782,7 @@ function ctx(): RenderCtx {
       query = { ...query, mode: "od", origin, destination, via: undefined };
       syncFormFromQuery();
       applyAndRun();
+      setMobileForm(false);
       // One clean scroll to the new page's heading (focus uses preventScroll so
       // this is the only scroll, not a jump-then-smooth).
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1322,6 +1349,7 @@ function renderSearch(): void {
   } else {
     runOdSearch(c);
   }
+  updateSearchBar();
 }
 
 /**
@@ -2007,6 +2035,7 @@ function goHome(): void {
   query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
   syncFormFromQuery();
   applyAndRun();
+  setMobileForm(true);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -2030,6 +2059,7 @@ function runFromForm(): void {
   if (tripType === "ideas") bestAllDays = false;
   query = readQueryFromForm();
   applyAndRun();
+  setMobileForm(false);
 }
 
 /** Shift the chosen date by `delta` days, clamped to the bookable window. */
@@ -2200,6 +2230,7 @@ function surpriseMe(): void {
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
+  setMobileForm(false);
 }
 
 function ensureMap(): Promise<RouteMap> {
@@ -2445,12 +2476,13 @@ function buildLayout(root: HTMLElement): void {
   const installBtn = el("button", {
     class: "ctl install-btn",
     type: "button",
-    text: t("act_install"),
+    attrs: { "aria-label": t("act_install"), title: t("act_install") },
+    html: `${INSTALL_SVG}<span class="install-label">${t("act_install")}</span>`,
     on: { click: () => void promptInstall() },
   });
 
   const shareBtn = el("button", {
-    class: "ctl icon-ctl",
+    class: "ctl icon-ctl share-btn",
     type: "button",
     attrs: { "aria-label": t("act_share"), title: t("act_share") },
     html: SHARE_SVG,
@@ -2474,6 +2506,29 @@ function buildLayout(root: HTMLElement): void {
     attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub", title: "GitHub" },
   });
 
+  const headerCtls = el("div", { class: "header-ctls" }, [
+    el("div", { class: "menu-selects" }, [langSel, cardSel]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, themeBtn, shareBtn, installBtn]),
+  ]);
+  const menuBtn = el("button", {
+    class: "ctl icon-ctl menu-btn",
+    type: "button",
+    attrs: {
+      "aria-label": t("ctl_menu"),
+      title: t("ctl_menu"),
+      "aria-expanded": "false",
+      "aria-haspopup": "true",
+    },
+    html: MENU_SVG,
+  });
+  const headerNav = el("div", { class: "header-nav" }, [menuBtn, headerCtls]);
+  menuBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const open = headerNav.classList.toggle("menu-open");
+    menuBtn.setAttribute("aria-expanded", String(open));
+    menuBtn.innerHTML = open ? MENU_CLOSE_SVG : MENU_SVG;
+  });
+
   const header = el("header", { class: "site-header" }, [
     el("div", { class: "brand" }, [
       el("button", {
@@ -2488,7 +2543,7 @@ function buildLayout(root: HTMLElement): void {
         el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
       ]),
     ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, keysBtn, themeBtn, shareBtn, installBtn]),
+    headerNav,
   ]);
 
   // form
@@ -2538,12 +2593,44 @@ function buildLayout(root: HTMLElement): void {
   const mapSection = el("section", { class: "map-section", attrs: { "aria-label": t("map_title") } }, [
     mapEl,
   ]);
+  const drawerHandle = el(
+    "button",
+    {
+      class: "drawer-handle",
+      type: "button",
+      attrs: { "aria-label": t("act_results"), title: t("act_results") },
+    },
+    [el("span", { class: "drawer-grip", attrs: { "aria-hidden": "true" } })],
+  );
+  const resultsDrawer = el("div", { class: "results-drawer" }, [
+    drawerHandle,
+    el("div", { class: "drawer-scroll" }, [title, results, savedAside, aside, footer]),
+  ]);
+  const msearchBar = el(
+    "button",
+    {
+      class: "msearch-bar",
+      type: "button",
+      attrs: { "aria-label": t("btn_search") },
+      on: { click: () => setMobileForm(true) },
+    },
+    [
+      el("span", {
+        class: "msearch-icon",
+        attrs: { "aria-hidden": "true" },
+        html: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
+      }),
+      el("span", { class: "msearch-text" }),
+    ],
+  );
   const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [built.form, title, results, savedAside, aside, footer]),
+    el("div", { class: "main-col" }, [msearchBar, built.form, resultsDrawer]),
     el("div", { class: "side-col" }, [mapSection]),
   ]);
 
   root.append(header, layout);
+  root.dataset.mform = "form";
+  setupDrawer(resultsDrawer, drawerHandle, mapSection);
 
   // Clicking a destination card highlights it (card + its map pin), so the list
   // and map stay in sync. A map-pin click already routes through selectStation().
@@ -2593,6 +2680,105 @@ function updateRailMetrics(): void {
   lastAboveH = top;
   rootRef.style.setProperty("--above-h", `${top}px`);
   requestAnimationFrame(() => mapInstance?.invalidate());
+}
+
+function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLElement): void {
+  const mq = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 860px)") : null;
+  if (!mq) return;
+  const order = ["peek", "half", "full"] as const;
+  type Detent = (typeof order)[number];
+  let state: Detent = "peek";
+
+  const sizes = (): Record<Detent, number> => {
+    const mapTop = mapSection.getBoundingClientRect().top;
+    const full = Math.max(240, Math.round(window.innerHeight - mapTop - 6));
+    const handleH = handle.offsetHeight || 46;
+    return {
+      peek: Math.max(handleH + 92, Math.round(full * 0.24)),
+      half: Math.round(full * 0.55),
+      full,
+    };
+  };
+
+  const snap = (s: Detent): void => {
+    state = s;
+    drawer.dataset.state = s;
+    if (mq.matches) drawer.style.height = `${sizes()[s]}px`;
+  };
+
+  let dragging = false;
+  let startY = 0;
+  let startH = 0;
+  let moved = false;
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (!mq.matches) return;
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startH = drawer.getBoundingClientRect().height;
+    drawer.style.transition = "none";
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {
+      startH = drawer.getBoundingClientRect().height;
+    }
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    if (Math.abs(e.clientY - startY) > 6) moved = true;
+    const s = sizes();
+    const h = Math.max(s.peek, Math.min(s.full, startH + (startY - e.clientY)));
+    drawer.style.height = `${h}px`;
+  });
+  const finish = (): void => {
+    if (!dragging) return;
+    dragging = false;
+    drawer.style.transition = "";
+    const s = sizes();
+    const h = drawer.getBoundingClientRect().height;
+    let best: Detent = order[0];
+    for (const k of order) {
+      if (Math.abs(s[k] - h) < Math.abs(s[best] - h)) best = k;
+    }
+    snap(best);
+  };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("click", () => {
+    if (moved) {
+      moved = false;
+      return;
+    }
+    snap(state === "peek" ? "half" : "peek");
+  });
+
+  const sync = (): void => {
+    if (mq.matches) {
+      snap(state);
+    } else {
+      drawer.style.height = "";
+      drawer.style.transition = "";
+    }
+  };
+  mq.addEventListener("change", sync);
+  window.addEventListener("resize", sync);
+  sync();
+}
+
+function setMobileForm(open: boolean): void {
+  if (!rootRef) return;
+  rootRef.dataset.mform = open ? "form" : "results";
+  if (!open) {
+    updateSearchBar();
+    updateRailMetrics();
+    requestAnimationFrame(() => mapInstance?.invalidate());
+  }
+}
+
+function updateSearchBar(): void {
+  const bar = rootRef?.querySelector<HTMLElement>(".msearch-text");
+  if (bar) bar.textContent = refs.title?.textContent || t("appName");
 }
 
 interface FormBuild {

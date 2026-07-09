@@ -106,6 +106,7 @@ export const de: Dict = {
   lbl_dayoffset: "+{n} T",
   act_book: "Auf SNCF Connect buchen",
   act_next: "Weiter",
+  act_results: "Ergebnisse",
   act_book_leg: "Zug {n} buchen",
   book_steps_title: "Jeden Zug buchen",
   book_steps_note: "Eine MAX-Verbindung wird Zug für Zug gebucht — öffne jeden Link der Reihe nach.",
@@ -154,6 +155,7 @@ export const de: Dict = {
     "Verfügbarkeit ist ein Richtwert, ~1×/Tag aktualisiert. Prüfe und buche auf SNCF Connect. Freies, unabhängiges Projekt, nicht mit der SNCF verbunden.",
   ctl_theme: "Thema",
   ctl_lang: "Sprache",
+  ctl_menu: "Menü",
   loading: "Laden…",
 
   desc_from: "Alle Ziele mit einem kostenlosen MAX-Platz ab deinem Bahnhof.",

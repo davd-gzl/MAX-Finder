@@ -106,6 +106,7 @@ export const ko: Dict = {
   lbl_dayoffset: "+{n}일",
   act_book: "SNCF Connect에서 예약",
   act_next: "다음",
+  act_results: "결과",
   act_book_leg: "{n}번 열차 예약",
   book_steps_title: "각 열차 예약",
   book_steps_note: "MAX 환승은 열차별로 예약합니다. 순서대로 각 링크를 여세요.",
@@ -154,6 +155,7 @@ export const ko: Dict = {
     "가용성은 참고용이며 하루 약 1회 업데이트됩니다. SNCF Connect에서 확인 및 예약하세요. SNCF와 무관한 독립 오픈소스 프로젝트입니다.",
   ctl_theme: "테마",
   ctl_lang: "언어",
+  ctl_menu: "메뉴",
   loading: "불러오는 중…",
 
   desc_from: "출발역에서 무료 MAX 좌석으로 갈 수 있는 모든 목적지.",

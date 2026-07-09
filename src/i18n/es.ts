@@ -106,6 +106,7 @@ export const es: Dict = {
   lbl_dayoffset: "+{n} d",
   act_book: "Reservar en SNCF Connect",
   act_next: "Siguiente",
+  act_results: "Resultados",
   act_book_leg: "Reservar el tren {n}",
   book_steps_title: "Reserva cada tren",
   book_steps_note: "Una correspondencia MAX se reserva tren por tren: abre cada enlace en orden.",
@@ -154,6 +155,7 @@ export const es: Dict = {
     "Disponibilidad indicativa, actualizada ~1×/día. Verifica y reserva en SNCF Connect. Proyecto libre independiente, no afiliado a SNCF.",
   ctl_theme: "Tema",
   ctl_lang: "Idioma",
+  ctl_menu: "Menú",
   loading: "Cargando…",
 
   desc_from: "Todos los destinos con una plaza MAX gratuita desde tu estación.",
