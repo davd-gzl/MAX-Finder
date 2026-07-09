@@ -16,7 +16,8 @@ import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
-import { el, clear } from "./ui/dom";
+import { el, clear, optionEl, isTouch } from "./ui/dom";
+import { buildShell, applyTheme, closeHeaderMenu } from "./ui/shell";
 import type { RouteMap, MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
@@ -29,7 +30,7 @@ import {
   showTourModal,
 } from "./ui/modals";
 import { generateBookingUrl } from "./util/booking";
-import { t, setLang, getLang, LANGS, isLang } from "./i18n";
+import { t, setLang, getLang, isLang } from "./i18n";
 import * as store from "./state/store";
 import {
   MAX_JEUNE_URL,
@@ -126,27 +127,6 @@ let labelToId: Map<string, string>;
 let today = "";
 const BOOKING_WINDOW_DAYS = 30;
 const APP_TITLE = document.title;
-const SHARE_SVG =
-  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
-const CHECK_SVG =
-  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 7"/></svg>';
-const MENU_SVG =
-  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
-const MENU_CLOSE_SVG =
-  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-const INSTALL_SVG =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v10m0 0-3.5-3.5M12 13l3.5-3.5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>';
-
-function closeHeaderMenu(): void {
-  const nav = document.querySelector<HTMLElement>(".header-nav.menu-open");
-  if (!nav) return;
-  nav.classList.remove("menu-open");
-  const btn = nav.querySelector<HTMLButtonElement>(".menu-btn");
-  if (btn) {
-    btn.setAttribute("aria-expanded", "false");
-    btn.innerHTML = MENU_SVG;
-  }
-}
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
@@ -1827,10 +1807,6 @@ function runOdSearch(c: RenderCtx): void {
 }
 
 /** Coarse pointer ≈ touch/phone. */
-function isTouch(): boolean {
-  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-}
-
 function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
@@ -2171,10 +2147,6 @@ function checkWatchedRoutes(): void {
 
 // --- theme ------------------------------------------------------------------
 
-function applyTheme(theme: store.Theme): void {
-  document.documentElement.dataset.theme = theme;
-}
-
 // --- layout -----------------------------------------------------------------
 
 function setActiveTab(trip: TripType): void {
@@ -2222,265 +2194,69 @@ function refreshTourEndDate(): void {
   refs.endDateField.style.display = "none";
 }
 
-function buildLayout(root: HTMLElement): void {
-  clear(root);
-
+/** The footer's "data updated …" line, localized (or the sample-data notice). */
+function footerUpdatedText(): string {
   const meta = deps.meta;
   const when = meta.updatedAt
     ? new Date(meta.updatedAt).toLocaleString(getLang(), {
         dateStyle: "medium",
         timeStyle: "short",
-        hourCycle: "h23", // 24-hour clock — no AM/PM, the convention in France/Europe
+        hourCycle: "h23",
       })
     : "";
-  const updated = when
+  return when
     ? t("foot_updated", { date: when }) + (meta.isSample ? ` (${t("foot_sample")})` : "")
     : t("foot_sample");
+}
 
-  // header
-  const langSel = el(
-    "select",
-    { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
-    LANGS.map((l) => optionEl(l.code, l.label, getLang() === l.code)),
-  ) as HTMLSelectElement;
-  langSel.addEventListener("change", () => {
-    settings = { ...settings, lang: isLang(langSel.value) ? langSel.value : "fr" };
-    setLang(settings.lang);
-    store.saveSettings(settings);
-    rebuild();
-  });
+function buildLayout(root: HTMLElement): void {
+  clear(root);
 
-  // Theme cycles auto → light → dark on a single monochrome icon button.
-  const themeBtn = el("button", {
-    class: "ctl icon-ctl",
-    type: "button",
-    attrs: { "aria-label": t("ctl_theme"), title: t("ctl_theme") },
-    html: themeSvg(settings.theme),
-  });
-  themeBtn.addEventListener("click", () => {
-    const order: store.Theme[] = ["auto", "light", "dark"];
-    const next = order[(order.indexOf(settings.theme) + 1) % order.length]!;
-    settings = { ...settings, theme: next };
-    applyTheme(next);
-    store.saveSettings(settings);
-    themeBtn.innerHTML = themeSvg(next);
-  });
-
-  // Keyboard-shortcuts help (also the "?" key). Hidden on coarse-pointer devices
-  // where there's no keyboard, to avoid clutter.
-  const keysBtn = el("button", {
-    class: "ctl icon-ctl keys-btn",
-    type: "button",
-    text: "?",
-    attrs: { "aria-label": t("keys_title"), title: t("keys_title") },
-    on: { click: showShortcutsHelp },
-  });
-  if (isTouch()) keysBtn.style.display = "none";
-
-  // Card (pass) is a global preference, kept at the top and persisted at once.
-  const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
-    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
-    optionEl("senior", t("card_senior"), settings.card === "senior"),
-  ]) as HTMLSelectElement;
-  cardSel.addEventListener("change", () => {
-    const card: store.Settings["card"] = cardSel.value === "senior" ? "senior" : "jeune";
-    settings = { ...settings, card };
-    store.saveSettings(settings);
-    query = { ...query, card };
-    store.updateUrl(query);
-    runSearch(); // refresh the MAX SENIOR weekend notice
-  });
-
-  // Install (Add to home screen) — always present. Uses the native prompt when
-  // the browser offers one, otherwise shows manual instructions.
-  const installBtn = el("button", {
-    class: "ctl install-btn",
-    type: "button",
-    attrs: { "aria-label": t("act_install"), title: t("act_install") },
-    html: `${INSTALL_SVG}<span class="install-label">${t("act_install")}</span>`,
-    on: { click: () => void promptInstall() },
-  });
-
-  const shareBtn = el("button", {
-    class: "ctl icon-ctl share-btn",
-    type: "button",
-    attrs: { "aria-label": t("act_share"), title: t("act_share") },
-    html: SHARE_SVG,
-  });
-  shareBtn.addEventListener("click", () => {
-    void shareCurrentUrl(() => {
-      shareBtn.innerHTML = CHECK_SVG;
-      shareBtn.title = t("share_copied");
-      setTimeout(() => {
-        shareBtn.innerHTML = SHARE_SVG;
-        shareBtn.title = t("act_share");
-      }, 1600);
-    });
-  });
-
-  // GitHub link with a star, to invite stars on the repo.
-  const ghLink = el("a", {
-    class: "ctl icon-ctl gh-link",
-    html: `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.3a10.7 10.7 0 0 0-3.38 20.86c.53.1.73-.23.73-.51 0-.25-.01-.92-.01-1.8-2.98.65-3.6-1.44-3.6-1.44-.49-1.24-1.19-1.57-1.19-1.57-.97-.66.08-.65.08-.65 1.07.08 1.64 1.1 1.64 1.1.95 1.64 2.5 1.16 3.11.89.1-.69.37-1.16.68-1.43-2.38-.27-4.88-1.19-4.88-5.3 0-1.17.42-2.13 1.1-2.88-.11-.27-.48-1.36.1-2.84 0 0 .9-.29 2.95 1.1a10.2 10.2 0 0 1 5.36 0c2.05-1.39 2.95-1.1 2.95-1.1.58 1.48.21 2.57.1 2.84.69.75 1.1 1.71 1.1 2.88 0 4.12-2.5 5.02-4.89 5.29.38.33.72.98.72 1.98 0 1.43-.01 2.58-.01 2.93 0 .28.19.62.74.51A10.7 10.7 0 0 0 12 1.3Z"/></svg>`,
-    href: GITHUB_URL,
-    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub", title: "GitHub" },
-  });
-
-  const headerCtls = el("div", { class: "header-ctls" }, [
-    el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, themeBtn, shareBtn, installBtn]),
-  ]);
-  const menuBtn = el("button", {
-    class: "ctl icon-ctl menu-btn",
-    type: "button",
-    attrs: {
-      "aria-label": t("ctl_menu"),
-      title: t("ctl_menu"),
-      "aria-expanded": "false",
-      "aria-haspopup": "true",
-    },
-    html: MENU_SVG,
-  });
-  const headerNav = el("div", { class: "header-nav" }, [menuBtn, headerCtls]);
-  menuBtn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    const open = headerNav.classList.toggle("menu-open");
-    menuBtn.setAttribute("aria-expanded", String(open));
-    menuBtn.innerHTML = open ? MENU_CLOSE_SVG : MENU_SVG;
-  });
-
-  const header = el("header", { class: "site-header" }, [
-    el("div", { class: "brand" }, [
-      el("button", {
-        class: "logo",
-        type: "button",
-        attrs: { "aria-label": t("appName"), title: t("appName") },
-        on: { click: goHome },
-        html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
-      }),
-      el("div", { class: "brand-head" }, [
-        el("h1", { text: t("appName") }),
-        el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
-      ]),
-    ]),
-    headerNav,
-  ]);
-
-  // form
   const built = buildForm();
-  // results + map
-  const title = el("h2", {
-    class: "results-title",
-    id: "results-title",
-    text: t("tagline"),
-    attrs: { tabindex: "-1" },
+  const shell = buildShell({
+    theme: settings.theme,
+    card: settings.card,
+    updatedText: footerUpdatedText(),
+    form: built.form,
+    githubUrl: GITHUB_URL,
+    issuesUrl: GITHUB_ISSUES_URL,
+    goHome,
+    onLang: (code) => {
+      settings = { ...settings, lang: isLang(code) ? code : "fr" };
+      setLang(settings.lang);
+      store.saveSettings(settings);
+      rebuild();
+    },
+    onThemeChange: (theme) => {
+      settings = { ...settings, theme };
+      store.saveSettings(settings);
+    },
+    onCard: (card) => {
+      settings = { ...settings, card };
+      store.saveSettings(settings);
+      query = { ...query, card };
+      store.updateUrl(query);
+      runSearch();
+    },
+    onShare: (onCopied) => void shareCurrentUrl(onCopied),
+    onInstall: () => void promptInstall(),
+    onShortcuts: showShortcutsHelp,
+    onOpenMobileForm: () => setMobileForm(true),
+    onSelect: (id) => markSelected(id),
+    onPeek: (id) => mapInstance?.peek(id),
   });
-  const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
-  const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
 
-  const tripList = el("div", { class: "trip-list" });
-  const savedAside = el("aside", { class: "saved-trips" }, [
-    el("h2", { text: t("saved_title") }),
-    tripList,
-  ]);
-
-  const favList = el("div", { class: "fav-list" });
-  const aside = el("aside", { class: "favorites" }, [
-    el("h2", { text: t("fav_title") }),
-    favList,
-  ]);
-
-  const footer = el("footer", { class: "site-footer" }, [
-    el("p", { class: "muted small updated", attrs: { title: t("data_why") }, text: updated }),
-    el("p", { class: "muted", text: t("foot_source") }),
-    el("p", { class: "muted small", text: t("foot_disclaimer") }),
-    el("div", { class: "foot-actions" }, [
-      el("a", {
-        class: "btn btn-ghost feedback-btn",
-        text: t("act_report"),
-        href: GITHUB_ISSUES_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-      el("a", {
-        class: "foot-link",
-        text: "GitHub",
-        href: GITHUB_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-    ]),
-  ]);
-
-  const mapSection = el("section", { class: "map-section", attrs: { "aria-label": t("map_title") } }, [
-    mapEl,
-  ]);
-  const drawerHandle = el(
-    "button",
-    {
-      class: "drawer-handle",
-      type: "button",
-      attrs: { "aria-label": t("act_results"), title: t("act_results") },
-    },
-    [el("span", { class: "drawer-grip", attrs: { "aria-hidden": "true" } })],
-  );
-  const resultsDrawer = el("div", { class: "results-drawer" }, [
-    drawerHandle,
-    el("div", { class: "drawer-scroll" }, [title, results, savedAside, aside, footer]),
-  ]);
-  const msearchBar = el(
-    "button",
-    {
-      class: "msearch-bar",
-      type: "button",
-      attrs: { "aria-label": t("btn_search") },
-      on: { click: () => setMobileForm(true) },
-    },
-    [
-      el("span", {
-        class: "msearch-icon",
-        attrs: { "aria-hidden": "true" },
-        html: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`,
-      }),
-      el("span", { class: "msearch-text" }),
-    ],
-  );
-  const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [msearchBar, built.form, resultsDrawer]),
-    el("div", { class: "side-col" }, [mapSection]),
-  ]);
-
-  root.append(header, layout);
+  root.append(shell.header, shell.layout);
   root.dataset.mform = "form";
-  setupDrawer(resultsDrawer, drawerHandle, mapSection);
-
-  // Clicking a destination card highlights it (card + its map pin), so the list
-  // and map stay in sync. A map-pin click already routes through selectStation().
-  results.addEventListener("click", (ev) => {
-    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
-    if (card?.dataset.station) markSelected(card.dataset.station);
-  });
-
-  let peekedStation: string | null = null;
-  results.addEventListener("mouseover", (ev) => {
-    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
-    const id = card?.dataset.station ?? null;
-    if (id !== peekedStation) {
-      peekedStation = id;
-      mapInstance?.peek(id);
-    }
-  });
-  results.addEventListener("mouseleave", () => {
-    peekedStation = null;
-    mapInstance?.peek(null);
-  });
 
   refs = {
     ...built.refs,
-    title,
-    results,
-    mapEl,
-    favList,
-    tripList,
-    card: cardSel,
+    title: shell.title,
+    results: shell.results,
+    mapEl: shell.mapEl,
+    favList: shell.favList,
+    tripList: shell.tripList,
+    card: shell.cardSelect,
   };
   mapPromise = null;
   mapInstance = null;
@@ -2500,90 +2276,6 @@ function updateRailMetrics(): void {
   lastAboveH = top;
   rootRef.style.setProperty("--above-h", `${top}px`);
   requestAnimationFrame(() => mapInstance?.invalidate());
-}
-
-function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLElement): void {
-  const mq = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 860px)") : null;
-  if (!mq) return;
-  const order = ["peek", "half", "full"] as const;
-  type Detent = (typeof order)[number];
-  let state: Detent = "peek";
-
-  const sizes = (): Record<Detent, number> => {
-    const mapTop = mapSection.getBoundingClientRect().top;
-    const full = Math.max(240, Math.round(window.innerHeight - mapTop - 6));
-    const handleH = handle.offsetHeight || 46;
-    return {
-      peek: Math.max(handleH + 92, Math.round(full * 0.24)),
-      half: Math.round(full * 0.55),
-      full,
-    };
-  };
-
-  const snap = (s: Detent): void => {
-    state = s;
-    drawer.dataset.state = s;
-    if (mq.matches) drawer.style.height = `${sizes()[s]}px`;
-  };
-
-  let dragging = false;
-  let startY = 0;
-  let startH = 0;
-  let moved = false;
-
-  handle.addEventListener("pointerdown", (e) => {
-    if (!mq.matches) return;
-    dragging = true;
-    moved = false;
-    startY = e.clientY;
-    startH = drawer.getBoundingClientRect().height;
-    drawer.style.transition = "none";
-    try {
-      handle.setPointerCapture(e.pointerId);
-    } catch {
-      startH = drawer.getBoundingClientRect().height;
-    }
-  });
-  handle.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    if (Math.abs(e.clientY - startY) > 6) moved = true;
-    const s = sizes();
-    const h = Math.max(s.peek, Math.min(s.full, startH + (startY - e.clientY)));
-    drawer.style.height = `${h}px`;
-  });
-  const finish = (): void => {
-    if (!dragging) return;
-    dragging = false;
-    drawer.style.transition = "";
-    const s = sizes();
-    const h = drawer.getBoundingClientRect().height;
-    let best: Detent = order[0];
-    for (const k of order) {
-      if (Math.abs(s[k] - h) < Math.abs(s[best] - h)) best = k;
-    }
-    snap(best);
-  };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", finish);
-  handle.addEventListener("click", () => {
-    if (moved) {
-      moved = false;
-      return;
-    }
-    snap(state === "peek" ? "half" : "peek");
-  });
-
-  const sync = (): void => {
-    if (mq.matches) {
-      snap(state);
-    } else {
-      drawer.style.height = "";
-      drawer.style.transition = "";
-    }
-  };
-  mq.addEventListener("change", sync);
-  window.addEventListener("resize", sync);
-  sync();
 }
 
 function setMobileForm(open: boolean): void {
@@ -3706,22 +3398,4 @@ function withShortcut(btn: HTMLElement, key: string): HTMLElement {
   btn.classList.add("has-kbd");
   btn.append(el("kbd", { class: "kbd-hint", text: key, attrs: { "aria-hidden": "true" } }));
   return btn;
-}
-
-function optionEl(value: string, label: string, selected: boolean): HTMLElement {
-  const o = el("option", { value, text: label }) as HTMLOptionElement;
-  o.selected = selected;
-  return o;
-}
-
-/** Monochrome theme glyph (sun / moon / half-disc) drawn in currentColor. */
-function themeSvg(theme: store.Theme): string {
-  const wrap = (inner: string): string =>
-    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-  if (theme === "light")
-    return wrap(
-      '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4l1.4-1.4M18 6l1.4-1.4"/>',
-    );
-  if (theme === "dark") return wrap('<path d="M20.5 13.2A8 8 0 1 1 10.8 3.5 6.3 6.3 0 0 0 20.5 13.2z"/>');
-  return wrap('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>');
 }
