@@ -219,6 +219,9 @@ export function createForm(props: FormProps): FormHandle {
   let tourCities: string[] = [];
   let legRows: LegCtl[] = [];
   let legsContainer: HTMLElement | null = null;
+  let thumbInit = false;
+  let bodyAnim: Animation | null = null;
+  let firstViz = true;
 
   /** Availability search options taken from the current form inputs. */
   function popoverOpts(): ConnectionOptions {
@@ -589,11 +592,30 @@ export function createForm(props: FormProps): FormHandle {
     renderCityChips();
   }
 
+  /** Slide the white thumb under the active tab (or hide it when Ideas is active). */
+  function positionThumb(): void {
+    const active = modeTabs.querySelector<HTMLElement>(".mode-tab.active");
+    if (!active) {
+      modeTabs.classList.remove("has-thumb");
+      return;
+    }
+    thumb.style.width = `${active.offsetWidth}px`;
+    thumb.style.height = `${active.offsetHeight}px`;
+    thumb.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+    modeTabs.classList.add("has-thumb");
+  }
+
   function setActiveTab(trip: TripType): void {
-    for (const btn of [...Array.from(modeTabs.children), ideasBtn]) {
-      const active = (btn as HTMLElement).dataset.trip === trip;
+    for (const btn of [...Array.from(modeTabs.children), ideasBtn] as HTMLElement[]) {
+      if (!btn.dataset.trip) continue;
+      const active = btn.dataset.trip === trip;
       btn.classList.toggle("active", active);
       btn.setAttribute("aria-pressed", String(active));
+    }
+    positionThumb();
+    if (!thumbInit) {
+      thumbInit = true;
+      requestAnimationFrame(() => modeTabs.classList.add("animate-thumb"));
     }
   }
 
@@ -601,7 +623,41 @@ export function createForm(props: FormProps): FormHandle {
     endDateField.style.display = "none";
   }
 
+  /**
+   * Show/hide the fields for a trip type, morphing the white form body's height so
+   * switching modes reshapes the card smoothly instead of jumping. The first call
+   * (initial restore) and reduced-motion skip the animation.
+   * @param trip the trip type to lay the form out for.
+   */
   function updateFieldVisibility(trip: TripType): void {
+    const animate =
+      !firstViz &&
+      formBody.isConnected &&
+      typeof formBody.animate === "function" &&
+      !(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    firstViz = false;
+    if (!animate) {
+      applyFieldVisibility(trip);
+      return;
+    }
+    const first = formBody.getBoundingClientRect().height;
+    applyFieldVisibility(trip);
+    const last = formBody.getBoundingClientRect().height;
+    if (Math.abs(first - last) < 1) return;
+    bodyAnim?.cancel();
+    formBody.style.overflow = "hidden";
+    bodyAnim = formBody.animate([{ height: `${first}px` }, { height: `${last}px` }], {
+      duration: 260,
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+    });
+    const done = (): void => {
+      formBody.style.overflow = "";
+      bodyAnim = null;
+    };
+    void bodyAnim.finished.then(done, done);
+  }
+
+  function applyFieldVisibility(trip: TripType): void {
     const ret = trip === "return";
     const multi = trip === "multi";
     const ideas = trip === "ideas";
@@ -649,6 +705,8 @@ export function createForm(props: FormProps): FormHandle {
     withShortcut(btn, String(i + 1));
     modeTabs.append(btn);
   });
+  const thumb = el("span", { class: "mode-tab-thumb", attrs: { "aria-hidden": "true" } });
+  modeTabs.append(thumb);
   const ideasBtn = el("button", {
     class: "mode-tab ideas-tab",
     type: "button",
@@ -939,23 +997,20 @@ export function createForm(props: FormProps): FormHandle {
     el("p", { class: "muted small", text: t("how_note") }),
   ]);
 
+  const fields = el("div", { class: "fields" }, [
+    originField,
+    destinationField,
+    dateField,
+    endDateField,
+    regionField,
+    legsBlock,
+    citiesField,
+    stayField,
+    tourCountField,
+  ]);
+  const formBody = el("div", { class: "form-body" }, [modeBar, modeDesc, fields, advanced]);
   const form = el("form", { class: "search-form" }, [
-    el("div", { class: "form-body" }, [
-      modeBar,
-      modeDesc,
-      el("div", { class: "fields" }, [
-        originField,
-        destinationField,
-        dateField,
-        endDateField,
-        regionField,
-        legsBlock,
-        citiesField,
-        stayField,
-        tourCountField,
-      ]),
-      advanced,
-    ]),
+    formBody,
     el("div", { class: "form-stub" }, [
       el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
       surpriseMsg,

@@ -2205,11 +2205,22 @@ function updateRailMetrics(): void {
 
 function setMobileForm(open: boolean): void {
   if (!rootRef) return;
-  rootRef.dataset.mform = open ? "form" : "results";
-  if (!open) {
-    updateSearchBar();
-    updateRailMetrics();
-    requestAnimationFrame(() => mapInstance?.invalidate());
+  const apply = (): void => {
+    rootRef.dataset.mform = open ? "form" : "results";
+    if (!open) {
+      updateSearchBar();
+      updateRailMetrics();
+      requestAnimationFrame(() => mapInstance?.invalidate());
+    }
+  };
+  const mq = (q: string): boolean => typeof matchMedia === "function" && matchMedia(q).matches;
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  // Morph the collapsed search bar into the full form (and back) on phones, via a
+  // shared view-transition-name; instant everywhere it isn't supported.
+  if (mq("(max-width: 860px)") && !mq("(prefers-reduced-motion: reduce)") && typeof doc.startViewTransition === "function") {
+    doc.startViewTransition(apply);
+  } else {
+    apply();
   }
 }
 
