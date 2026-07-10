@@ -87,12 +87,23 @@ describe("app (jsdom smoke)", () => {
     // Only reachable via a connection (Bordeaux) that day.
     expect(root.querySelector(".chip-via")).not.toBeNull();
     expect(text).toContain("Bordeaux");
-    // The 30-day route availability calendar is rendered (first .cal-grid; the
-    // "come back?" section adds a second, return-availability calendar below it).
+    // The 30-day route availability calendar is rendered.
     const routeCal = root.querySelector(".cal-grid");
     expect(routeCal).not.toBeNull();
     expect(routeCal!.querySelectorAll(".cal-cell").length).toBe(30);
-    // The return calendar exists too (a second grid).
+    // A one-way exact-trip shows no "come back?" section — only the round trip does.
+    expect(root.querySelector(".od-return")).toBeNull();
+    expect(root.querySelectorAll(".cal-grid").length).toBe(1);
+  });
+
+  it("adds a return-availability calendar for a round-trip exact-trip deep-link", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    // The "come back?" section adds a second, return-availability calendar.
+    const retSection = root.querySelector(".od-return");
+    expect(retSection).not.toBeNull();
+    expect(retSection!.querySelector(".cal-grid")).not.toBeNull();
     expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
   });
 
