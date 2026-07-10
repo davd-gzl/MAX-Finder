@@ -61,6 +61,7 @@ const browser = await puppeteer.launch({
 });
 
 const DATE = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+const DATE2 = new Date(Date.now() + 6 * 86_400_000).toISOString().slice(0, 10);
 const P = "PARIS (intramuros)";
 const T = "TOULOUSE MATABIAU";
 const L = "LYON (intramuros)";
@@ -80,6 +81,9 @@ function assert(cond, msg) {
  */
 async function scenario(name, url, body) {
   const page = await browser.newPage();
+  // Test the desktop UI: stay above the 860px mobile breakpoint, below which the
+  // form collapses into a floating search bar and the tabs move behind a menu.
+  await page.setViewport({ width: 1366, height: 900 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("requestfailed", (r) => {
@@ -110,8 +114,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Helpers evaluated in-page.
 const $count = (page, sel) => page.$$eval(sel, (els) => els.length).catch(() => 0);
 const $text = (page, sel) => page.$eval(sel, (el) => el.textContent || "").catch(() => null);
-const activeMode = (page) =>
-  page.$eval(".mode-tab.active", (el) => el.getAttribute("data-mode")).catch(() => null);
+// The v2 UI tabs by trip type (data-trip: simple | return | multi | ideas); the
+// search *mode* (from/to/od/tour/best) is derived from the active trip plus which
+// station fields are filled, and still travels in the URL as ?mode=.
+const activeTrip = (page) =>
+  page.$eval(".mode-tab.active", (el) => el.getAttribute("data-trip")).catch(() => null);
 const resultsState = (page) =>
   page.$eval(".results", (el) => ({
     children: el.childElementCount,
@@ -123,37 +130,31 @@ const resultsState = (page) =>
 console.log(`\nE2E against ${BASE} (offline, committed snapshot)\n`);
 
 // 1. Home shell renders with the expected controls.
-await scenario("home: shell renders (5 tabs, default 'from', search form)", BASE, async (page) => {
-  assert((await $count(page, ".mode-tab")) === 5, "expected 5 mode tabs");
-  assert((await activeMode(page)) === "from", "default active tab should be 'from'");
+await scenario("home: shell renders (4 trip tabs, default 'simple', search form)", BASE, async (page) => {
+  assert((await $count(page, ".mode-tab")) === 4, "expected 4 trip tabs");
+  assert((await activeTrip(page)) === "simple", "default active tab should be 'simple'");
   assert((await $count(page, ".search-form")) === 1, "search form missing");
   assert((await $count(page, '.search-form input[list="station-list"]')) >= 1, "no station inputs");
   const appLen = await page.$eval("#app", (el) => el.innerHTML.length);
   assert(appLen > 3000, `#app looks blank (${appLen} chars)`);
 });
 
-// 2. Clicking a mode tab switches mode + reflects it in the URL.
-await scenario("nav: clicking the 'Exact trip' tab switches mode + URL", BASE, async (page) => {
-  await page.click('.mode-tab[data-mode="od"]');
-  await sleep(300);
-  assert((await activeMode(page)) === "od", "tab did not become active");
-  assert(new URL(page.url()).searchParams.get("mode") === "od", "URL mode= not updated");
-  // Destination field must be visible in exact-trip mode.
-  const destVisible = await page.evaluate(() => {
-    const inputs = document.querySelectorAll('.search-form .fields input[list="station-list"]');
-    const dest = inputs[1];
-    const field = dest && dest.closest(".field, .clearable, div");
-    return !!dest && dest.offsetParent !== null;
-  });
-  assert(destVisible, "destination field should be visible in exact-trip mode");
+// 2. Clicking a trip tab switches trip type + reflects the derived mode in the URL.
+await scenario("nav: clicking the 'Multi-city' tab switches trip + URL mode", BASE, async (page) => {
+  await page.click('.mode-tab[data-trip="multi"]');
+  await sleep(400);
+  assert((await activeTrip(page)) === "multi", "tab did not become active");
+  // Multi-city derives the 'tour' search mode regardless of the station fields.
+  assert(new URL(page.url()).searchParams.get("mode") === "tour", "URL mode= not updated to tour");
 });
 
 // 3. Exact-trip deep link renders the right title + a populated/valid results panel.
+//    A one-way od deep link opens on the 'simple' tab (od → simple; return only when rdate is set).
 await scenario(
   "deep-link: exact trip Paris → Toulouse renders titled results",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "od", "active tab should be 'od'");
+    assert((await activeTrip(page)) === "simple", "active tab should be 'simple'");
     const title = (await $text(page, "#results-title")) || "";
     assert(/paris/i.test(title) && /toulouse/i.test(title), `title wrong: "${title}"`);
     const rs = await resultsState(page);
@@ -189,16 +190,18 @@ await scenario(
   },
 );
 
-// 5. Tour deep link renders a titled panel (results or a valid empty-state, never a crash).
+// 5. Multi-city deep link (explicit legs — the v2 'multi' tab flow) renders one
+//    titled leg section per hop (results or a valid empty-state, never a crash).
 await scenario(
-  "deep-link: tour from Paris renders",
-  `${BASE}?mode=tour&from=${enc(P)}&cities=${enc(L)}&date=${DATE}&dmin=1&dmax=3`,
+  "deep-link: multi-city Paris → Lyon → Paris renders leg sections",
+  `${BASE}?mode=tour&legs=${enc(`${P}>${L}@${DATE}~${L}>${P}@${DATE2}`)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "tour", "active tab should be 'tour'");
+    assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
     const title = (await $text(page, "#results-title")) || "";
-    assert(/paris/i.test(title), `tour title wrong: "${title}"`);
+    assert(/multi/i.test(title), `multi-city title wrong: "${title}"`);
+    assert((await $count(page, ".mc-result")) >= 1, "no multi-city leg sections rendered");
     const rs = await resultsState(page);
-    assert(rs.children >= 1, "tour results panel empty");
+    assert(rs.children >= 1, "multi-city results panel empty");
   },
 );
 
@@ -207,24 +210,24 @@ await scenario(
   "deep-link: ideas from Paris ranks destinations",
   `${BASE}?mode=best&from=${enc(P)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "best", "active tab should be 'best'");
+    assert((await activeTrip(page)) === "ideas", "active tab should be 'ideas'");
     const rs = await resultsState(page);
     assert(rs.children >= 1, "ideas produced no destinations");
   },
 );
 
-// 7. History: deep-link → switch mode → Back returns to the deep-linked mode.
+// 7. History: deep-link → switch trip → Back returns to the deep-linked trip.
 await scenario(
-  "history: Back restores the previous mode",
+  "history: Back restores the previous trip",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "od", "precondition: od");
-    await page.click('.mode-tab[data-mode="tour"]');
+    assert((await activeTrip(page)) === "simple", "precondition: simple");
+    await page.click('.mode-tab[data-trip="multi"]');
     await sleep(400);
-    assert((await activeMode(page)) === "tour", "did not switch to tour");
+    assert((await activeTrip(page)) === "multi", "did not switch to multi");
     await page.goBack({ waitUntil: "networkidle2" });
     await sleep(500);
-    assert((await activeMode(page)) === "od", "Back did not restore 'od'");
+    assert((await activeTrip(page)) === "simple", "Back did not restore 'simple'");
   },
 );
 
