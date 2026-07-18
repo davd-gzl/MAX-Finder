@@ -17,7 +17,6 @@ export const ko: Dict = {
   desc_ideas: "출발역에서 가장 빠르게 갈 수 있는 목적지.",
   field_depart: "가는 날",
   field_ret: "오는 날",
-  ideas_invite: "여행 아이디어를 찾고 있어요.",
   datepick_window: "점선 = ± 범위 내의 날짜",
   err_load: "데이터를 불러올 수 없습니다.",
   act_retry: "다시 시도",

@@ -59,10 +59,13 @@ export class RouteMap {
       this.map = L.map(this.container, {
         dragging: true,
         scrollWheelZoom: false,
-        doubleClickZoom: false,
+        // Pinch-zoom and double-tap zoom stay on: on phones the full-bleed map is
+        // the centrepiece and the +/- control is hidden under 860px (styles.css),
+        // so these gestures are the only way to zoom there.
+        doubleClickZoom: true,
         boxZoom: false,
         keyboard: false,
-        touchZoom: false,
+        touchZoom: true,
         zoomControl: true,
       }).setView([46.6, 2.4], 5);
       this.map.attributionControl.setPrefix(false); // drop the default "Leaflet" + flag prefix

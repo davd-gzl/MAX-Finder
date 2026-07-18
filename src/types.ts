@@ -81,8 +81,6 @@ export interface SearchQuery {
   flexDays?: number;
   /** Return date for a round trip ("aller-retour"): the day to travel back. */
   returnDate?: string;
-  /** Flexible return dates: ±N days around `returnDate`. */
-  returnFlexDays?: number;
   /** Explicit multi-city legs (Multiville): each an origin→destination on its own date. */
   legs?: TripLeg[];
   /** Region filter, used by "best" mode. */

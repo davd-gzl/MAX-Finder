@@ -17,7 +17,6 @@ export const nl: Dict = {
   desc_ideas: "De snelste bestemmingen bereikbaar vanaf jouw station.",
   field_depart: "Heen",
   field_ret: "Terug",
-  ideas_invite: "Ik zoek reisideeën.",
   datepick_window: "stippellijn = dagen binnen de ±-marge",
   err_load: "Kan de gegevens niet laden.",
   act_retry: "Opnieuw proberen",
