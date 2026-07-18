@@ -6,6 +6,7 @@ export const nl: Dict = {
   leg_remove: "Traject verwijderen",
   multi_title: "Meerdere steden — {n} traject(en)",
   multi_hint: "Vul minstens één traject in (van en naar).",
+  multi_incomplete: "Sommige trajecten hebben geen gratis MAX-plaats — deze reis is onvolledig.",
   ph_anywhere: "Overal",
   tab_simple: "Enkele reis",
   tab_return: "Retour",

@@ -158,7 +158,7 @@ export function showTripModal(
  * @param legs the chosen legs, in order.
  * @param ctx render context for the leg cards.
  */
-export function showMultiTripModal(legs: Journey[], ctx: RenderCtx): void {
+export function showMultiTripModal(legs: render.RecapLeg[], ctx: RenderCtx): void {
   const modalCtx: RenderCtx = { ...ctx, onShowJourney: () => {} };
   const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
   dialog.append(

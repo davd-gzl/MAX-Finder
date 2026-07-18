@@ -4,6 +4,7 @@ export const fr = {
   leg_remove: "Supprimer ce trajet",
   multi_title: "Multiville — {n} trajet(s)",
   multi_hint: "Renseignez au moins un trajet (départ et arrivée).",
+  multi_incomplete: "Certains trajets n'ont pas de place MAX gratuite — cet itinéraire est incomplet.",
   ph_anywhere: "Toutes les gares",
   tab_simple: "Aller simple",
   tab_return: "Aller-retour",

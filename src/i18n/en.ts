@@ -6,6 +6,7 @@ export const en: Dict = {
   leg_remove: "Remove leg",
   multi_title: "Multi-city — {n} leg(s)",
   multi_hint: "Fill in at least one leg (from and to).",
+  multi_incomplete: "Some legs have no free MAX seat — this itinerary is incomplete.",
   ph_anywhere: "Anywhere",
   tab_simple: "One-way",
   tab_return: "Round trip",
