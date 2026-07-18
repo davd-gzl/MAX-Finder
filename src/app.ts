@@ -2165,6 +2165,9 @@ function footerUpdatedText(): string {
 }
 
 function buildLayout(root: HTMLElement): void {
+  // A rebuild (e.g. language change) discards the old form, whose date-picker
+  // popovers live in <body> outside `root` — tear them down so they don't pile up.
+  formApi?.destroy();
   clear(root);
 
   formApi = createForm({

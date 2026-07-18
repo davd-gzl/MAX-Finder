@@ -318,6 +318,46 @@ describe("app (jsdom smoke)", () => {
     expect(planTab?.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("opens the date picker to keyboard focus and navigates the grid with arrows", () => {
+    const root = setup("");
+    const trigger = root.querySelector<HTMLElement>(".dp-trigger");
+    expect(trigger).not.toBeNull();
+    trigger!.click();
+    const pop = document.body.querySelector<HTMLElement>(".datepop:not([hidden])");
+    expect(pop).not.toBeNull();
+    // The dialog is named + modal, and focus has moved onto a day cell inside it.
+    expect(pop!.getAttribute("aria-modal")).toBe("true");
+    expect(pop!.getAttribute("aria-label")).toBeTruthy();
+    const active = document.activeElement as HTMLElement;
+    expect(active.classList.contains("dp-cell")).toBe(true);
+    // ArrowRight moves focus to the next day cell.
+    const cells = Array.from(pop!.querySelectorAll<HTMLElement>("button.dp-cell"));
+    const start = cells.indexOf(active);
+    pop!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(cells.indexOf(document.activeElement as HTMLElement)).toBe(start + 1);
+    // Escape closes the popover and restores focus to the trigger.
+    pop!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.body.querySelector(".datepop:not([hidden])")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("does not leak date-picker popovers when the language changes", () => {
+    const root = setup("");
+    const count = () => document.body.querySelectorAll(".datepop").length;
+    const before = count();
+    expect(before).toBeGreaterThan(0); // the departure picker's popover is in <body>
+    // Changing the language rebuilds the whole shell + form. Old popovers must be
+    // torn down, not orphaned in <body> with their live document/window listeners.
+    const langSel = root.querySelector<HTMLSelectElement>(".site-header select.ctl");
+    expect(langSel).not.toBeNull();
+    langSel!.value = "en";
+    langSel!.dispatchEvent(new Event("change", { bubbles: true }));
+    langSel!.value = "fr";
+    langSel!.dispatchEvent(new Event("change", { bubbles: true }));
+    // Two rebuilds later, the popover count is stable (not 3×) — no accumulation.
+    expect(count()).toBe(before);
+  });
+
   it("mounts the round-trip getaway toggle and runs a getaway search", () => {
     const root = setup("");
     // The toggle is mounted (and visible) on the Simple tab — the review found it

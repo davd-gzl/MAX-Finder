@@ -17,6 +17,8 @@ export interface DateFieldCtl {
   setDates(out: string, ret: string): void;
   getReturn(): string;
   refresh(): void;
+  /** Close the popover, drop its document/window listeners, and remove it from the DOM. */
+  destroy(): void;
 }
 
 /** One multi-city leg row. */
@@ -140,6 +142,8 @@ export interface FormHandle {
   updateFieldVisibility(trip: TripType): void;
   refreshTourEndDate(): void;
   setSurpriseMsg(text: string): void;
+  /** Tear down date-picker popovers (which live in <body>) before the form is discarded. */
+  destroy(): void;
 }
 
 const FLEX_MAX = 7;
@@ -296,7 +300,13 @@ export function createForm(props: FormProps): FormHandle {
     const dow = el("div", { class: "dp-dow" });
     const grid = el("div", { class: "dp-grid" });
     const legend = el("p", { class: "dp-legend muted" });
-    const pop = el("div", { class: "datepop", attrs: { role: "dialog", hidden: "" } }, [marginRow, dow, grid, legend]);
+    const pop = el("div", {
+      class: "datepop",
+      // A named, modal dialog so assistive tech announces it; focus is moved inside
+      // on open (below) since, appended at the end of <body>, it's outside the
+      // trigger's natural Tab order.
+      attrs: { role: "dialog", "aria-modal": "true", "aria-label": label, hidden: "" },
+    }, [marginRow, dow, grid, legend]);
     const wrap = el("div", { class: "datefield" }, [trigger, input]);
     const root = bare ? wrap : field(label, wrap);
     document.body.append(pop);
@@ -424,17 +434,50 @@ export function createForm(props: FormProps): FormHandle {
       document.addEventListener("click", onDocClick, true);
       window.addEventListener("scroll", place, true);
       window.addEventListener("resize", place);
+      // Move focus inside so keyboard users land on the calendar (it sits outside the
+      // trigger's Tab order): the selected day, else the first bookable one, else the
+      // first cell. Escape returns focus to the trigger.
+      const cells = Array.from(grid.querySelectorAll<HTMLElement>("button.dp-cell"));
+      (grid.querySelector<HTMLElement>(".dp-cell.sel") ??
+        grid.querySelector<HTMLElement>(".dp-cell.ok") ??
+        cells[0])?.focus();
     };
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
       isOpen ? close() : openPop();
     });
     pop.addEventListener("click", (e) => e.stopPropagation());
+    // Roving focus across the day grid: arrows move a day at a time (±7 for a week),
+    // Home/End jump to the ends. Enter/Space activate the focused cell (native button
+    // behaviour). Escape closes and returns focus to the trigger.
+    const dayCells = (): HTMLElement[] => Array.from(grid.querySelectorAll<HTMLElement>("button.dp-cell"));
+    const focusCell = (cells: HTMLElement[], i: number): void => {
+      const clamped = Math.max(0, Math.min(cells.length - 1, i));
+      cells[clamped]?.focus();
+    };
     pop.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         close();
         trigger.focus();
+        return;
       }
+      const nav: Record<string, number | "home" | "end"> = {
+        ArrowLeft: -1,
+        ArrowRight: 1,
+        ArrowUp: -7,
+        ArrowDown: 7,
+        Home: "home",
+        End: "end",
+      };
+      if (!(e.key in nav)) return;
+      const cells = dayCells();
+      if (cells.length === 0) return;
+      const cur = cells.indexOf(document.activeElement as HTMLElement);
+      const step = nav[e.key]!;
+      e.preventDefault();
+      if (step === "home") focusCell(cells, 0);
+      else if (step === "end") focusCell(cells, cells.length - 1);
+      else focusCell(cells, (cur < 0 ? 0 : cur) + step);
     });
     grid.addEventListener("mouseover", (e) => {
       if (!range || !awaitReturn) return;
@@ -495,6 +538,10 @@ export function createForm(props: FormProps): FormHandle {
       },
       getReturn: () => retDate,
       refresh,
+      destroy: () => {
+        close(); // detaches the document-click + window scroll/resize listeners
+        pop.remove(); // and take the popover out of <body> so it can't leak
+      },
     };
   }
 
@@ -562,10 +609,12 @@ export function createForm(props: FormProps): FormHandle {
   function removeLeg(ctl: LegCtl): void {
     if (legRows.length <= 2) return;
     legRows = legRows.filter((l) => l !== ctl);
+    ctl.dateCtl.destroy(); // its popover lives in <body>; drop it so it can't leak
     renderLegs();
   }
 
   function clearTripLegs(): void {
+    for (const l of legRows) l.dateCtl.destroy();
     legRows = [makeLeg(), makeLeg()];
     renderLegs();
   }
@@ -1168,6 +1217,7 @@ export function createForm(props: FormProps): FormHandle {
     clearCities,
     getLegValues: () => legRows.map((l) => ({ from: l.from.value, to: l.to.value, date: l.dateCtl.input.value })),
     setLegs: (legs) => {
+      for (const l of legRows) l.dateCtl.destroy(); // discard the replaced rows' popovers
       legRows = legs.map((l) => makeLeg(l.from, l.to, l.date));
       renderLegs();
     },
@@ -1178,6 +1228,10 @@ export function createForm(props: FormProps): FormHandle {
     refreshTourEndDate,
     setSurpriseMsg: (text) => {
       surpriseMsg.textContent = text;
+    },
+    destroy: () => {
+      departDate.destroy();
+      for (const l of legRows) l.dateCtl.destroy();
     },
   };
 }
