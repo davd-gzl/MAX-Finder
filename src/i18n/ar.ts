@@ -6,6 +6,7 @@ export const ar: Dict = {
   leg_remove: "حذف الرحلة",
   multi_title: "متعدد المدن — {n} رحلة",
   multi_hint: "أدخل رحلة واحدة على الأقل (المغادرة والوصول).",
+  multi_incomplete: "بعض المقاطع لا تحتوي على مقعد MAX مجاني — هذا المسار غير مكتمل.",
   ph_anywhere: "أي محطة",
   tab_simple: "ذهاب فقط",
   tab_return: "ذهاب وإياب",

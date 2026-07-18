@@ -935,11 +935,23 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   return view;
 }
 
-export function multiTripViewEl(legs: Journey[], ctx: RenderCtx): HTMLElement {
-  const first = legs[0];
-  const stops = first ? [first.origin, ...legs.map((l) => l.destination)] : [];
+/**
+ * One leg of a multi-city recap: the requested hop plus the chosen journey, or
+ * `null` when that hop has no free MAX seat. Carrying the null (instead of dropping
+ * the leg) lets the recap show the trip honestly as incomplete.
+ */
+export interface RecapLeg {
+  from: string;
+  to: string;
+  date: string;
+  journey: Journey | null;
+}
+
+export function multiTripViewEl(legs: RecapLeg[], ctx: RenderCtx): HTMLElement {
+  const stops = legs.length ? [legs[0]!.from, ...legs.map((l) => l.to)] : [];
   const title = stops.map((s) => ctx.label(s)).join(" → ");
-  const totalTravel = legs.reduce((sum, l) => sum + l.totalDurationMin, 0);
+  const totalTravel = legs.reduce((sum, l) => sum + (l.journey?.totalDurationMin ?? 0), 0);
+  const incomplete = legs.some((l) => !l.journey);
   const view = el("div", { class: "trip-view" }, [
     el("h2", { class: "modal-title trip-title", text: title }),
     el("p", { class: "muted trip-summary" }, [
@@ -947,15 +959,20 @@ export function multiTripViewEl(legs: Journey[], ctx: RenderCtx): HTMLElement {
       el("span", { text: formatDuration(totalTravel) }),
     ]),
   ]);
+  // A leg with no seat can't just vanish — call the whole itinerary out as incomplete
+  // so an N-1-leg chain isn't presented as a finished trip.
+  if (incomplete) view.append(el("p", { class: "notice trip-incomplete", text: t("multi_incomplete") }));
   legs.forEach((leg) => {
     view.append(
       el("section", { class: "trip-leg" }, [
         el("h3", { class: "trip-leg-title" }, [
-          el("bdi", { text: ctx.label(leg.origin) }),
+          el("bdi", { text: ctx.label(leg.from) }),
           el("span", { class: "muted", text: " → " }),
-          el("bdi", { text: ctx.label(leg.destination) }),
+          el("bdi", { text: ctx.label(leg.to) }),
         ]),
-        journeyEl(leg, ctx, { saveable: false, hideMap: true }),
+        leg.journey
+          ? journeyEl(leg.journey, ctx, { saveable: false, hideMap: true })
+          : emptyEl(`${t("res_none")} · ${ctx.formatDate(leg.date)}`),
       ]),
     );
   });

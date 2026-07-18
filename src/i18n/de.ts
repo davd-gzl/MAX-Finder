@@ -6,6 +6,7 @@ export const de: Dict = {
   leg_remove: "Abschnitt entfernen",
   multi_title: "Mehrere Städte — {n} Abschnitt(e)",
   multi_hint: "Gib mindestens einen Abschnitt an (Start und Ziel).",
+  multi_incomplete: "Für einige Abschnitte gibt es keinen freien MAX-Platz — diese Reise ist unvollständig.",
   ph_anywhere: "Überallhin",
   tab_simple: "Einfach",
   tab_return: "Hin und zurück",

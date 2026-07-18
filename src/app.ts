@@ -1331,7 +1331,13 @@ function runMultiCity(c: RenderCtx): void {
               chosen[i] = jj;
               const nextSec = legSections[i + 1];
               if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
-              else showMultiTripModal(chosen.filter((x): x is Journey => x != null), c);
+              // Carry every leg (with its chosen journey, or null when a leg has no
+              // seat) so the recap shows the trip honestly instead of hiding gaps.
+              else
+                showMultiTripModal(
+                  legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
+                  c,
+                );
             },
           }),
         );

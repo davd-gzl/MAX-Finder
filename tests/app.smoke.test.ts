@@ -358,6 +358,28 @@ describe("app (jsdom smoke)", () => {
     expect(count()).toBe(before);
   });
 
+  it("Surprise me does not resurrect a tour finish the user just cleared", () => {
+    // Regression (the guard deleted in v2): a destination left in a hidden field used
+    // to leak back into the tour as its finish. readQueryFromForm now reads only the
+    // active surface's fields, so a cleared finish stays cleared through Surprise me.
+    const root = setup(
+      `?mode=tour&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent(
+        "LYON (intramuros)",
+      )}&date=2026-06-25`,
+    );
+    // The plan surface is active with Lyon as the fixed finish (serialized as to=).
+    expect(new URLSearchParams(location.search).get("to")).toBeTruthy();
+    // Clear the finish (the 2nd clearable field on the plan surface: origin, then finish).
+    const dest = root.querySelectorAll<HTMLInputElement>(".fields input.has-clear")[1];
+    expect(dest).toBeTruthy();
+    dest!.value = "";
+    dest!.dispatchEvent(new Event("input", { bubbles: true }));
+    dest!.dispatchEvent(new Event("change", { bubbles: true }));
+    // Surprise me (adds a random city). The cleared finish must NOT come back.
+    (root.querySelector(".surprise-btn") as HTMLElement).click();
+    expect(new URLSearchParams(location.search).get("to")).toBeNull();
+  });
+
   it("mounts the round-trip getaway toggle and runs a getaway search", () => {
     const root = setup("");
     // The toggle is mounted (and visible) on the Simple tab — the review found it

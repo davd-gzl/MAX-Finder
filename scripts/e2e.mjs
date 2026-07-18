@@ -79,11 +79,12 @@ function assert(cond, msg) {
  * hand the page to `body`, then fail the scenario if anything threw or a
  * same-origin resource failed. Cross-origin failures (map tiles) are ignored.
  */
-async function scenario(name, url, body) {
+async function scenario(name, url, body, opts = {}) {
   const page = await browser.newPage();
-  // Test the desktop UI: stay above the 860px mobile breakpoint, below which the
-  // form collapses into a floating search bar and the tabs move behind a menu.
-  await page.setViewport({ width: 1366, height: 900 });
+  // Default to the desktop UI: stay above the 860px mobile breakpoint, below which
+  // the form collapses into a floating search bar and the tabs move behind a menu.
+  // Pass opts.viewport to exercise the mobile layout instead.
+  await page.setViewport(opts.viewport ?? { width: 1366, height: 900 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("requestfailed", (r) => {
@@ -231,7 +232,59 @@ await scenario(
   },
 );
 
-// 8. PWA manifest is served and parseable, icon reference resolves.
+// 9. Legacy tour deep-link (?cities=) restores the planner, not the legs editor.
+//    Regression: v2 short-circuited every tour into the multi-city legs view, so
+//    the city planner (Surprise me / Nearest / auto-ordered tour) was unreachable.
+await scenario(
+  "deep-link: legacy ?cities= tour restores the planner (not the legs editor)",
+  `${BASE}?mode=tour&from=${enc(P)}&cities=${enc(L)}&date=${DATE}&dmin=1&dmax=3`,
+  async (page) => {
+    assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
+    // The Multi tab is on its 'plan' sub-mode (the tour planner), not 'legs'.
+    const planPressed = await page
+      .$eval(".multi-switch .multi-tab", (el) => el.getAttribute("aria-pressed"))
+      .catch(() => null);
+    assert(planPressed === "true", "the tour-plan sub-mode is not active");
+    // The planner ran: no explicit-leg sections, and a real result (a tour card or a
+    // valid empty-state), never the legs editor's "fill in a leg" hint.
+    assert((await $count(page, ".mc-result")) === 0, "legs editor rendered instead of the planner");
+    const rs = await resultsState(page);
+    assert(rs.children >= 1, "planner produced no output");
+  },
+);
+
+// 10. od + rdate deep-link maps to the Return tab (not Simple), with the date field
+//     in outbound→return range mode. The return-availability section itself depends
+//     on live seats, so assert the tab mapping + range control, which are what the
+//     serialization actually drives.
+await scenario(
+  "deep-link: od + rdate opens the Return tab",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${DATE}&rdate=${DATE2}`,
+  async (page) => {
+    assert((await activeTrip(page)) === "return", "active tab should be 'return'");
+    // The departure field is a range (outbound → return), shown as an arrow in its label.
+    const dateLabel = (await $text(page, ".dp-value-text")) || "";
+    assert(dateLabel.includes("→"), `date field not in return-range mode: "${dateLabel}"`);
+    const rs = await resultsState(page);
+    assert(rs.children >= 1, "return results panel empty");
+  },
+);
+
+// 11. Mobile layout smoke: below 860px the form collapses to a floating search bar
+//     and the map's zoom gestures are enabled (the +/- control is hidden there).
+await scenario(
+  "mobile: floating search bar renders at 390px",
+  BASE,
+  async (page) => {
+    assert((await $count(page, ".msearch-bar")) === 1, "no mobile search bar");
+    assert((await $count(page, ".search-form")) === 1, "search form missing on mobile");
+    // The trip tabs still exist (inside the form sheet), so mode switching works.
+    assert((await $count(page, ".mode-tab")) >= 4, "trip tabs missing on mobile");
+  },
+  { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+);
+
+// 12. PWA manifest is served and parseable, icon reference resolves.
 await scenario("pwa: manifest is served and valid JSON", BASE, async (page) => {
   const manifestHref = await page.$eval('link[rel="manifest"]', (el) => el.getAttribute("href"));
   assert(manifestHref, "no <link rel=manifest>");

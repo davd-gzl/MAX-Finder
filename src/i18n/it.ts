@@ -6,6 +6,7 @@ export const it: Dict = {
   leg_remove: "Rimuovi tratta",
   multi_title: "Multi-città — {n} tratta/e",
   multi_hint: "Inserisci almeno una tratta (partenza e arrivo).",
+  multi_incomplete: "Alcune tratte non hanno un posto MAX gratuito — questo itinerario è incompleto.",
   ph_anywhere: "Ovunque",
   tab_simple: "Solo andata",
   tab_return: "Andata e ritorno",

@@ -6,6 +6,7 @@ export const ko: Dict = {
   leg_remove: "구간 삭제",
   multi_title: "다구간 — {n}개 구간",
   multi_hint: "구간을 하나 이상 입력하세요 (출발·도착).",
+  multi_incomplete: "일부 구간에 무료 MAX 좌석이 없습니다 — 이 일정은 미완성입니다.",
   ph_anywhere: "어디든",
   tab_simple: "편도",
   tab_return: "왕복",
