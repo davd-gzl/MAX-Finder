@@ -3063,6 +3063,13 @@ select.input::-ms-expand {
 .dp-cell:hover:not(.dp-blank) {
   border-color: var(--accent);
 }
+/* Keyboard focus lands on day cells (roving arrow-key navigation) — give it a clear
+   ring so the focused day is obvious. */
+.dp-cell:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
 .dp-cell.ok {
   background: var(--accent-soft);
   color: var(--brand-ink);
