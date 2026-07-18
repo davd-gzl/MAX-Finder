@@ -14,6 +14,8 @@ export const it: Dict = {
   desc_simple: "Inserisci una stazione di partenza e di arrivo. Lascia un campo vuoto per scoprire dove andare.",
   desc_return: "Un andata e ritorno tra due stazioni, con data di andata e di ritorno.",
   desc_multi: "Un viaggio in più città che concatena posti MAX gratuiti.",
+  multi_plan: "Pianifica un tour",
+  multi_legs: "Tratte personalizzate",
   desc_ideas: "Le destinazioni più rapide raggiungibili dalla tua stazione.",
   field_depart: "Andata",
   field_ret: "Ritorno",

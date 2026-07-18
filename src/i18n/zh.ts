@@ -14,6 +14,8 @@ export const zh: Dict = {
   desc_simple: "输入出发站和到达站。留空一个字段即可发现能去哪里。",
   desc_return: "两站之间的往返，选择去程和返程日期。",
   desc_multi: "串联免费 MAX 座位的多城市之旅。",
+  multi_plan: "规划行程",
+  multi_legs: "自定义行程",
   desc_ideas: "从你的车站最快可达的目的地。",
   field_depart: "去程",
   field_ret: "返程",

@@ -14,6 +14,8 @@ export const de: Dict = {
   desc_simple: "Gib einen Start- und Zielbahnhof ein. Lass ein Feld leer, um zu entdecken, wohin es geht.",
   desc_return: "Eine Hin- und Rückfahrt zwischen zwei Bahnhöfen, mit Hin- und Rückreisedatum.",
   desc_multi: "Eine mehrstädtige Reise, die kostenlose MAX-Plätze verkettet.",
+  multi_plan: "Tour planen",
+  multi_legs: "Eigene Abschnitte",
   desc_ideas: "Die am schnellsten erreichbaren Ziele ab deinem Bahnhof.",
   field_depart: "Hinfahrt",
   field_ret: "Rückfahrt",

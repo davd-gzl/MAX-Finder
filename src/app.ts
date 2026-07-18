@@ -715,6 +715,9 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
   tripType = tripTypeForQuery(query);
+  // On the Multi tab, explicit legs restore the "legs" editor; a city list (or
+  // neither) restores the "plan" surface — matching how the URL was serialized.
+  formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : "plan");
   formApi.setActiveTab(tripType);
   refs.modeDesc.textContent = t(`desc_${tripType}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
@@ -772,11 +775,23 @@ function readQueryFromForm(): SearchQuery {
   const minLegDur = Number(refs.minLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
+  const stayHrs = Number(refs.stayHours.value.trim());
+  const nightsVal = refs.nights.value === "flex" ? 0 : Number(refs.nights.value.trim());
+  const flexNights = refs.nights.value === "flex";
   const mode = deriveMode();
+  // The Multi tab hosts two surfaces (both mode "tour"): "plan" produces a city
+  // list for the planner, "legs" produces explicit hops. Reading only the active
+  // surface's fields keeps a value carried over from another tab (a destination, a
+  // stale city) from leaking into the query behind a hidden field.
+  const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
+  const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
+  const usesDestination = mode === "od" || mode === "to" || planMode;
+  // Round-trip getaways apply to the "Where to?" browse (from) and Ideas (best).
+  const roundTrip = (mode === "from" || mode === "best") && refs.roundTrip.checked;
   return {
     mode,
-    origin: resolveStation(refs.origin.value),
-    destination: resolveStation(refs.destination.value),
+    origin: legsMode ? undefined : resolveStation(refs.origin.value),
+    destination: usesDestination ? resolveStation(refs.destination.value) : undefined,
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
     // On the Return tab always carry a return date, defaulting to the proposed
@@ -787,17 +802,16 @@ function readQueryFromForm(): SearchQuery {
       tripType === "return" && mode === "od"
         ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
         : undefined,
-    legs:
-      mode === "tour"
-        ? formApi
-            .getLegValues()
-            .map((l) => ({
-              from: resolveStation(l.from) ?? "",
-              to: resolveStation(l.to) ?? "",
-              date: l.date || query.date,
-            }))
-            .filter((l) => l.from && l.to)
-        : undefined,
+    legs: legsMode
+      ? formApi
+          .getLegValues()
+          .map((l) => ({
+            from: resolveStation(l.from) ?? "",
+            to: resolveStation(l.to) ?? "",
+            date: l.date || query.date,
+          }))
+          .filter((l) => l.from && l.to)
+      : undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -813,37 +827,45 @@ function readQueryFromForm(): SearchQuery {
     onlyNight: (refs.night.checked && refs.onlyNight.checked) || undefined,
     region: refs.region.value || undefined,
     // Chips hold the committed cities; also fold in any text still in the input
-    // (typed but not yet turned into a chip) so a pending entry isn't lost.
-    cities:
-      mode === "tour"
-        ? [
-            ...new Set([
-              ...formApi.getTourCities(),
-              ...refs.cities.value
-                .split(",")
-                .map((s) => resolveStation(s))
-                .filter((s): s is string => Boolean(s)),
-            ]),
-          ]
-        : query.cities,
+    // (typed but not yet turned into a chip) so a pending entry isn't lost. Only the
+    // tour-plan surface owns cities — legs mode / other tabs must not carry them.
+    cities: planMode
+      ? [
+          ...new Set([
+            ...formApi.getTourCities(),
+            ...refs.cities.value
+              .split(",")
+              .map((s) => resolveStation(s))
+              .filter((s): s is string => Boolean(s)),
+          ]),
+        ]
+      : undefined,
     minDays: clampDays(refs.minDays.value, 1),
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
     maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
     maxLegDurationMin:
-      mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
+      planMode && Number.isFinite(maxLegDur) && maxLegDur > 0
         ? Math.max(30, Math.floor(maxLegDur))
         : undefined,
     minLegDurationMin:
-      mode === "tour" && Number.isFinite(minLegDur) && minLegDur > 0
-        ? Math.floor(minLegDur)
-        : undefined,
+      planMode && Number.isFinite(minLegDur) && minLegDur > 0 ? Math.floor(minLegDur) : undefined,
     maxSpanDays:
       mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
     radiusKm:
       mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+    // Round-trip getaways (Where to? / Ideas): the toggle plus its stay options.
+    roundTrip: roundTrip || undefined,
+    nights: roundTrip && !flexNights && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
+    flexNights: (roundTrip && flexNights) || undefined,
+    stayMinHours:
+      roundTrip && nightsVal === 0 && !flexNights && Number.isFinite(stayHrs) && stayHrs >= 1
+        ? Math.min(12, Math.floor(stayHrs))
+        : undefined,
+    lateReturn: (roundTrip && refs.lateReturn.checked) || undefined,
+    // The "finish by" date only applies to a tour plan with a fixed finish.
     tourEndDate:
-      mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
+      planMode && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
     // The sort lives in the results toolbar, not the form — carry it through.
     sort: query.sort,
   };
@@ -1324,7 +1346,9 @@ function runMultiCity(c: RenderCtx): void {
 
 function runTourSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
-  if (query.legs || tripType === "multi") return runMultiCity(c);
+  // The Multi tab's "legs" surface (or any URL carrying explicit legs) renders the
+  // hand-typed itinerary; the "plan" surface below runs the city planner.
+  if (formApi.getMultiMode() === "legs" || (query.legs && query.legs.length > 0)) return runMultiCity(c);
   if (!query.origin) return showHint(refs.origin);
   refs.title.textContent = t("tour_title", {
     station: registry.label(query.origin),
@@ -1810,6 +1834,19 @@ function switchTab(next: TripType): void {
   applyAndRun();
 }
 
+/**
+ * Switch the Multi-city sub-surface (plan a tour ↔ edit legs by hand). Re-lays the
+ * form for the chosen surface and re-derives the query so the URL reflects it, but
+ * — like a tab switch — doesn't fabricate results before the user has entered a trip.
+ */
+function switchMultiMode(mode: "plan" | "legs"): void {
+  navStack = [];
+  formApi.setMultiMode(mode);
+  formApi.updateFieldVisibility("multi");
+  query = readQueryFromForm();
+  applyAndRun();
+}
+
 /** Run a fresh search from the current form (submit or "g" shortcut). */
 function runFromForm(): void {
   navStack = [];
@@ -1902,12 +1939,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   } else if (e.key === "s") {
     e.preventDefault();
     surpriseMe();
-  } else if (e.key === "n" && tripType === "multi") {
+  } else if (e.key === "n" && tripType === "multi" && formApi.getMultiMode() === "plan") {
     e.preventDefault();
-    addNearestCity(); // tour-only: grow the trip to the nearest reachable stop
-  } else if (e.key === "c" && tripType === "multi") {
+    addNearestCity(); // tour-plan only: grow the trip to the nearest reachable stop
+  } else if (e.key === "c" && tripType === "multi" && formApi.getMultiMode() === "plan") {
     e.preventDefault();
-    clearTourCities(); // tour-only: clear every "city to visit" at once
+    clearTourCities(); // tour-plan only: clear every "city to visit" at once
   } else if (e.key === "g") {
     e.preventDefault();
     runFromForm();
@@ -1945,6 +1982,8 @@ function surpriseMe(): void {
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
   if (query.mode === "tour") {
+    // The legs editor has no city to randomize — Surprise only drives the planner.
+    if (formApi.getMultiMode() === "legs") return;
     // Tour: fill the departure if empty, then add cities (the "Cities to add" count,
     // default 1) — each a random hop that keeps the WHOLE tour feasible. So "find me
     // 5 cities" is one click with the count set to 5.
@@ -2156,6 +2195,7 @@ function buildLayout(root: HTMLElement): void {
       return map;
     },
     onSwitchTab: switchTab,
+    onMultiMode: switchMultiMode,
     onSubmit: runFromForm,
     onSurprise: surpriseMe,
     onNearest: addNearestCity,

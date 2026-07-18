@@ -274,4 +274,61 @@ describe("app (jsdom smoke)", () => {
     );
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
   });
+
+  it("ignores a malformed leg date in a deep-link instead of crashing the render", () => {
+    // Regression: `formatDate(new Date("garbageT00:00:00"))` threw RangeError, blanking
+    // the results. The bad-date leg is now dropped; the valid one still renders.
+    const root = setup(
+      `?mode=tour&legs=${encodeURIComponent(
+        "PARIS (intramuros)>LYON (intramuros)@garbage~LYON (intramuros)>TOULON@2026-06-27",
+      )}`,
+    );
+    expect(root.querySelectorAll(".mc-result").length).toBe(1);
+  });
+
+  it("Multi-city defaults to the tour planner and toggles to custom legs", () => {
+    const root = setup("");
+    (root.querySelector('[data-trip="multi"]') as HTMLElement).click();
+    // The sub-mode toggle offers both surfaces.
+    const subTabs = Array.from(root.querySelectorAll<HTMLElement>(".multi-switch .multi-tab"));
+    expect(subTabs.length).toBe(2);
+    const citiesField = root.querySelector(".cities-wrap")?.closest(".field") as HTMLElement;
+    const legsBlock = root.querySelector(".mc-block") as HTMLElement;
+    // Plan is the default: cities chip input shown, legs editor hidden.
+    expect(citiesField.style.display).not.toBe("none");
+    expect(legsBlock.style.display).toBe("none");
+    // Switch to custom legs: the editor appears and the cities input is hidden.
+    subTabs[1]!.click();
+    expect(legsBlock.style.display).not.toBe("none");
+    expect(citiesField.style.display).toBe("none");
+  });
+
+  it("renders a legacy cities tour link as a planned tour (not the legs editor)", () => {
+    // The exact deep-link shape shared before v2. Regression: it silently fell through
+    // to the empty multi-city state because the planner had become unreachable.
+    const root = setup(
+      `?mode=tour&from=${encodeURIComponent("PARIS (intramuros)")}&cities=${encodeURIComponent(
+        "LYON (intramuros)",
+      )}&date=2026-06-25&dmin=1&dmax=3`,
+    );
+    expect(root.querySelector(".tour")).not.toBeNull();
+    expect(root.querySelector(".mc-result")).toBeNull();
+    // The Multi tab is restored on its "plan" sub-mode.
+    const planTab = root.querySelector<HTMLElement>(".multi-switch .multi-tab");
+    expect(planTab?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("mounts the round-trip getaway toggle and runs a getaway search", () => {
+    const root = setup("");
+    // The toggle is mounted (and visible) on the Simple tab — the review found it
+    // built but never added to the DOM.
+    const toggle = root.querySelector<HTMLElement>(".daytrip-toggle");
+    expect(toggle).not.toBeNull();
+    expect((toggle!.closest(".daytrip-group") as HTMLElement).style.display).not.toBe("none");
+    // A round-trip "where to?" deep-link runs the getaway view, not the plain browse.
+    const gaRoot = setup(
+      `?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`,
+    );
+    expect(gaRoot.querySelectorAll(".daytrip-card").length).toBeGreaterThan(0);
+  });
 });

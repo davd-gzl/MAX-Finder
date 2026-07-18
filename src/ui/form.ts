@@ -119,6 +119,7 @@ export interface FormProps {
     opts: ConnectionOptions,
   ) => Map<string, number>;
   onSwitchTab: (trip: TripType) => void;
+  onMultiMode: (mode: "plan" | "legs") => void;
   onSubmit: () => void;
   onSurprise: () => void;
   onNearest: () => void;
@@ -134,6 +135,8 @@ export interface FormHandle {
   getLegValues(): LegValues[];
   setLegs(legs: LegValues[]): void;
   setActiveTab(trip: TripType): void;
+  getMultiMode(): "plan" | "legs";
+  setMultiMode(mode: "plan" | "legs"): void;
   updateFieldVisibility(trip: TripType): void;
   refreshTourEndDate(): void;
   setSurpriseMsg(text: string): void;
@@ -222,6 +225,11 @@ export function createForm(props: FormProps): FormHandle {
   let thumbInit = false;
   let bodyAnim: Animation | null = null;
   let firstViz = true;
+  // The Multi-city tab hosts two surfaces: "plan" (pick cities, auto-order + date
+  // them, Surprise / Nearest) and "legs" (spell out each hop). Tracked here so the
+  // controller can read which one is active and lay the fields out for it.
+  let multiMode: "plan" | "legs" = "plan";
+  let currentTrip: TripType = "simple";
 
   /** Availability search options taken from the current form inputs. */
   function popoverOpts(): ConnectionOptions {
@@ -619,8 +627,29 @@ export function createForm(props: FormProps): FormHandle {
     }
   }
 
+  /**
+   * The tour "finish by" date only makes sense once the planner has a fixed finish,
+   * so it appears the moment a destination is filled on the tour-plan surface, and
+   * its lower bound tracks the start date (you can't arrive before you leave).
+   */
   function refreshTourEndDate(): void {
-    endDateField.style.display = "none";
+    const show =
+      currentTrip === "multi" && multiMode === "plan" && Boolean(props.resolveStation(destination.value));
+    endDateField.style.display = show ? "" : "none";
+    endDate.min = date.value || today; // can't finish before you leave
+  }
+
+  /** Reflect the active Multi-city sub-mode on its segmented toggle. */
+  function setMultiMode(mode: "plan" | "legs"): void {
+    multiMode = mode;
+    for (const [btn, m] of [
+      [planTabBtn, "plan"],
+      [legsTabBtn, "legs"],
+    ] as const) {
+      const active = m === mode;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", String(active));
+    }
   }
 
   /**
@@ -658,36 +687,56 @@ export function createForm(props: FormProps): FormHandle {
   }
 
   function applyFieldVisibility(trip: TripType): void {
+    currentTrip = trip;
     const ret = trip === "return";
     const multi = trip === "multi";
     const ideas = trip === "ideas";
-    const single = trip === "simple" || ret;
+    const simple = trip === "simple";
+    const single = simple || ret;
+    // The Multi tab's two surfaces: "plan" the tour (cities) vs edit "legs" by hand.
+    const plan = multi && multiMode === "plan";
+    const legs = multi && multiMode === "legs";
 
-    originField.style.display = multi ? "none" : "";
-    destinationField.style.display = ideas || multi ? "none" : "";
-    dateField.style.display = multi ? "none" : "";
-    legsBlock.style.display = multi ? "" : "none";
+    // The departure and start date belong to every surface except the legs editor,
+    // where each leg row carries its own origin and date.
+    originField.style.display = legs ? "none" : "";
+    dateField.style.display = legs ? "none" : "";
+    // Destination is an endpoint in single trips and the optional finish in a tour plan.
+    destinationField.style.display = single || plan ? "" : "none";
+    destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
     origin.placeholder = single ? t("ph_anywhere") : "";
-    destination.placeholder = single ? t("ph_anywhere") : "";
     departDate.setRange(ret);
+
+    // Sub-mode toggle + its two panels.
+    multiSwitch.style.display = multi ? "" : "none";
+    legsBlock.style.display = legs ? "" : "none";
+    citiesField.style.display = plan ? "" : "none";
+    tourCountField.style.display = plan ? "" : "none";
+    stayField.style.display = plan ? "" : "none";
+    maxKmField.style.display = plan ? "" : "none";
+    maxLegDurationField.style.display = plan ? "" : "none";
+    minLegDurationField.style.display = plan ? "" : "none";
+    nearestBtn.style.display = plan ? "" : "none";
     refreshTourEndDate();
 
     viaField.style.display = single ? "" : "none";
     onlyNightField.style.display = night.checked ? "" : "none";
-    surpriseBtn.style.display = multi ? "none" : "";
+    // Surprise randomizes a city/route; it means nothing in the manual legs editor.
+    surpriseBtn.style.display = legs ? "none" : "";
 
+    // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";
-    maxLegDurationField.style.display = "none";
-    minLegDurationField.style.display = "none";
 
-    regionField.style.display = ideas ? "" : "none";
-    citiesField.style.display = "none";
-    tourCountField.style.display = "none";
-    stayField.style.display = "none";
-    maxKmField.style.display = "none";
+    // Region filters "Ideas" and focuses a tour plan ("visit Bretagne").
+    regionField.style.display = ideas || plan ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
     radiusField.style.display = single ? "" : "none";
-    nearestBtn.style.display = "none";
+
+    // Round-trip getaways (day trips + N-night escapes): the "Where to?" browse on
+    // the Simple tab (origin only) and the Ideas tab. readQueryFromForm re-gates it
+    // to those modes, so it's inert on an od (both endpoints) or tour search.
+    roundTripField.style.display = simple || ideas ? "" : "none";
+    syncRoundTripOpts();
   }
 
   const stationList = el("datalist", { id: "station-list" });
@@ -997,11 +1046,35 @@ export function createForm(props: FormProps): FormHandle {
     el("p", { class: "muted small", text: t("how_note") }),
   ]);
 
+  // Multi-city sub-mode toggle: "Plan a tour" (cities) vs "Custom legs" (hand-typed
+  // hops). Shown only on the Multi tab; switching re-lays the form via the controller.
+  const planTabBtn = el("button", {
+    class: "multi-tab active",
+    type: "button",
+    text: t("multi_plan"),
+    attrs: { "aria-pressed": "true" },
+    on: { click: () => props.onMultiMode("plan") },
+  });
+  const legsTabBtn = el("button", {
+    class: "multi-tab",
+    type: "button",
+    text: t("multi_legs"),
+    attrs: { "aria-pressed": "false" },
+    on: { click: () => props.onMultiMode("legs") },
+  });
+  const multiSwitch = el(
+    "div",
+    { class: "multi-switch", attrs: { role: "group", "aria-label": t("tab_multi") } },
+    [planTabBtn, legsTabBtn],
+  );
+
   const fields = el("div", { class: "fields" }, [
+    multiSwitch,
     originField,
     destinationField,
     dateField,
     endDateField,
+    roundTripField,
     regionField,
     legsBlock,
     citiesField,
@@ -1099,6 +1172,8 @@ export function createForm(props: FormProps): FormHandle {
       renderLegs();
     },
     setActiveTab,
+    getMultiMode: () => multiMode,
+    setMultiMode,
     updateFieldVisibility,
     refreshTourEndDate,
     setSurpriseMsg: (text) => {

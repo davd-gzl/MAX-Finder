@@ -12,6 +12,8 @@ export const fr = {
   desc_simple: "Indiquez une gare de départ et d'arrivée. Laissez un champ vide pour découvrir où aller.",
   desc_return: "Un aller-retour entre deux gares, avec une date d'aller et une date de retour.",
   desc_multi: "Un voyage à plusieurs villes qui enchaîne les places MAX gratuites.",
+  multi_plan: "Composer un périple",
+  multi_legs: "Trajets manuels",
   desc_ideas: "Les meilleures destinations accessibles depuis votre gare.",
   field_depart: "Aller",
   field_ret: "Retour",

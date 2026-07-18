@@ -14,6 +14,8 @@ export const ko: Dict = {
   desc_simple: "출발역과 도착역을 입력하세요. 한 칸을 비우면 갈 수 있는 곳을 찾아드립니다.",
   desc_return: "두 역 사이의 왕복 여행, 가는 날짜와 오는 날짜를 선택합니다.",
   desc_multi: "무료 MAX 좌석을 이어가는 여러 도시 여행.",
+  multi_plan: "여행 계획",
+  multi_legs: "직접 구간 입력",
   desc_ideas: "출발역에서 가장 빠르게 갈 수 있는 목적지.",
   field_depart: "가는 날",
   field_ret: "오는 날",

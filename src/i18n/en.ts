@@ -14,6 +14,8 @@ export const en: Dict = {
   desc_simple: "Enter a departure and arrival station. Leave one empty to discover where you can go.",
   desc_return: "A round trip between two stations, with an outbound and a return date.",
   desc_multi: "A multi-city trip chaining free MAX seats between stops.",
+  multi_plan: "Plan a tour",
+  multi_legs: "Custom legs",
   desc_ideas: "The fastest destinations reachable from your station.",
   field_depart: "Departure",
   field_ret: "Return",

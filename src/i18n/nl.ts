@@ -14,6 +14,8 @@ export const nl: Dict = {
   desc_simple: "Voer een vertrek- en aankomststation in. Laat een veld leeg om te ontdekken waar je heen kunt.",
   desc_return: "Een retour tussen twee stations, met een heen- en terugdatum.",
   desc_multi: "Een reis langs meerdere steden die gratis MAX-plaatsen aaneenschakelt.",
+  multi_plan: "Tour plannen",
+  multi_legs: "Eigen trajecten",
   desc_ideas: "De snelste bestemmingen bereikbaar vanaf jouw station.",
   field_depart: "Heen",
   field_ret: "Terug",
