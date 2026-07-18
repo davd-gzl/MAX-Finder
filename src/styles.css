@@ -597,6 +597,45 @@ a {
   padding-bottom: 0.55rem;
 }
 
+/* ---- multi-city sub-mode toggle (plan a tour / custom legs) ---- */
+.multi-switch {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--surface-2, color-mix(in oklab, var(--text) 5%, var(--surface)));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.multi-tab {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.45rem 0.7rem;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.multi-tab:hover {
+  color: var(--text);
+}
+.multi-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .multi-tab {
+    transition: none;
+  }
+}
+
 /* ---- tour cities chip input ---- */
 .cities-wrap {
   display: flex;

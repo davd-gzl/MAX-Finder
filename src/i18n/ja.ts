@@ -14,6 +14,8 @@ export const ja: Dict = {
   desc_simple: "出発駅と到着駅を入力してください。片方を空にすると、どこへ行けるか探せます。",
   desc_return: "2駅間の往復。往路と復路の日付を選びます。",
   desc_multi: "無料MAX席をつなぐ複数都市の旅。",
+  multi_plan: "ツアーを計画",
+  multi_legs: "自分で区間指定",
   desc_ideas: "出発駅から最も速く行ける目的地。",
   field_depart: "往路",
   field_ret: "復路",
