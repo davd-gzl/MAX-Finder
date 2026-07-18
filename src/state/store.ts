@@ -177,7 +177,6 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.via) p.set("via", q.via);
   if (q.flexDays != null && q.flexDays > 0) p.set("flex", String(q.flexDays));
   if (q.returnDate) p.set("rdate", q.returnDate);
-  if (q.returnFlexDays != null && q.returnFlexDays > 0) p.set("rflex", String(q.returnFlexDays));
   if (q.legs && q.legs.length > 0) p.set("legs", q.legs.map((l) => `${l.from}>${l.to}@${l.date}`).join("~"));
   p.set("date", q.date);
   p.set("card", q.card);
@@ -240,7 +239,6 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     // should mean "the widest window", not silently fall back to no flexibility.
     flexDays: Number.isFinite(Number(p.get("flex"))) && Math.floor(Number(p.get("flex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("flex")))) : undefined,
     returnDate: p.get("rdate") ?? undefined,
-    returnFlexDays: Number.isFinite(Number(p.get("rflex"))) && Math.floor(Number(p.get("rflex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("rflex")))) : undefined,
     legs: parseLegs(p.get("legs")),
     date: p.get("date") ?? fallbackDate,
     card: p.get("card") === "senior" ? "senior" : "jeune",
@@ -282,6 +280,19 @@ function parseSort(raw: string | null): SortKey | undefined {
   return raw && (SORT_KEYS as readonly string[]).includes(raw) ? (raw as SortKey) : undefined;
 }
 
+// A crafted `legs` param must never crash the render: an unbounded leg list runs
+// findJourneys per leg in one frame, and a malformed date reaches formatDate() as
+// `new Date("garbageT00:00:00")` → Invalid Date → RangeError. Cap the count and
+// require a real ISO date so both are impossible from a URL.
+const MAX_LEGS = 12;
+
+/** Whether a string is a well-formed, real ISO date (YYYY-MM-DD). */
+function isValidIsoDate(d: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const t = new Date(`${d}T00:00:00`).getTime();
+  return !Number.isNaN(t);
+}
+
 /** Parse the "legs" param (from>to@date, ~-joined) into multi-city legs. */
 function parseLegs(raw: string | null): TripLeg[] | undefined {
   if (!raw) return undefined;
@@ -292,7 +303,10 @@ function parseLegs(raw: string | null): TripLeg[] | undefined {
       const [from, to] = (od ?? "").split(">");
       return { from: from ?? "", to: to ?? "", date: date ?? "" };
     })
-    .filter((l) => l.from && l.to && l.date);
+    // A leg needs both endpoints and a genuine date — a bad date segment is
+    // dropped rather than kept and later crashing the render.
+    .filter((l) => l.from && l.to && isValidIsoDate(l.date))
+    .slice(0, MAX_LEGS);
   return legs.length > 0 ? legs : undefined;
 }
 

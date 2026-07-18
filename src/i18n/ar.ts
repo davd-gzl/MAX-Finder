@@ -17,7 +17,6 @@ export const ar: Dict = {
   desc_ideas: "أسرع الوجهات التي يمكن الوصول إليها من محطتك.",
   field_depart: "الذهاب",
   field_ret: "العودة",
-  ideas_invite: "أبحث عن أفكار للسفر.",
   datepick_window: "المنقّط = الأيام ضمن هامش ±",
   err_load: "تعذّر تحميل البيانات.",
   act_retry: "إعادة المحاولة",

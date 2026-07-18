@@ -17,7 +17,6 @@ export const zh: Dict = {
   desc_ideas: "从你的车站最快可达的目的地。",
   field_depart: "去程",
   field_ret: "返程",
-  ideas_invite: "我在寻找旅行灵感。",
   datepick_window: "虚线 = ± 范围内的日期",
   err_load: "无法加载数据。",
   act_retry: "重试",

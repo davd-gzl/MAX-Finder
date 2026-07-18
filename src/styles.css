@@ -2549,6 +2549,11 @@ select.input::-ms-expand {
   .mode-tabs.animate-thumb .mode-tab-thumb {
     transition: opacity 0.15s;
   }
+  /* The mobile results-drawer height transition (its snap/drag animation) is the
+     one piece of new motion left ungated — silence it too. */
+  .results-drawer {
+    transition: none;
+  }
 }
 
 .field-label {
@@ -3200,6 +3205,18 @@ select.input::-ms-expand {
     radial-gradient(circle 8px at 100% 100%, transparent 7.5px, #000 8px);
   mask-composite: intersect;
 }
+/* The notch sits on the perforation between the ticket body and the book stub. In
+   RTL the stub is on the visual left, so mirror the mask to the start (0) edge. */
+[dir="rtl"] .journey-main {
+  -webkit-mask:
+    radial-gradient(circle 8px at 0 0, transparent 7.5px, #000 8px),
+    radial-gradient(circle 8px at 0 100%, transparent 7.5px, #000 8px);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(circle 8px at 0 0, transparent 7.5px, #000 8px),
+    radial-gradient(circle 8px at 0 100%, transparent 7.5px, #000 8px);
+  mask-composite: intersect;
+}
 .journey-sub {
   display: flex;
   gap: 0.5rem;
@@ -3220,6 +3237,17 @@ select.input::-ms-expand {
   mask:
     radial-gradient(circle 8px at 0 0, transparent 7.5px, #000 8px),
     radial-gradient(circle 8px at 0 100%, transparent 7.5px, #000 8px);
+  mask-composite: intersect;
+}
+/* In RTL the book stub is on the visual left, so its notch mirrors to the end (100%) edge. */
+[dir="rtl"] .journey-book {
+  -webkit-mask:
+    radial-gradient(circle 8px at 100% 0, transparent 7.5px, #000 8px),
+    radial-gradient(circle 8px at 100% 100%, transparent 7.5px, #000 8px);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(circle 8px at 100% 0, transparent 7.5px, #000 8px),
+    radial-gradient(circle 8px at 100% 100%, transparent 7.5px, #000 8px);
   mask-composite: intersect;
 }
 .book-arrow {
@@ -3508,7 +3536,10 @@ select.input::-ms-expand {
   .header-ctls {
     position: absolute;
     top: calc(100% + 0.5rem);
-    right: 0;
+    /* Anchor to the menu button's inline-end so the panel opens inside the
+       viewport in both LTR and RTL (in Arabic the nav sits at the visual left,
+       where a physical `right: 0` pushed the panel off-screen). */
+    inset-inline-end: 0;
     z-index: 60;
     display: none;
     flex-direction: column;

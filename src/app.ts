@@ -523,7 +523,17 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 function queryFromUrl(): SearchQuery {
   const q = store.queryFromParams(new URLSearchParams(location.search), today);
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  if (q.date < today || q.date > lastBookable) q.date = today;
+  const inWindow = (d: string): boolean => d >= today && d <= lastBookable;
+  if (!inWindow(q.date)) q.date = today;
+  // The return date is bounded like the outbound: a stale shared link with an
+  // out-of-window rdate would otherwise skew the return calendar or read as "no
+  // return" — drop it so the search re-proposes a sensible one.
+  if (q.returnDate && !inWindow(q.returnDate)) q.returnDate = undefined;
+  // Multi-city legs are clamped too: a leg outside the bookable window can never
+  // have a free MAX seat, so pull it back to today rather than showing an empty leg.
+  if (q.legs) q.legs = q.legs.map((l) => (inWindow(l.date) ? l : { ...l, date: today }));
+  // The tour "finish by" date only constrains the plan when it's inside the window.
+  if (q.tourEndDate && !inWindow(q.tourEndDate)) q.tourEndDate = undefined;
   return q;
 }
 
@@ -769,8 +779,14 @@ function readQueryFromForm(): SearchQuery {
     destination: resolveStation(refs.destination.value),
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
-    returnDate: tripType === "return" && mode === "od" ? refs.departDate.getReturn() || undefined : undefined,
-    returnFlexDays: tripType === "return" && mode === "od" ? refs.departDate.getMargin() || undefined : undefined,
+    // On the Return tab always carry a return date, defaulting to the proposed
+    // outbound+2 when the user hasn't picked one — otherwise a return search with no
+    // picked return serializes as a plain `mode=od` and a reload/Back silently drops
+    // back to the Simple tab (tripTypeForQuery needs `returnDate` to restore Return).
+    returnDate:
+      tripType === "return" && mode === "od"
+        ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
+        : undefined,
     legs:
       mode === "tour"
         ? formApi
@@ -837,6 +853,13 @@ function readQueryFromForm(): SearchQuery {
 function clampDays(raw: string, fallback: number): number {
   const n = Math.floor(Number(raw.trim()));
   return Number.isFinite(n) && n >= 1 ? Math.min(14, n) : fallback;
+}
+
+/** The default return day for a round trip: two days after departure, clamped to the window. */
+function proposedReturn(depart: string): string {
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  const two = addDays(depart, 2);
+  return two > lastBookable ? lastBookable : two;
 }
 
 function applyAndRun(): void {

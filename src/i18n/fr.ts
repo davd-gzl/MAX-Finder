@@ -15,7 +15,6 @@ export const fr = {
   desc_ideas: "Les meilleures destinations accessibles depuis votre gare.",
   field_depart: "Aller",
   field_ret: "Retour",
-  ideas_invite: "Je cherche des idées de voyage.",
   datepick_window: "pointillés = jours compris dans la marge ±",
   err_load: "Impossible de charger les données.",
   act_retry: "Réessayer",

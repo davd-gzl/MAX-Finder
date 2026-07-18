@@ -17,7 +17,6 @@ export const en: Dict = {
   desc_ideas: "The fastest destinations reachable from your station.",
   field_depart: "Departure",
   field_ret: "Return",
-  ideas_invite: "I'm looking for travel ideas.",
   datepick_window: "dotted = days within the ± margin",
   err_load: "Couldn't load the data.",
   act_retry: "Retry",

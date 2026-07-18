@@ -17,7 +17,6 @@ export const de: Dict = {
   desc_ideas: "Die am schnellsten erreichbaren Ziele ab deinem Bahnhof.",
   field_depart: "Hinfahrt",
   field_ret: "Rückfahrt",
-  ideas_invite: "Ich suche Reiseideen.",
   datepick_window: "gepunktet = Tage innerhalb der ±-Spanne",
   err_load: "Daten konnten nicht geladen werden.",
   act_retry: "Erneut versuchen",

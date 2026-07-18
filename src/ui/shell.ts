@@ -67,16 +67,22 @@ export function closeHeaderMenu(): void {
   }
 }
 
+// The shell is rebuilt on every language change; the previous drawer's media-query
+// and resize listeners would otherwise pile up, each keeping a detached drawer alive
+// and being resized. buildShell tears the old one down before wiring a new one.
+let teardownDrawer: (() => void) | null = null;
+
 /**
  * Make the results drawer a draggable bottom sheet on narrow screens, snapping
  * between peek / half / full detents. A no-op where matchMedia is unavailable.
  * @param drawer the drawer element to size.
  * @param handle the grab handle that drives the drag.
  * @param mapSection the map behind the drawer, used to measure available height.
+ * @returns a cleanup that removes the media-query/resize listeners it installed.
  */
-function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLElement): void {
+function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLElement): () => void {
   const mq = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 860px)") : null;
-  if (!mq) return;
+  if (!mq) return () => {};
   const order = ["peek", "half", "full"] as const;
   type Detent = (typeof order)[number];
   let state: Detent = "peek";
@@ -136,7 +142,12 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
     snap(best);
   };
   handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("pointercancel", () => {
+    finish();
+    // No click follows a cancelled gesture, so the click handler can't clear
+    // `moved` — reset it here or the next genuine tap on the handle is swallowed.
+    moved = false;
+  });
   handle.addEventListener("click", () => {
     if (moved) {
       moved = false;
@@ -155,7 +166,16 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
   };
   mq.addEventListener("change", sync);
   window.addEventListener("resize", sync);
-  sync();
+  // The initial sync must wait until the layout is attached: buildShell runs before
+  // buildLayout appends the shell, so a synchronous measure here reads a detached
+  // mapSection (top = 0) and snaps to a too-tall drawer. Defer one frame so `full`
+  // is measured against the real viewport position.
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => sync());
+  else sync();
+  return () => {
+    mq.removeEventListener("change", sync);
+    window.removeEventListener("resize", sync);
+  };
 }
 
 /* ── header ── */
@@ -287,6 +307,10 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
  * @returns the header, layout, and the element handles the controller wires into.
  */
 export function buildShell(props: ShellProps): ShellHandles {
+  // Tear down the previous shell's drawer listeners before building a new one, so a
+  // language-change rebuild doesn't stack them on orphaned elements.
+  teardownDrawer?.();
+  teardownDrawer = null;
   const { header, cardSelect } = buildHeader(props);
 
   const title = el("h2", {
@@ -347,7 +371,7 @@ export function buildShell(props: ShellProps): ShellHandles {
     el("div", { class: "side-col" }, [mapSection]),
   ]);
 
-  setupDrawer(resultsDrawer, drawerHandle, mapSection);
+  teardownDrawer = setupDrawer(resultsDrawer, drawerHandle, mapSection);
 
   results.addEventListener("click", (ev) => {
     const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");

@@ -17,7 +17,6 @@ export const ja: Dict = {
   desc_ideas: "出発駅から最も速く行ける目的地。",
   field_depart: "往路",
   field_ret: "復路",
-  ideas_invite: "旅行のアイデアを探しています。",
   datepick_window: "点線 = ±範囲内の日",
   err_load: "データを読み込めませんでした。",
   act_retry: "再試行",
