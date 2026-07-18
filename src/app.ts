@@ -786,8 +786,13 @@ function readQueryFromForm(): SearchQuery {
   const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
   const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
   const usesDestination = mode === "od" || mode === "to" || planMode;
-  // Round-trip getaways apply to the "Where to?" browse (from) and Ideas (best).
-  const roundTrip = (mode === "from" || mode === "best") && refs.roundTrip.checked;
+  // Round-trip getaways apply to the "Where to?" browse (from) and Ideas (best) —
+  // and only on the tabs where the toggle is actually shown, so a checkbox state left
+  // over from the Simple tab can't turn a Return-tab origin-only browse into getaways.
+  const roundTrip =
+    (tripType === "simple" || tripType === "ideas") &&
+    (mode === "from" || mode === "best") &&
+    refs.roundTrip.checked;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
