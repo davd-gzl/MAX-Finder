@@ -61,6 +61,7 @@ const browser = await puppeteer.launch({
 });
 
 const DATE = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+const DATE2 = new Date(Date.now() + 6 * 86_400_000).toISOString().slice(0, 10);
 const P = "PARIS (intramuros)";
 const T = "TOULOUSE MATABIAU";
 const L = "LYON (intramuros)";
@@ -78,8 +79,12 @@ function assert(cond, msg) {
  * hand the page to `body`, then fail the scenario if anything threw or a
  * same-origin resource failed. Cross-origin failures (map tiles) are ignored.
  */
-async function scenario(name, url, body) {
+async function scenario(name, url, body, opts = {}) {
   const page = await browser.newPage();
+  // Default to the desktop UI: stay above the 860px mobile breakpoint, below which
+  // the form collapses into a floating search bar and the tabs move behind a menu.
+  // Pass opts.viewport to exercise the mobile layout instead.
+  await page.setViewport(opts.viewport ?? { width: 1366, height: 900 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("requestfailed", (r) => {
@@ -110,8 +115,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Helpers evaluated in-page.
 const $count = (page, sel) => page.$$eval(sel, (els) => els.length).catch(() => 0);
 const $text = (page, sel) => page.$eval(sel, (el) => el.textContent || "").catch(() => null);
-const activeMode = (page) =>
-  page.$eval(".mode-tab.active", (el) => el.getAttribute("data-mode")).catch(() => null);
+// The v2 UI tabs by trip type (data-trip: simple | return | multi | ideas); the
+// search *mode* (from/to/od/tour/best) is derived from the active trip plus which
+// station fields are filled, and still travels in the URL as ?mode=.
+const activeTrip = (page) =>
+  page.$eval(".mode-tab.active", (el) => el.getAttribute("data-trip")).catch(() => null);
 const resultsState = (page) =>
   page.$eval(".results", (el) => ({
     children: el.childElementCount,
@@ -123,37 +131,31 @@ const resultsState = (page) =>
 console.log(`\nE2E against ${BASE} (offline, committed snapshot)\n`);
 
 // 1. Home shell renders with the expected controls.
-await scenario("home: shell renders (5 tabs, default 'from', search form)", BASE, async (page) => {
-  assert((await $count(page, ".mode-tab")) === 5, "expected 5 mode tabs");
-  assert((await activeMode(page)) === "from", "default active tab should be 'from'");
+await scenario("home: shell renders (4 trip tabs, default 'simple', search form)", BASE, async (page) => {
+  assert((await $count(page, ".mode-tab")) === 4, "expected 4 trip tabs");
+  assert((await activeTrip(page)) === "simple", "default active tab should be 'simple'");
   assert((await $count(page, ".search-form")) === 1, "search form missing");
   assert((await $count(page, '.search-form input[list="station-list"]')) >= 1, "no station inputs");
   const appLen = await page.$eval("#app", (el) => el.innerHTML.length);
   assert(appLen > 3000, `#app looks blank (${appLen} chars)`);
 });
 
-// 2. Clicking a mode tab switches mode + reflects it in the URL.
-await scenario("nav: clicking the 'Exact trip' tab switches mode + URL", BASE, async (page) => {
-  await page.click('.mode-tab[data-mode="od"]');
-  await sleep(300);
-  assert((await activeMode(page)) === "od", "tab did not become active");
-  assert(new URL(page.url()).searchParams.get("mode") === "od", "URL mode= not updated");
-  // Destination field must be visible in exact-trip mode.
-  const destVisible = await page.evaluate(() => {
-    const inputs = document.querySelectorAll('.search-form .fields input[list="station-list"]');
-    const dest = inputs[1];
-    const field = dest && dest.closest(".field, .clearable, div");
-    return !!dest && dest.offsetParent !== null;
-  });
-  assert(destVisible, "destination field should be visible in exact-trip mode");
+// 2. Clicking a trip tab switches trip type + reflects the derived mode in the URL.
+await scenario("nav: clicking the 'Multi-city' tab switches trip + URL mode", BASE, async (page) => {
+  await page.click('.mode-tab[data-trip="multi"]');
+  await sleep(400);
+  assert((await activeTrip(page)) === "multi", "tab did not become active");
+  // Multi-city derives the 'tour' search mode regardless of the station fields.
+  assert(new URL(page.url()).searchParams.get("mode") === "tour", "URL mode= not updated to tour");
 });
 
 // 3. Exact-trip deep link renders the right title + a populated/valid results panel.
+//    A one-way od deep link opens on the 'simple' tab (od → simple; return only when rdate is set).
 await scenario(
   "deep-link: exact trip Paris → Toulouse renders titled results",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "od", "active tab should be 'od'");
+    assert((await activeTrip(page)) === "simple", "active tab should be 'simple'");
     const title = (await $text(page, "#results-title")) || "";
     assert(/paris/i.test(title) && /toulouse/i.test(title), `title wrong: "${title}"`);
     const rs = await resultsState(page);
@@ -189,16 +191,18 @@ await scenario(
   },
 );
 
-// 5. Tour deep link renders a titled panel (results or a valid empty-state, never a crash).
+// 5. Multi-city deep link (explicit legs — the v2 'multi' tab flow) renders one
+//    titled leg section per hop (results or a valid empty-state, never a crash).
 await scenario(
-  "deep-link: tour from Paris renders",
-  `${BASE}?mode=tour&from=${enc(P)}&cities=${enc(L)}&date=${DATE}&dmin=1&dmax=3`,
+  "deep-link: multi-city Paris → Lyon → Paris renders leg sections",
+  `${BASE}?mode=tour&legs=${enc(`${P}>${L}@${DATE}~${L}>${P}@${DATE2}`)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "tour", "active tab should be 'tour'");
+    assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
     const title = (await $text(page, "#results-title")) || "";
-    assert(/paris/i.test(title), `tour title wrong: "${title}"`);
+    assert(/multi/i.test(title), `multi-city title wrong: "${title}"`);
+    assert((await $count(page, ".mc-result")) >= 1, "no multi-city leg sections rendered");
     const rs = await resultsState(page);
-    assert(rs.children >= 1, "tour results panel empty");
+    assert(rs.children >= 1, "multi-city results panel empty");
   },
 );
 
@@ -207,28 +211,108 @@ await scenario(
   "deep-link: ideas from Paris ranks destinations",
   `${BASE}?mode=best&from=${enc(P)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "best", "active tab should be 'best'");
+    assert((await activeTrip(page)) === "ideas", "active tab should be 'ideas'");
     const rs = await resultsState(page);
     assert(rs.children >= 1, "ideas produced no destinations");
   },
 );
 
-// 7. History: deep-link → switch mode → Back returns to the deep-linked mode.
+// 7. History: deep-link → switch trip → Back returns to the deep-linked trip.
 await scenario(
-  "history: Back restores the previous mode",
+  "history: Back restores the previous trip",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    assert((await activeMode(page)) === "od", "precondition: od");
-    await page.click('.mode-tab[data-mode="tour"]');
+    assert((await activeTrip(page)) === "simple", "precondition: simple");
+    await page.click('.mode-tab[data-trip="multi"]');
     await sleep(400);
-    assert((await activeMode(page)) === "tour", "did not switch to tour");
+    assert((await activeTrip(page)) === "multi", "did not switch to multi");
     await page.goBack({ waitUntil: "networkidle2" });
     await sleep(500);
-    assert((await activeMode(page)) === "od", "Back did not restore 'od'");
+    assert((await activeTrip(page)) === "simple", "Back did not restore 'simple'");
   },
 );
 
-// 8. PWA manifest is served and parseable, icon reference resolves.
+// 9. Legacy tour deep-link (?cities=) restores the planner, not the legs editor.
+//    Regression: v2 short-circuited every tour into the multi-city legs view, so
+//    the city planner (Surprise me / Nearest / auto-ordered tour) was unreachable.
+await scenario(
+  "deep-link: legacy ?cities= tour restores the planner (not the legs editor)",
+  `${BASE}?mode=tour&from=${enc(P)}&cities=${enc(L)}&date=${DATE}&dmin=1&dmax=3`,
+  async (page) => {
+    assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
+    // The Multi tab is on its 'plan' sub-mode (the tour planner), not the leading
+    // 'legs' one — so it's the SECOND button in the switch that must be pressed.
+    const planPressed = await page
+      .$eval(".multi-switch .multi-tab:nth-of-type(2)", (el) => el.getAttribute("aria-pressed"))
+      .catch(() => null);
+    assert(planPressed === "true", "the tour-plan sub-mode is not active");
+    // The planner ran: no explicit-leg sections, and a real result (a tour card or a
+    // valid empty-state), never the legs editor's "fill in a leg" hint.
+    assert((await $count(page, ".mc-result")) === 0, "legs editor rendered instead of the planner");
+    const rs = await resultsState(page);
+    assert(rs.children >= 1, "planner produced no output");
+  },
+);
+
+// 10. od + rdate deep-link maps to the Return tab (not Simple), with the date field
+//     in outbound→return range mode. The return-availability section itself depends
+//     on live seats, so assert the tab mapping + range control, which are what the
+//     serialization actually drives.
+await scenario(
+  "deep-link: od + rdate opens the Return tab",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${DATE}&rdate=${DATE2}`,
+  async (page) => {
+    assert((await activeTrip(page)) === "return", "active tab should be 'return'");
+    // The departure field is a range (outbound → return), shown as an arrow in its label.
+    const dateLabel = (await $text(page, ".dp-value-text")) || "";
+    assert(dateLabel.includes("→"), `date field not in return-range mode: "${dateLabel}"`);
+    const rs = await resultsState(page);
+    assert(rs.children >= 1, "return results panel empty");
+  },
+);
+
+// 11. Mobile layout: below 860px the app is either the full form sheet or the
+//     full-bleed map + results drawer behind a floating search bar — never both.
+//     A deep link opens on results (it already carries a search); the bar reopens
+//     the form and Search collapses it again. Asserts on what is *displayed*, not
+//     on presence — every one of these nodes also exists at 1366px (they are only
+//     display:none'd), so counting them proves nothing.
+await scenario(
+  "mobile: the form sheet and the results drawer swap at 390px",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
+  async (page) => {
+    const shown = (sel) =>
+      page.$eval(sel, (el) => el.getBoundingClientRect().height > 0).catch(() => false);
+    const mform = () => page.$eval("#app", (el) => el.dataset.mform);
+    // A shared link runs its search straight away, so it lands on the results view.
+    assert((await mform()) === "results", `deep link should land on results, got "${await mform()}"`);
+    assert(await shown(".msearch-bar"), "no floating search bar after a mobile deep link");
+    assert(await shown(".results-drawer"), "the results drawer is not displayed");
+    assert(!(await shown(".search-form")), "the form sheet should be collapsed on results");
+    // The results view is locked to 100dvh: neither axis may scroll the page.
+    const over = await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth - window.innerWidth,
+      y: document.documentElement.scrollHeight - window.innerHeight,
+    }));
+    assert(over.x <= 2, `page scrolls horizontally at 390px (${over.x}px)`);
+    assert(over.y <= 2, `results view scrolls vertically at 390px (${over.y}px)`);
+    // The bar reopens the whole form...
+    await page.click(".msearch-bar");
+    await sleep(900); // the bar→form view transition runs 0.34s
+    assert((await mform()) === "form", `the bar should reopen the form, got "${await mform()}"`);
+    assert(await shown(".search-form"), "the form sheet did not open from the search bar");
+    assert(!(await shown(".msearch-bar")), "the collapsed bar should be hidden while the form is open");
+    // ...and searching collapses it back to the drawer.
+    await page.click(".search-form .form-actions button.btn-primary");
+    await sleep(900);
+    assert((await mform()) === "results", `searching should return to results, got "${await mform()}"`);
+    assert(await shown(".results-drawer"), "the results drawer is not displayed after searching");
+    assert(!(await shown(".search-form")), "the form sheet should be collapsed after searching");
+  },
+  { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+);
+
+// 12. PWA manifest is served and parseable, icon reference resolves.
 await scenario("pwa: manifest is served and valid JSON", BASE, async (page) => {
   const manifestHref = await page.$eval('link[rel="manifest"]', (el) => el.getAttribute("href"));
   assert(manifestHref, "no <link rel=manifest>");

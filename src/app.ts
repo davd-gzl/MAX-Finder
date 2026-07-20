@@ -1,6 +1,6 @@
 import type { Dataset } from "./data/dataset";
 import { StationRegistry } from "./data/stations";
-import type { SearchQuery, MaxTrain, Journey, SortKey } from "./types";
+import type { SearchQuery, SearchMode, MaxTrain, Journey, SortKey } from "./types";
 import {
   reachableDestinations,
   reachableOrigins,
@@ -9,20 +9,30 @@ import {
 } from "./core/destinations";
 import { filterTrains, isNightTrain } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
+import { getawaysToAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
-import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
-import { el, clear } from "./ui/dom";
+import { el, clear, isTouch } from "./ui/dom";
+import { buildShell, applyTheme, closeHeaderMenu } from "./ui/shell";
+import { createForm } from "./ui/form";
+import type { FormHandle, FormRefs, TripType } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
 import type { RenderCtx } from "./ui/render";
 import { journeyToIcs, downloadText } from "./ui/ics";
+import {
+  showInfoModal,
+  showBookingModal,
+  showTripModal,
+  showMultiTripModal,
+  showTourModal,
+} from "./ui/modals";
 import { generateBookingUrl } from "./util/booking";
-import { t, setLang, getLang, LANGS, isLang } from "./i18n";
+import { t, setLang, getLang, isLang } from "./i18n";
 import * as store from "./state/store";
 import {
   MAX_JEUNE_URL,
@@ -40,69 +50,13 @@ interface Deps {
   registry: StationRegistry;
 }
 
-interface Refs {
-  modeTabs: HTMLElement;
-  modeDesc: HTMLElement;
-  origin: HTMLInputElement;
-  destination: HTMLInputElement;
-  date: HTMLInputElement;
-  dateField: HTMLElement;
-  endDate: HTMLInputElement;
-  endDateField: HTMLElement;
-  card: HTMLSelectElement;
-  departAfter: HTMLInputElement;
-  departBefore: HTMLInputElement;
-  arriveBefore: HTMLInputElement;
-  maxDuration: HTMLInputElement;
-  maxSpanDays: HTMLInputElement;
-  maxSpanDaysField: HTMLElement;
-  radius: HTMLInputElement;
-  radiusField: HTMLElement;
-  trainType: HTMLSelectElement;
-  maxConnections: HTMLSelectElement;
-  connGroupField: HTMLElement;
-  overnight: HTMLInputElement;
-  night: HTMLInputElement;
-  onlyNight: HTMLInputElement;
-  onlyNightField: HTMLElement;
-  roundTrip: HTMLInputElement;
-  nights: HTMLSelectElement;
-  stayHours: HTMLInputElement;
-  stayHoursField: HTMLElement;
-  lateReturn: HTMLInputElement;
-  roundTripField: HTMLElement;
-  roundTripOpts: HTMLElement;
-  via: HTMLInputElement;
-  flex: HTMLElement; // segmented button group (data-value holds the selection)
-  flexField: HTMLElement;
-  originField: HTMLElement;
-  destinationField: HTMLElement;
-  viaField: HTMLElement;
-  maxDurationField: HTMLElement;
-  trainTypeField: HTMLElement;
-  region: HTMLSelectElement;
-  regionField: HTMLElement;
-  cities: HTMLInputElement;
-  citiesField: HTMLElement;
-  tourCount: HTMLInputElement;
-  tourCountField: HTMLElement;
-  cityChips: HTMLElement;
-  minDays: HTMLInputElement;
-  maxDays: HTMLInputElement;
-  stayField: HTMLElement;
-  maxKm: HTMLInputElement;
-  maxLegKm: HTMLInputElement;
-  maxKmField: HTMLElement;
-  maxLegDuration: HTMLInputElement;
-  maxLegDurationField: HTMLElement;
-  minLegDuration: HTMLInputElement;
-  minLegDurationField: HTMLElement;
+interface Refs extends FormRefs {
   title: HTMLElement;
   results: HTMLElement;
   mapEl: HTMLElement;
-  viewToggle: HTMLElement;
   favList: HTMLElement;
   tripList: HTMLElement;
+  card: HTMLSelectElement;
 }
 
 let deps: Deps;
@@ -110,6 +64,7 @@ let query: SearchQuery;
 let settings: store.Settings;
 let rootRef: HTMLElement;
 let refs: Refs;
+let formApi: FormHandle;
 let mapPromise: Promise<RouteMap> | null = null;
 let mapInstance: RouteMap | null = null;
 let labelToId: Map<string, string>;
@@ -118,10 +73,6 @@ let labelToId: Map<string, string>;
 let today = "";
 const BOOKING_WINDOW_DAYS = 30;
 const APP_TITLE = document.title;
-const SHARE_SVG =
-  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
-const CHECK_SVG =
-  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 7"/></svg>';
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
@@ -130,8 +81,28 @@ let navStack: SearchQuery[] = [];
 // reachable across the whole window. A calendar-day click narrows to that day.
 let bestAllDays = true;
 
-// Ordered list of station ids for the tour "cities to visit" chip input.
-let tourCities: string[] = [];
+let tripType: TripType = "simple";
+const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
+
+function tripTypeForQuery(q: SearchQuery): TripType {
+  if (q.mode === "tour") return "multi";
+  if (q.mode === "best") return "ideas";
+  // A return date restores the "dates" surface; `rt` (round-trip getaways) restores
+  // the "duration" one — including legacy `?mode=from&rt=1` links, which used to open
+  // the Simple tab before the toggle moved here.
+  if (q.returnDate || q.roundTrip) return "return";
+  return "simple";
+}
+
+function deriveMode(): SearchMode {
+  if (tripType === "multi") return "tour";
+  if (tripType === "ideas") return "best";
+  const o = resolveStation(refs.origin.value);
+  const d = resolveStation(refs.destination.value);
+  if (o && d) return "od";
+  if (d && !o) return "to";
+  return "from";
+}
 
 // PWA install prompt (Chromium "beforeinstallprompt"). Held until the user clicks.
 interface InstallPromptEvent extends Event {
@@ -139,23 +110,18 @@ interface InstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: string }>;
 }
 let installPrompt: InstallPromptEvent | null = null;
-let surpriseMsgEl: HTMLElement | null = null;
-let cityClearBtnEl: HTMLElement | null = null;
-let nearestBtnEl: HTMLElement | null = null;
 // Proposed/edited return date for the od "Do you want to come back?" section.
 // Reset on each fresh od search so a new outbound re-proposes (outbound + 2 days).
 let odReturnDate: string | null = null;
 
 /** Set (or clear with "") the inline status next to the "surprise" button. */
 function setSurpriseMsg(text: string): void {
-  if (surpriseMsgEl) surpriseMsgEl.textContent = text;
+  formApi?.setSurpriseMsg(text);
 }
 
 /** Remove every tour "city to visit" at once (staged — the search waits for the button). */
 function clearTourCities(): void {
-  if (tourCities.length === 0) return;
-  tourCities = [];
-  renderCityChips();
+  formApi?.clearCities();
 }
 
 /** Straight-line km between two stations; Infinity if either lacks coordinates. */
@@ -436,16 +402,16 @@ function growTour(mode: "nearest" | "random", count: number): void {
     return deepest;
   };
 
-  const base = [...tourCities];
+  const base = formApi.getTourCities();
   // Seed the arrival at the existing frontier (if any) so the first new hop departs
   // from the right day. If the existing cities don't even plan, there's nothing to grow.
   const baseTour = base.length ? plan(base) : null;
   const baseFrontier = base[base.length - 1];
-  tourCities =
+  const nextCities =
     base.length && !baseTour
       ? base
       : extend(base, count, baseTour && baseFrontier ? arrivalAt(baseTour, baseFrontier) : query.date);
-  const added = tourCities.length - base.length;
+  const added = nextCities.length - base.length;
 
   if (added === 0) {
     // Couldn't add any city. Still commit the snapshotted form (a freshly-filled
@@ -459,7 +425,7 @@ function growTour(mode: "nearest" | "random", count: number): void {
     setSurpriseMsg(t("surprise_none"));
     return;
   }
-  query = { ...query, origin, cities: [...tourCities] };
+  query = { ...query, origin, cities: [...nextCities] };
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
@@ -472,87 +438,6 @@ function addNearestCity(): void {
   // query that would bring back a just-removed destination / staged edit.
   query = readQueryFromForm();
   growTour("nearest", tourAddCount());
-}
-
-/** A simple accessible modal dialog: a title and one or more message lines. */
-function showInfoModal(title: string, lines: string[]): void {
-  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-primary modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      el("h2", { class: "modal-title", text: title }),
-      ...lines.map((line) => el("p", { class: "modal-text", text: line })),
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  // Remove from the DOM once dismissed; click on the backdrop closes it.
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-/**
- * Step-by-step booking modal for a connecting journey: one SNCF Connect deep link
- * per train, in order. A single via search can't be pinned to the exact free trains
- * (SNCF re-optimises the route), so each leg is booked on its own — this lays out
- * exactly which buttons to click, in sequence.
- */
-function showBookingModal(j: Journey): void {
-  const label = (id: string): string => deps.registry.label(id);
-  const dialog = el("dialog", { class: "modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  const steps = el("ol", { class: "book-steps" });
-  j.legs.forEach((leg, i) => {
-    const href = generateBookingUrl(label(leg.origin), label(leg.destination), leg.date, leg.depart);
-    steps.append(
-      el("li", { class: "book-step" }, [
-        el("div", { class: "book-step-info" }, [
-          el("div", { class: "book-step-route" }, [
-            el("strong", { text: label(leg.origin) }),
-            el("span", { class: "muted", text: " → " }),
-            el("strong", { text: label(leg.destination) }),
-          ]),
-          el("div", {
-            class: "book-step-meta muted small",
-            text: `${leg.depart} → ${leg.arrive} · ${t("lbl_train", { no: leg.trainNo })}`,
-          }),
-        ]),
-        el("a", {
-          class: "btn btn-primary book-step-btn",
-          href,
-          attrs: { target: "_blank", rel: "noopener noreferrer" },
-          text: t("act_book_leg", { n: i + 1 }),
-        }),
-      ]),
-    );
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      el("h2", { class: "modal-title", text: t("book_steps_title") }),
-      el("p", { class: "modal-text", text: t("book_steps_note") }),
-      steps,
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
 }
 
 async function promptInstall(): Promise<void> {
@@ -612,6 +497,14 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   // Global keyboard shortcuts (mode switch, focus, day nav, surprise, run, help).
   document.addEventListener("keydown", onGlobalKey);
 
+  document.addEventListener("click", (ev) => {
+    const nav = document.querySelector<HTMLElement>(".header-nav.menu-open");
+    if (nav && !nav.contains(ev.target as Node)) closeHeaderMenu();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeHeaderMenu();
+  });
+
   // Native browser Back/Forward: restore the page from the URL. The in-app drill
   // stack is the URL's source of truth here, so clear it to keep the in-app
   // "Retour" button in step with where the browser history now sits.
@@ -633,7 +526,17 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
 function queryFromUrl(): SearchQuery {
   const q = store.queryFromParams(new URLSearchParams(location.search), today);
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  if (q.date < today || q.date > lastBookable) q.date = today;
+  const inWindow = (d: string): boolean => d >= today && d <= lastBookable;
+  if (!inWindow(q.date)) q.date = today;
+  // The return date is bounded like the outbound: a stale shared link with an
+  // out-of-window rdate would otherwise skew the return calendar or read as "no
+  // return" — drop it so the search re-proposes a sensible one.
+  if (q.returnDate && !inWindow(q.returnDate)) q.returnDate = undefined;
+  // Multi-city legs are clamped too: a leg outside the bookable window can never
+  // have a free MAX seat, so pull it back to today rather than showing an empty leg.
+  if (q.legs) q.legs = q.legs.map((l) => (inWindow(l.date) ? l : { ...l, date: today }));
+  // The tour "finish by" date only constrains the plan when it's inside the window.
+  if (q.tourEndDate && !inWindow(q.tourEndDate)) q.tourEndDate = undefined;
   return q;
 }
 
@@ -643,6 +546,7 @@ function rebuild(autoRun = true): void {
   if (autoRun) runSearch();
   else showSearchPrompt();
   updateRailMetrics();
+  setMobileForm(!(autoRun && store.urlHasQuery()));
 }
 
 /**
@@ -734,6 +638,7 @@ function ctx(): RenderCtx {
       query = { ...query, mode: "od", origin, destination, via: undefined };
       syncFormFromQuery();
       applyAndRun();
+      setMobileForm(false);
       // One clean scroll to the new page's heading (focus uses preventScroll so
       // this is the only scroll, not a jump-then-smooth).
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -766,7 +671,7 @@ function ctx(): RenderCtx {
       const slug = j.legs.map((l) => l.trainNo.replace(/[^a-zA-Z0-9-]/g, "")).join("-");
       downloadText(`max-${j.date}-${slug}.ics`, journeyToIcs(j, summary));
     },
-    onBookSteps: (j) => showBookingModal(j),
+    onBookSteps: (j) => showBookingModal(j, ctx()),
     isFavorite: (route) => store.isFavorite(route),
     onToggleFavorite: (route) => {
       store.toggleFavorite(route);
@@ -777,7 +682,7 @@ function ctx(): RenderCtx {
       store.toggleTrip(buildSavedTrip(out, inb));
       renderSavedTrips();
     },
-    onShowTrip: (out, inb) => showTripModal(out, inb),
+    onShowTrip: (out, inb) => showTripModal(out, ctx(), { inbound: inb, onShare: shareCurrentUrl }),
     isTourSaved: (tour) => store.isTripSaved(store.tourId(tour)),
     onToggleTour: (tour) => {
       store.toggleTrip(buildSavedTour(tour));
@@ -808,102 +713,38 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
   };
 }
 
-/**
- * The whole trip on one page (a modal): a single journey or a round trip, with both
- * legs bookable, a Save toggle, and a shortcut to the route's full calendar.
- */
-function showTripModal(outbound: Journey, inbound?: Journey): void {
-  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  const moreDates = el("button", {
-    class: "linklike trip-more",
-    type: "button",
-    text: t("trip_more_dates"),
-    on: {
-      click: () => {
-        dialog.close();
-        ctx().onOpenRoute(outbound.origin, outbound.destination);
-      },
-    },
-  });
-  const shareTripBtn = el("button", {
-    class: "btn btn-ghost share-feedback",
-    type: "button",
-    text: t("act_share"),
-    on: {
-      click: () => {
-        void shareCurrentUrl(() => {
-          shareTripBtn.textContent = t("share_copied");
-          setTimeout(() => {
-            shareTripBtn.textContent = t("act_share");
-          }, 1600);
-        });
-      },
-    },
-  });
-  // "Show on map" makes no sense behind a modal (it would scroll the page under
-  // the dialog), so neutralise the map action for the cards shown here.
-  const modalCtx: RenderCtx = { ...ctx(), onShowJourney: () => {} };
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      render.tripViewEl(outbound, modalCtx, inbound),
-      el("div", { class: "modal-actions" }, [shareTripBtn, moreDates, closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-/**
- * A saved multi-city tour on one page (a modal): the full itinerary with every
- * bookable leg and a Save toggle. Map actions are no-ops here — there's no map
- * behind the dialog to draw on (and we don't want to scroll the page underneath).
- */
-function showTourModal(tour: Tour): void {
-  const modalCtx: RenderCtx = { ...ctx(), onShowTour: () => {}, onShowJourney: () => {} };
-  const dialog = el("dialog", { class: "modal trip-modal" }) as HTMLDialogElement;
-  const closeBtn = el("button", {
-    class: "btn btn-ghost modal-close",
-    type: "button",
-    text: t("act_close"),
-    on: { click: () => dialog.close() },
-  });
-  dialog.append(
-    el("div", { class: "modal-body" }, [
-      render.tourEl(tour, modalCtx),
-      el("div", { class: "modal-actions" }, [closeBtn]),
-    ]),
-  );
-  dialog.addEventListener("close", () => dialog.remove());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
 // --- query <-> form ---------------------------------------------------------
 
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
-  setActiveTab(query.mode);
-  refs.modeDesc.textContent = t(`desc_${query.mode}` as const);
+  tripType = tripTypeForQuery(query);
+  // On the Multi tab, restore the surface the URL was serialized from: explicit legs
+  // only ever come from the legs editor, while cities / a start / a finish only travel
+  // from the planner (readQueryFromForm drops each on the other surface). A tour query
+  // carrying none of them — an empty legs editor — stays on the default, legs.
+  const planned =
+    (query.cities && query.cities.length > 0) || Boolean(query.origin) || Boolean(query.destination);
+  formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : planned ? "plan" : "legs");
+  formApi.setReturnMode(query.roundTrip ? "duration" : "dates");
+  formApi.setActiveTab(tripType);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  setStepper(refs.flex, query.flexDays ?? 0);
+  refs.departDate.setRange(tripType === "return");
+  refs.departDate.setMargin(query.flexDays ?? 0);
+  refs.departDate.setDates(query.date, query.returnDate ?? "");
   refs.date.value = query.date;
+  if (query.legs && query.legs.length > 0) {
+    formApi.setLegs(
+      query.legs.map((l) => ({
+        from: l.from ? deps.registry.label(l.from) : "",
+        to: l.to ? deps.registry.label(l.to) : "",
+        date: l.date,
+      })),
+    );
+  }
   refs.endDate.value = query.tourEndDate ?? "";
   refs.card.value = query.card;
   refs.departAfter.value = query.departAfter ?? "";
@@ -922,16 +763,18 @@ function syncFormFromQuery(): void {
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
   refs.region.value = query.region ?? "";
-  tourCities = [...(query.cities ?? [])];
+  // Cities only travel in the URL from the tour-plan surface, so a query built on
+  // another tab carries none — restoring "no cities" from it would wipe the chips on
+  // a plain Back. Sync them on the Multi tab only (legs get the same treatment above).
+  if (tripType === "multi") formApi.setTourCities(query.cities ?? []);
   refs.cities.value = "";
-  renderCityChips();
   refs.minDays.value = String(query.minDays ?? 1);
   refs.maxDays.value = String(query.maxDays ?? 3);
   refs.maxKm.value = query.maxKm != null ? String(query.maxKm) : "";
   refs.maxLegKm.value = query.maxLegKm != null ? String(query.maxLegKm) : "";
   refs.maxLegDuration.value = query.maxLegDurationMin != null ? String(query.maxLegDurationMin) : "";
   refs.minLegDuration.value = query.minLegDurationMin != null ? String(query.minLegDurationMin) : "";
-  updateFieldVisibility();
+  formApi.updateFieldVisibility(tripType);
 }
 
 function readQueryFromForm(): SearchQuery {
@@ -942,23 +785,49 @@ function readQueryFromForm(): SearchQuery {
   const minLegDur = Number(refs.minLegDuration.value.trim());
   const span = Number(refs.maxSpanDays.value.trim());
   const rad = Number(refs.radius.value.trim());
-  const stayHours = Number(refs.stayHours.value.trim());
-  // Round trip lives in "Where to?" and "Ideas" — gate it to those so it never leaks.
-  const roundTrip = (query.mode === "from" || query.mode === "best") && refs.roundTrip.checked;
+  const stayHrs = Number(refs.stayHours.value.trim());
+  const nightsVal = refs.nights.value === "flex" ? 0 : Number(refs.nights.value.trim());
   const flexNights = refs.nights.value === "flex";
-  const nightsVal = flexNights ? 3 : Number(refs.nights.value) || 0;
+  const mode = deriveMode();
+  // The Multi tab hosts two surfaces (both mode "tour"): "plan" produces a city
+  // list for the planner, "legs" produces explicit hops. Reading only the active
+  // surface's fields keeps a value carried over from another tab (a destination, a
+  // stale city) from leaking into the query behind a hidden field.
+  const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
+  const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
+  const usesDestination = mode === "od" || mode === "to" || planMode;
+  // Round-trip getaways come from two surfaces: the Return tab's "duration" sub-mode
+  // (where the sub-mode itself is the opt-in — with a destination it sweeps start days
+  // for that city, without one it browses everywhere) and the Ideas tab's checkbox.
+  const byDuration = tripType === "return" && formApi.getReturnMode() === "duration";
+  const roundTrip = byDuration
+    ? mode === "from" || mode === "od"
+    : tripType === "ideas" && mode === "best" && refs.roundTrip.checked;
   return {
-    mode: query.mode,
-    origin: resolveStation(refs.origin.value),
-    destination: resolveStation(refs.destination.value),
-    via: resolveStation(refs.via.value),
-    // Flexibility only applies to from/to/tour (its field is hidden elsewhere).
-    // Gate it like the other mode-specific fields so a value set here doesn't leak
-    // into the URL — or silently reapply — after switching to Ideas / exact trip.
-    flexDays:
-      query.mode === "from" || query.mode === "to" || query.mode === "tour"
-        ? getStepper(refs.flex) || undefined
+    mode,
+    origin: legsMode ? undefined : resolveStation(refs.origin.value),
+    destination: usesDestination ? resolveStation(refs.destination.value) : undefined,
+    via: mode === "od" ? resolveStation(refs.via.value) : undefined,
+    flexDays: refs.departDate.getMargin() || undefined,
+    // On the Return tab's "dates" surface always carry a return date, defaulting to
+    // the proposed outbound+2 when the user hasn't picked one. It is what restores the
+    // tab on reload/Back, so it must survive a blank destination too (which derives
+    // "from", not "od") — the search itself ignores it outside od. The "duration"
+    // surface derives its return from the stay length instead, and is restored by `rt`.
+    returnDate:
+      tripType === "return" && !byDuration
+        ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
         : undefined,
+    legs: legsMode
+      ? formApi
+          .getLegValues()
+          .map((l) => ({
+            from: resolveStation(l.from) ?? "",
+            to: resolveStation(l.to) ?? "",
+            date: l.date || query.date,
+          }))
+          .filter((l) => l.from && l.to)
+      : undefined,
     date: refs.date.value || query.date,
     card: refs.card.value === "senior" ? "senior" : "jeune",
     departAfter: refs.departAfter.value || undefined,
@@ -974,52 +843,45 @@ function readQueryFromForm(): SearchQuery {
     onlyNight: (refs.night.checked && refs.onlyNight.checked) || undefined,
     region: refs.region.value || undefined,
     // Chips hold the committed cities; also fold in any text still in the input
-    // (typed but not yet turned into a chip) so a pending entry isn't lost.
-    cities:
-      query.mode === "tour"
-        ? [
-            ...new Set([
-              ...tourCities,
-              ...refs.cities.value
-                .split(",")
-                .map((s) => resolveStation(s))
-                .filter((s): s is string => Boolean(s)),
-            ]),
-          ]
-        : query.cities,
+    // (typed but not yet turned into a chip) so a pending entry isn't lost. Only the
+    // tour-plan surface owns cities — legs mode / other tabs must not carry them.
+    cities: planMode
+      ? [
+          ...new Set([
+            ...formApi.getTourCities(),
+            ...refs.cities.value
+              .split(",")
+              .map((s) => resolveStation(s))
+              .filter((s): s is string => Boolean(s)),
+          ]),
+        ]
+      : undefined,
     minDays: clampDays(refs.minDays.value, 1),
     maxDays: clampDays(refs.maxDays.value, 3),
     maxKm: Number.isFinite(maxKm) && maxKm > 0 ? Math.floor(maxKm) : undefined,
     maxLegKm: Number.isFinite(maxLegKm) && maxLegKm > 0 ? Math.floor(maxLegKm) : undefined,
-    // Per-train time cap (tour mode). Floor at 30 min so a too-tight value can't
-    // silently rule out every train.
     maxLegDurationMin:
-      query.mode === "tour" && Number.isFinite(maxLegDur) && maxLegDur > 0
+      planMode && Number.isFinite(maxLegDur) && maxLegDur > 0
         ? Math.max(30, Math.floor(maxLegDur))
         : undefined,
-    // Per-train time floor (tour mode) — e.g. require long legs / night trains.
     minLegDurationMin:
-      query.mode === "tour" && Number.isFinite(minLegDur) && minLegDur > 0
-        ? Math.floor(minLegDur)
-        : undefined,
-    // Max trip span (days) is an exact-trip cap only — gated to od so it never leaks.
+      planMode && Number.isFinite(minLegDur) && minLegDur > 0 ? Math.floor(minLegDur) : undefined,
     maxSpanDays:
-      query.mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
-    // Search radius (km) is an exact-trip feature only.
+      mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
     radiusKm:
-      query.mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
-    // Round-trip view (day trips + N-night getaways) — a "Where to?" feature only.
+      mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+    // Round-trip getaways (Where to? / Ideas): the toggle plus its stay options.
     roundTrip: roundTrip || undefined,
-    nights: roundTrip && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
+    nights: roundTrip && !flexNights && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
     flexNights: (roundTrip && flexNights) || undefined,
     stayMinHours:
-      roundTrip && nightsVal === 0 && Number.isFinite(stayHours) && stayHours >= 1
-        ? Math.min(12, Math.floor(stayHours))
+      roundTrip && nightsVal === 0 && !flexNights && Number.isFinite(stayHrs) && stayHrs >= 1
+        ? Math.min(12, Math.floor(stayHrs))
         : undefined,
     lateReturn: (roundTrip && refs.lateReturn.checked) || undefined,
-    // Tour finish-by date — only meaningful with a tour destination set.
+    // The "finish by" date only applies to a tour plan with a fixed finish.
     tourEndDate:
-      query.mode === "tour" && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
+      planMode && resolveStation(refs.destination.value) ? refs.endDate.value || undefined : undefined,
     // The sort lives in the results toolbar, not the form — carry it through.
     sort: query.sort,
   };
@@ -1029,6 +891,13 @@ function readQueryFromForm(): SearchQuery {
 function clampDays(raw: string, fallback: number): number {
   const n = Math.floor(Number(raw.trim()));
   return Number.isFinite(n) && n >= 1 ? Math.min(14, n) : fallback;
+}
+
+/** The default return day for a round trip: two days after departure, clamped to the window. */
+function proposedReturn(depart: string): string {
+  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
+  const two = addDays(depart, 2);
+  return two > lastBookable ? lastBookable : two;
 }
 
 function applyAndRun(): void {
@@ -1058,7 +927,8 @@ function refreshInPlace(): void {
   // `tourCities`) but aren't folded into `query` until Search. Re-syncing silently
   // reset them, which is the "my filter / cities disappeared" bug.
   refs.date.value = query.date;
-  refreshTourEndDate();
+  refs.departDate.setDate(query.date);
+  formApi.refreshTourEndDate();
   clear(refs.results);
   renderSearch();
   window.scrollTo({ top: scrollY });
@@ -1250,6 +1120,7 @@ async function shareCurrentUrl(onCopied: () => void): Promise<void> {
 function renderSearch(): void {
   const c = ctx();
   updateDocTitle();
+  rootRef.dataset.detail = navStack.length ? "on" : "";
 
   // Default the map to the bare France basemap; a mode that has something to plot
   // overrides this with its own markers below. This keeps the map from sitting
@@ -1276,9 +1147,14 @@ function renderSearch(): void {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
+  } else if (query.roundTrip) {
+    // Return tab, "by duration": both endpoints known, so list the start days that
+    // give the requested stay rather than a single outbound/return pair.
+    runOdGetaways(c);
   } else {
     runOdSearch(c);
   }
+  updateSearchBar();
 }
 
 /**
@@ -1396,10 +1272,10 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
 }
 
 /**
- * "Round trip" view (a toggle on "Where to?"): every city you can reach AND get
- * home from on free MAX — a same-day day trip (leave morning, back evening) or an
- * N-night getaway. Ranked by nights, then time on site / least travel, so the best
- * escapes float to the top.
+ * Duration search, page 1: WHICH CITIES you can do a round trip to at all. One row
+ * per place, no times — comparing destinations comes first, picking a day second.
+ * The sweep covers the whole bookable window (not just date ± flex) so each row can
+ * say how often the place works; the arrow opens its own page for the day detail.
  */
 function runGetaways(c: RenderCtx, origin: string): void {
   const { trains, registry } = deps;
@@ -1407,35 +1283,132 @@ function runGetaways(c: RenderCtx, origin: string): void {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
-  // The Date field + "date flexibility" stepper drive this view (no calendar —
-  // it added little here and confused the day-trip vs round-trip framing).
-  // Flexible dates: search every day in the ±N window and keep the best round trip
-  // per destination (more nights, then more time on site / less travel) — so you
-  // can do a round trip "around these days", not only on the exact one.
-  const flex = query.flexDays ?? 0;
-  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  const dates: string[] = [];
-  for (let i = -flex; i <= flex; i++) {
-    const d = addDays(query.date, i);
-    if (i === 0 || (d >= today && d <= lastBookable)) dates.push(d);
-  }
-  const { trips } = getawaysAcrossWindow(trains, origin, dates, getawayOpts());
+  const { trips, datesByDest } = getawayIdeas(trains, origin, dateRange(today, BOOKING_WINDOW_DAYS), getawayOpts());
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
     return;
   }
+  // "This day" honours the date field and its flexibility stepper; "this month" is
+  // the whole window — the same pair the browse lists show for trains.
+  const flex = query.flexDays ?? 0;
+  const focus = (d: string): boolean => Math.abs(dayIndex(d) - dayIndex(query.date)) <= flex;
   refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }));
-  // With flexible dates the trips fall on different start days, so each row shows its date.
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: flex > 0 }));
+  for (const trip of trips) {
+    const days = datesByDest.get(trip.destination) ?? [];
+    refs.results.append(
+      render.getawayCityRowEl(trip, c, { days: days.filter(focus).length, windowDays: days.length }),
+    );
+  }
   showMap(
     origin,
     trips.map((trip) => trip.destination),
   );
 }
 
+/**
+ * Duration search, page 2: ONE city. A calendar of the start days that work, then
+ * every dated solution below it. Reached from the list page, or straight away when
+ * the form already names a destination.
+ */
+function runOdGetaways(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  const { origin, destination } = query;
+  if (!origin) return showHint(refs.origin);
+  if (!destination) return showHint(refs.destination);
+  refs.title.textContent = t("getaway_od_title", {
+    origin: registry.label(origin),
+    destination: registry.label(destination),
+    date: formatDate(query.date),
+  });
+  const dates = dateRange(today, BOOKING_WINDOW_DAYS);
+  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, getawayOpts());
+  if (trips.length === 0) {
+    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
+    showMap(origin, [destination]);
+    return;
+  }
+  // The calendar is built from the sweep itself: a day is available exactly when it
+  // produced a trip, so it can never disagree with the list under it.
+  const startable = new Set(trips.map((trip) => trip.outbound.date));
+  refs.results.append(
+    render.calendarEl(
+      dates.map((date) => ({ date, available: startable.has(date), count: startable.has(date) ? 1 : 0 })),
+      c,
+      query.date,
+      { title: t("getaway_cal_title"), showCount: false },
+    ),
+    el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }),
+  );
+  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  showMap(origin, [destination]);
+}
+
+function runMultiCity(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  const legs = (query.legs ?? []).filter((l) => l.from && l.to);
+  if (legs.length === 0) {
+    refs.results.append(render.emptyEl(t("multi_hint")));
+    showBaseMap();
+    return;
+  }
+  refs.title.textContent = t("multi_title", { n: legs.length });
+  const stations: string[] = [];
+  const legSections: HTMLElement[] = [];
+  const chosen: (Journey | null)[] = legs.map(() => null);
+  legs.forEach((leg, i) => {
+    const opts = { ...filterOpts(), maxConnections: query.maxConnections };
+    const journeys = findJourneys(trains, leg.from, leg.to, leg.date, opts).sort(
+      (a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin,
+    );
+    chosen[i] = journeys[0] ?? null;
+    const sec = el("section", { class: "mc-result" }, [
+      el("div", { class: "mc-result-head" }, [
+        el("span", { class: "mc-num", text: String(i + 1) }),
+        el("span", { class: "mc-route" }, [
+          el("bdi", { text: registry.label(leg.from) }),
+          el("span", { class: "muted", text: " → " }),
+          el("bdi", { text: registry.label(leg.to) }),
+        ]),
+        el("span", { class: "mc-date muted", text: formatDate(leg.date) }),
+      ]),
+    ]);
+    if (journeys.length === 0) sec.append(render.emptyEl(t("res_none")));
+    else
+      for (const j of journeys)
+        sec.append(
+          render.journeyEl(j, c, {
+            onPick: (jj) => {
+              chosen[i] = jj;
+            },
+            onArrow: (jj) => {
+              chosen[i] = jj;
+              const nextSec = legSections[i + 1];
+              if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
+              // Carry every leg (with its chosen journey, or null when a leg has no
+              // seat) so the recap shows the trip honestly instead of hiding gaps.
+              else
+                showMultiTripModal(
+                  legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
+                  c,
+                );
+            },
+          }),
+        );
+    legSections.push(sec);
+    refs.results.append(sec);
+    stations.push(leg.from);
+    const next = legs[i + 1];
+    if (!next || next.from !== leg.to) stations.push(leg.to);
+  });
+  showRoute(stations);
+}
+
 function runTourSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
+  // The Multi tab's "legs" surface (or any URL carrying explicit legs) renders the
+  // hand-typed itinerary; the "plan" surface below runs the city planner.
+  if (formApi.getMultiMode() === "legs" || (query.legs && query.legs.length > 0)) return runMultiCity(c);
   if (!query.origin) return showHint(refs.origin);
   refs.title.textContent = t("tour_title", {
     station: registry.label(query.origin),
@@ -1648,7 +1621,7 @@ function runOdSearch(c: RenderCtx): void {
   if (!query.origin || !query.destination) {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
-  odReturnDate = null; // a fresh outbound search re-proposes the return (outbound + 2)
+  odReturnDate = query.returnDate ?? null;
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
     destination: registry.label(query.destination),
@@ -1743,15 +1716,23 @@ function runOdSearch(c: RenderCtx): void {
         refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
       }
     }
+    const ret = tripType === "return";
     for (const j of journeys)
       refs.results.append(
-        render.journeyEl(j, c, {
-          selected: j === chosenOutbound,
-          onPick: (jj) => {
-            chosenOutbound = jj;
-            c.onShowJourney(jj);
-          },
-        }),
+        ret
+          ? render.journeyEl(j, c, {
+              selected: j === chosenOutbound,
+              onPick: (jj) => {
+                chosenOutbound = jj;
+              },
+              onArrow: (jj) => {
+                chosenOutbound = jj;
+                refs.results
+                  .querySelector<HTMLElement>(".od-return")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              },
+            })
+          : render.journeyEl(j, c),
       );
   }
 
@@ -1798,7 +1779,8 @@ function runOdSearch(c: RenderCtx): void {
   // "Do you want to come back?": a return availability calendar (every bookable
   // return day at a glance) plus a stay-N-nights quick pick. Picking a day lists
   // that day's free-MAX returns and lets you open the whole round trip on one page.
-  if (journeys.length > 0) {
+  // Only for a round trip (aller-retour) — a one-way search shows no return.
+  if (tripType === "return" && journeys.length > 0) {
     const origin = query.origin;
     const destination = query.destination;
     const proposed =
@@ -1837,7 +1819,12 @@ function runOdSearch(c: RenderCtx): void {
       // Clicking a return opens the whole round trip (the chosen outbound + this
       // return) on one page, ready to book both legs and save.
       for (const j of back)
-        retList.append(render.journeyEl(j, c, { onPick: (rj) => showTripModal(chosenOutbound!, rj) }));
+        retList.append(
+          render.journeyEl(j, c, {
+            onPick: () => {},
+            onArrow: (rj) => showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl }),
+          }),
+        );
     };
     selectReturn = (retDate: string): void => {
       odReturnDate = retDate;
@@ -1867,10 +1854,6 @@ function runOdSearch(c: RenderCtx): void {
 }
 
 /** Coarse pointer ≈ touch/phone. */
-function isTouch(): boolean {
-  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-}
-
 function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
@@ -1895,23 +1878,52 @@ function goHome(): void {
   query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
   syncFormFromQuery();
   applyAndRun();
+  setMobileForm(true);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-/** Switch search mode (tab click or 1–5 shortcut), starting a fresh history. */
-function switchMode(mode: SearchQuery["mode"]): void {
+/** Switch trip type (tab click or 1–4 shortcut), starting a fresh history. */
+function switchTab(next: TripType): void {
   navStack = [];
-  if (mode === "best") bestAllDays = true; // a fresh "ideas" view shows every day
-  query = { ...readQueryFromForm(), mode };
-  syncFormFromQuery();
+  tripType = next;
+  if (next === "ideas") bestAllDays = true;
+  formApi.setActiveTab(tripType);
+  formApi.updateFieldVisibility(tripType);
+  query = readQueryFromForm();
+  applyAndRun();
+}
+
+/**
+ * Switch the Multi-city sub-surface (plan a tour ↔ edit legs by hand). Re-lays the
+ * form for the chosen surface and re-derives the query so the URL reflects it, but
+ * — like a tab switch — doesn't fabricate results before the user has entered a trip.
+ */
+function switchMultiMode(mode: "plan" | "legs"): void {
+  navStack = [];
+  formApi.setMultiMode(mode);
+  formApi.updateFieldVisibility("multi");
+  query = readQueryFromForm();
+  applyAndRun();
+}
+
+/** Switch the Return sub-surface (pick both days ↔ pick a stay length). */
+function switchReturnMode(mode: "dates" | "duration"): void {
+  navStack = [];
+  formApi.setReturnMode(mode);
+  formApi.updateFieldVisibility("return");
+  query = readQueryFromForm();
   applyAndRun();
 }
 
 /** Run a fresh search from the current form (submit or "g" shortcut). */
 function runFromForm(): void {
   navStack = [];
+  // In Ideas, running the search honours the date picked in the form (that day's
+  // ideas), rather than the whole-window "all days" overview.
+  if (tripType === "ideas") bestAllDays = false;
   query = readQueryFromForm();
   applyAndRun();
+  setMobileForm(false);
 }
 
 /** Shift the chosen date by `delta` days, clamped to the bookable window. */
@@ -1938,7 +1950,6 @@ function showShortcutsHelp(): void {
   ]);
 }
 
-const SHORTCUT_MODES = ["from", "to", "od", "tour", "best"] as const;
 
 /**
  * Global keyboard shortcuts. Order matters: Escape first (also closes the help
@@ -1979,12 +1990,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (tgt && (/^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName) || tgt.isContentEditable)) return;
   if (document.querySelector("dialog[open]")) return; // not while a modal is up
 
-  if (/^[1-5]$/.test(e.key)) {
+  if (/^[1-4]$/.test(e.key)) {
     e.preventDefault();
-    switchMode(SHORTCUT_MODES[Number(e.key) - 1]!);
+    switchTab(TRIP_TABS[Number(e.key) - 1]!);
   } else if (e.key === "/") {
     e.preventDefault();
-    const f = query.mode === "to" ? refs.destination : refs.origin;
+    const f = deriveMode() === "to" ? refs.destination : refs.origin;
     f.focus();
     f.select();
   } else if (e.key === "[") {
@@ -1996,12 +2007,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   } else if (e.key === "s") {
     e.preventDefault();
     surpriseMe();
-  } else if (e.key === "n" && query.mode === "tour") {
+  } else if (e.key === "n" && tripType === "multi" && formApi.getMultiMode() === "plan") {
     e.preventDefault();
-    addNearestCity(); // tour-only: grow the trip to the nearest reachable stop
-  } else if (e.key === "c" && query.mode === "tour") {
+    addNearestCity(); // tour-plan only: grow the trip to the nearest reachable stop
+  } else if (e.key === "c" && tripType === "multi" && formApi.getMultiMode() === "plan") {
     e.preventDefault();
-    clearTourCities(); // tour-only: clear every "city to visit" at once
+    clearTourCities(); // tour-plan only: clear every "city to visit" at once
   } else if (e.key === "g") {
     e.preventDefault();
     runFromForm();
@@ -2039,6 +2050,8 @@ function surpriseMe(): void {
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
   if (query.mode === "tour") {
+    // The legs editor has no city to randomize — Surprise only drives the planner.
+    if (formApi.getMultiMode() === "legs") return;
     // Tour: fill the departure if empty, then add cities (the "Cities to add" count,
     // default 1) — each a random hop that keeps the WHOLE tour feasible. So "find me
     // 5 cities" is one click with the count set to 5.
@@ -2083,6 +2096,7 @@ function surpriseMe(): void {
   navStack = [];
   syncFormFromQuery();
   applyAndRun();
+  setMobileForm(false);
 }
 
 function ensureMap(): Promise<RouteMap> {
@@ -2092,6 +2106,7 @@ function ensureMap(): Promise<RouteMap> {
       ({ RouteMap: MapCtor }) => {
         const m = new MapCtor(host, deps.registry);
         m.onSelect = selectStation;
+        m.onHover = onMarkerHover;
         mapInstance = m;
         return m;
       },
@@ -2143,16 +2158,18 @@ function showRadius(centers: { id: string; km: number }[], nearby: string[]): vo
     .catch(() => {});
 }
 
-/** Reveal & expand the destination card matching a clicked map marker. */
+/** Open the destination matching a clicked map marker — navigates to its calendar. */
 function selectStation(id: string): void {
   const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
   const card = refs.results.querySelector<HTMLElement>(sel);
   if (!card) return;
-  const panel = card.querySelector<HTMLElement>(".dest-panel");
-  if (panel?.hasAttribute("hidden")) {
-    panel.removeAttribute("hidden");
-    card.querySelector(".dest-main")?.setAttribute("aria-expanded", "true");
+  const open = card.querySelector<HTMLElement>(".dest-main");
+  if (open) {
+    open.click();
+    return;
   }
+  const panel = card.querySelector<HTMLElement>(".dest-panel");
+  if (panel?.hasAttribute("hidden")) panel.removeAttribute("hidden");
   markSelected(id);
   card.scrollIntoView({ behavior: "smooth", block: "center" });
   card.classList.add("flash");
@@ -2168,6 +2185,16 @@ function markSelected(id: string): void {
   const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
   refs.results.querySelector<HTMLElement>(sel)?.classList.add("is-selected");
   mapInstance?.highlight(id);
+}
+
+function onMarkerHover(id: string | null): void {
+  for (const c of refs.results.querySelectorAll(".is-hover")) c.classList.remove("is-hover");
+  if (!id) return;
+  const sel = `[data-station="${id.replace(/["\\]/g, "\\$&")}"]`;
+  const card = refs.results.querySelector<HTMLElement>(sel);
+  if (!card) return;
+  card.classList.add("is-hover");
+  card.scrollIntoView({ block: "nearest" });
 }
 
 // --- watched routes ---------------------------------------------------------
@@ -2188,345 +2215,113 @@ function checkWatchedRoutes(): void {
   }
 }
 
-// --- theme ------------------------------------------------------------------
-
-function applyTheme(theme: store.Theme): void {
-  document.documentElement.dataset.theme = theme;
-}
-
 // --- layout -----------------------------------------------------------------
 
-function setActiveTab(mode: SearchQuery["mode"]): void {
-  for (const btn of Array.from(refs.modeTabs.children)) {
-    const active = (btn as HTMLElement).dataset.mode === mode;
-    btn.classList.toggle("active", active);
-    btn.setAttribute("aria-pressed", String(active));
-  }
-}
-
-function updateFieldVisibility(): void {
-  // "D'où venir" (to) picks a destination, so the departure field is irrelevant.
-  refs.originField.style.display = query.mode === "to" ? "none" : "";
-  // Destination: required in od/to; in tour it's the optional finish (can equal the
-  // start for a loop), so the field appears there too with a clarifying placeholder.
-  const needsDest = query.mode === "od" || query.mode === "to" || query.mode === "tour";
-  refs.destinationField.style.display = needsDest ? "" : "none";
-  refs.destination.placeholder = query.mode === "tour" ? t("tour_end_ph") : "";
-  refreshTourEndDate();
-  refs.viaField.style.display = query.mode === "od" ? "" : "none";
-  // Flexible dates: in the "where to / where from" browse, widening to ±N days
-  // surfaces more places; in a tour it lets the departure slip a few days later to
-  // find a feasible start. Exact trip already has the 30-day calendar (the flex list
-  // would just duplicate it); best has its ideas-by-day calendar.
-  refs.flexField.style.display =
-    query.mode === "from" || query.mode === "to" || query.mode === "tour" ? "" : "none";
-
-  // Round trip (day trips + N-night getaways) is offered in "Where to?" and in
-  // "Ideas" (discover good month-long escapes); its options appear once the toggle
-  // is on, and "min hours on site" only for a same-day (0-night) trip.
-  const canRound = query.mode === "from" || query.mode === "best";
-  refs.roundTripField.style.display = canRound ? "" : "none";
-  refs.roundTripOpts.style.display = canRound && refs.roundTrip.checked ? "" : "none";
-  refs.stayHoursField.style.display = refs.nights.value === "0" ? "" : "none";
-  // "Only night trains" is a sub-option of the night-trains checkbox.
-  refs.onlyNightField.style.display = refs.night.checked ? "" : "none";
-
-  // Field placement per mode: every mode now promotes Connections (with
-  // Overnight/Night) into the prominent main form — they're central to where you
-  // can actually get. The exact trip also promotes its search radius. Single
-  // elements moved between the main fields grid and Advanced, never duplicated.
-  const tour = query.mode === "tour";
-  const od = query.mode === "od";
-  // Connections (with Overnight/Night) sits right after the Date field — it's
-  // central to where you can actually get, so it belongs up top, not by Region.
-  refs.dateField.after(refs.connGroupField);
-  if (od) refs.regionField.parentElement?.insertBefore(refs.radiusField, refs.regionField);
-  else refs.trainTypeField.parentElement?.insertBefore(refs.radiusField, refs.trainTypeField);
-
-  // Duration caps differ by mode. A single journey (od / from / to / best) caps its
-  // TOTAL time. A multi-city tour instead caps the time of each hop ("max per
-  // train") — a whole-tour total would be meaningless across multi-day stays.
-  refs.maxDurationField.style.display = tour ? "none" : "";
-  refs.maxLegDurationField.style.display = tour ? "" : "none";
-  refs.minLegDurationField.style.display = tour ? "" : "none";
-
-  // Region: filters ideas in "best", and focuses the tour ("visit Bretagne").
-  refs.regionField.style.display = query.mode === "best" || tour ? "" : "none";
-  refs.citiesField.style.display = tour ? "" : "none";
-  refs.tourCountField.style.display = tour ? "" : "none";
-  refs.stayField.style.display = tour ? "" : "none";
-  // Km caps live in Advanced, shown only for a tour. Max trip span (days) lives in
-  // Advanced too, shown only for the exact trip.
-  refs.maxKmField.style.display = tour ? "" : "none";
-  refs.maxSpanDaysField.style.display = query.mode === "od" ? "" : "none";
-  refs.radiusField.style.display = query.mode === "od" ? "" : "none";
-  // "Nearest stop" is a tour-only action (it grows a multi-city trip). Toggle the
-  // inline display (not the `hidden` attribute, which `.btn { display }` overrides).
-  if (nearestBtnEl) nearestBtnEl.style.display = tour ? "" : "none";
-}
-
-/**
- * The tour "finish by" date only makes sense with a destination set, so it appears
- * the moment a tour destination is filled (and tracks the start as its lower bound).
- */
-function refreshTourEndDate(): void {
-  const show = query.mode === "tour" && Boolean(resolveStation(refs.destination.value));
-  refs.endDateField.style.display = show ? "" : "none";
-  refs.endDate.min = query.date; // can't finish before you leave
-}
-
-function buildLayout(root: HTMLElement): void {
-  clear(root);
-
+/** The footer's "data updated …" line, localized (or the sample-data notice). */
+function footerUpdatedText(): string {
   const meta = deps.meta;
   const when = meta.updatedAt
     ? new Date(meta.updatedAt).toLocaleString(getLang(), {
         dateStyle: "medium",
         timeStyle: "short",
-        hourCycle: "h23", // 24-hour clock — no AM/PM, the convention in France/Europe
+        hourCycle: "h23",
       })
     : "";
-  const updated = when
+  return when
     ? t("foot_updated", { date: when }) + (meta.isSample ? ` (${t("foot_sample")})` : "")
     : t("foot_sample");
+}
 
-  // header
-  const langSel = el(
-    "select",
-    { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
-    LANGS.map((l) => optionEl(l.code, l.label, getLang() === l.code)),
-  ) as HTMLSelectElement;
-  langSel.addEventListener("change", () => {
-    settings = { ...settings, lang: isLang(langSel.value) ? langSel.value : "fr" };
-    setLang(settings.lang);
-    store.saveSettings(settings);
-    rebuild();
+function buildLayout(root: HTMLElement): void {
+  // A rebuild (e.g. language change) discards the old form, whose date-picker
+  // popovers live in <body> outside `root` — tear them down so they don't pile up.
+  formApi?.destroy();
+  clear(root);
+
+  formApi = createForm({
+    stationLabels: deps.registry.list().map((s) => s.label),
+    regions: [...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r)))].sort(),
+    today,
+    bookingWindowDays: BOOKING_WINDOW_DAYS,
+    maxTourFill: MAX_TOUR_FILL,
+    overnightMaxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN,
+    jeuneUrl: MAX_JEUNE_URL,
+    seniorUrl: MAX_SENIOR_URL,
+    resolveStation,
+    stationLabel: (id) => deps.registry.label(id),
+    mode: () => query.mode,
+    formatDate,
+    formatWeekday,
+    availabilityFor: (o, d, kind, dates, opts) => {
+      const map = new Map<string, number>();
+      let cal: { date: string; available: boolean; count: number }[] | null = null;
+      if (kind === "ret") {
+        if (o && d) cal = availabilityCalendar(deps.trains, d, o, dates, opts);
+      } else if (o && d) {
+        cal = availabilityCalendar(deps.trains, o, d, dates, opts);
+      } else if (o) {
+        cal = destinationCalendar(deps.trains, o, dates, opts);
+      }
+      if (cal) for (const c of cal) map.set(c.date, c.available ? c.count : 0);
+      return map;
+    },
+    onSwitchTab: switchTab,
+    onMultiMode: switchMultiMode,
+    onReturnMode: switchReturnMode,
+    onSubmit: runFromForm,
+    onSurprise: surpriseMe,
+    onNearest: addNearestCity,
+  });
+  const built = formApi;
+  const shell = buildShell({
+    theme: settings.theme,
+    card: settings.card,
+    updatedText: footerUpdatedText(),
+    form: built.form,
+    githubUrl: GITHUB_URL,
+    issuesUrl: GITHUB_ISSUES_URL,
+    goHome,
+    onLang: (code) => {
+      settings = { ...settings, lang: isLang(code) ? code : "fr" };
+      setLang(settings.lang);
+      store.saveSettings(settings);
+      rebuild();
+    },
+    onThemeChange: (theme) => {
+      settings = { ...settings, theme };
+      store.saveSettings(settings);
+    },
+    onCard: (card) => {
+      settings = { ...settings, card };
+      store.saveSettings(settings);
+      query = { ...query, card };
+      store.updateUrl(query);
+      runSearch();
+    },
+    onShare: (onCopied) => void shareCurrentUrl(onCopied),
+    onInstall: () => void promptInstall(),
+    onShortcuts: showShortcutsHelp,
+    onOpenMobileForm: () => setMobileForm(true),
+    onSelect: (id) => markSelected(id),
+    onPeek: (id) => mapInstance?.peek(id),
   });
 
-  // Theme cycles auto → light → dark on a single monochrome icon button.
-  const themeBtn = el("button", {
-    class: "ctl icon-ctl",
-    type: "button",
-    attrs: { "aria-label": t("ctl_theme"), title: t("ctl_theme") },
-    html: themeSvg(settings.theme),
-  });
-  themeBtn.addEventListener("click", () => {
-    const order: store.Theme[] = ["auto", "light", "dark"];
-    const next = order[(order.indexOf(settings.theme) + 1) % order.length]!;
-    settings = { ...settings, theme: next };
-    applyTheme(next);
-    store.saveSettings(settings);
-    themeBtn.innerHTML = themeSvg(next);
-  });
-
-  // Keyboard-shortcuts help (also the "?" key). Hidden on coarse-pointer devices
-  // where there's no keyboard, to avoid clutter.
-  const keysBtn = el("button", {
-    class: "ctl icon-ctl keys-btn",
-    type: "button",
-    text: "?",
-    attrs: { "aria-label": t("keys_title"), title: t("keys_title") },
-    on: { click: showShortcutsHelp },
-  });
-  if (isTouch()) keysBtn.style.display = "none";
-
-  // List ⇄ Map view switch — Map flips the layout to a big, map-first canvas
-  // with the results floating over it. Persisted in settings.
-  const viewToggle = el("div", { class: "view-toggle", attrs: { role: "group", "aria-label": t("view_label") } }, [
-    viewBtn(
-      "list",
-      t("view_list"),
-      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
-    ),
-    viewBtn(
-      "map",
-      t("view_map"),
-      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3.5 6v14l5.5-2 6 2 5.5-2V4l-5.5 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>`,
-    ),
-  ]);
-
-  // Card (pass) is a global preference, kept at the top and persisted at once.
-  const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
-    optionEl("jeune", t("card_jeune"), settings.card === "jeune"),
-    optionEl("senior", t("card_senior"), settings.card === "senior"),
-  ]) as HTMLSelectElement;
-  cardSel.addEventListener("change", () => {
-    const card: store.Settings["card"] = cardSel.value === "senior" ? "senior" : "jeune";
-    settings = { ...settings, card };
-    store.saveSettings(settings);
-    query = { ...query, card };
-    store.updateUrl(query);
-    runSearch(); // refresh the MAX SENIOR weekend notice
-  });
-
-  // Install (Add to home screen) — always present. Uses the native prompt when
-  // the browser offers one, otherwise shows manual instructions.
-  const installBtn = el("button", {
-    class: "ctl install-btn",
-    type: "button",
-    text: t("act_install"),
-    on: { click: () => void promptInstall() },
-  });
-
-  const shareBtn = el("button", {
-    class: "ctl icon-ctl",
-    type: "button",
-    attrs: { "aria-label": t("act_share"), title: t("act_share") },
-    html: SHARE_SVG,
-  });
-  shareBtn.addEventListener("click", () => {
-    void shareCurrentUrl(() => {
-      shareBtn.innerHTML = CHECK_SVG;
-      shareBtn.title = t("share_copied");
-      setTimeout(() => {
-        shareBtn.innerHTML = SHARE_SVG;
-        shareBtn.title = t("act_share");
-      }, 1600);
-    });
-  });
-
-  // GitHub link with a star, to invite stars on the repo.
-  const ghLink = el("a", {
-    class: "ctl gh-link",
-    html: `<span aria-hidden="true">★</span> GitHub`,
-    href: GITHUB_URL,
-    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub" },
-  });
-
-  const header = el("header", { class: "site-header" }, [
-    el("div", { class: "brand" }, [
-      el("button", {
-        class: "logo",
-        type: "button",
-        attrs: { "aria-label": t("appName"), title: t("appName") },
-        on: { click: goHome },
-        html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.2"/><path d="M5 10.5h14"/><path d="M9 17l-2.2 3.3M15 17l2.2 3.3"/><circle cx="9" cy="13.6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="13.6" r="1" fill="currentColor" stroke="none"/></svg>`,
-      }),
-      el("div", {}, [
-        el("h1", { text: t("appName") }),
-        el("p", { class: "tagline", text: t("tagline") }),
-        el("p", { class: "updated", attrs: { title: t("data_why"), tabindex: "0" } }, [
-          el("span", { text: updated }),
-          el("span", { class: "sr-only", text: t("data_why") }),
-        ]),
-      ]),
-    ]),
-    el("div", { class: "header-ctls" }, [ghLink, cardSel, langSel, viewToggle, keysBtn, themeBtn, shareBtn, installBtn]),
-  ]);
-
-  // form
-  const built = buildForm();
-  // results + map
-  const title = el("h2", {
-    class: "results-title",
-    id: "results-title",
-    text: t("tagline"),
-    attrs: { tabindex: "-1" },
-  });
-  const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
-  const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
-
-  const tripList = el("div", { class: "trip-list" });
-  const savedAside = el("aside", { class: "saved-trips" }, [
-    el("h2", { text: t("saved_title") }),
-    tripList,
-  ]);
-
-  const favList = el("div", { class: "fav-list" });
-  const aside = el("aside", { class: "favorites" }, [
-    el("h2", { text: t("fav_title") }),
-    favList,
-  ]);
-
-  const footer = el("footer", { class: "site-footer" }, [
-    el("p", { class: "muted", text: t("foot_source") }),
-    el("p", { class: "muted small", text: t("foot_disclaimer") }),
-    el("div", { class: "foot-actions" }, [
-      el("a", {
-        class: "btn btn-ghost feedback-btn",
-        text: t("act_report"),
-        href: GITHUB_ISSUES_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-      el("a", {
-        class: "foot-link",
-        text: "GitHub",
-        href: GITHUB_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-    ]),
-  ]);
-
-  const mapSection = el("section", { class: "map-section" }, [
-    el("h3", { text: t("map_title") }),
-    mapEl,
-  ]);
-  const layout = el("div", { class: "layout" }, [
-    el("div", { class: "main-col" }, [built.form, title, results]),
-    el("div", { class: "side-col" }, [savedAside, aside, mapSection]),
-  ]);
-
-  root.append(header, layout, footer);
-  root.dataset.view = settings.view;
-
-  // Clicking a destination card highlights it (card + its map pin), so the list
-  // and map stay in sync. A map-pin click already routes through selectStation().
-  results.addEventListener("click", (ev) => {
-    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
-    if (card?.dataset.station) markSelected(card.dataset.station);
-  });
+  root.append(shell.header, shell.layout);
+  root.dataset.mform = "form";
 
   refs = {
     ...built.refs,
-    title,
-    results,
-    mapEl,
-    viewToggle,
-    favList,
-    tripList,
-    card: cardSel,
+    title: shell.title,
+    results: shell.results,
+    mapEl: shell.mapEl,
+    favList: shell.favList,
+    tripList: shell.tripList,
+    card: shell.cardSelect,
   };
   mapPromise = null;
   mapInstance = null;
-  updateViewToggle();
   renderFavorites();
   renderSavedTrips();
-}
-
-/** A single segment of the List ⇄ Map view switch. */
-function viewBtn(view: store.ViewMode, label: string, iconHtml: string): HTMLElement {
-  return el("button", {
-    class: "view-btn",
-    type: "button",
-    dataset: { view },
-    attrs: { "aria-label": label, title: label },
-    html: iconHtml,
-    on: { click: () => setView(view) },
-  });
-}
-
-/** Reflect the current view on the toggle's pressed state. */
-function updateViewToggle(): void {
-  for (const btn of Array.from(refs.viewToggle.children)) {
-    const active = (btn as HTMLElement).dataset.view === settings.view;
-    btn.classList.toggle("active", active);
-    btn.setAttribute("aria-pressed", String(active));
-  }
-}
-
-/** Switch between the list layout and the big map-first canvas (persisted). */
-function setView(view: store.ViewMode): void {
-  if (settings.view === view) return;
-  settings = { ...settings, view };
-  store.saveSettings(settings);
-  rootRef.dataset.view = view;
-  updateViewToggle();
-  updateRailMetrics();
-  // The map container changed size — let Leaflet recompute over two frames so the
-  // new layout has settled before invalidateSize/refit, then once more after the
-  // 0.3s height transition finishes so tiles fill the final size.
-  requestAnimationFrame(() => requestAnimationFrame(() => mapInstance?.invalidate()));
-  window.setTimeout(() => mapInstance?.invalidate(), 340);
 }
 
 // Distance from the document top to the results/map row (navbar + form + margins).
@@ -2543,460 +2338,32 @@ function updateRailMetrics(): void {
   requestAnimationFrame(() => mapInstance?.invalidate());
 }
 
-interface FormBuild {
-  form: HTMLElement;
-  refs: Omit<Refs, "title" | "results" | "mapEl" | "viewToggle" | "favList" | "tripList" | "card">;
-}
-
-function buildForm(): FormBuild {
-  const stationList = el("datalist", { id: "station-list" });
-  for (const s of deps.registry.list()) stationList.append(el("option", { value: s.label }));
-
-  const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  (["from", "to", "od", "tour", "best"] as const).forEach((m, i) => {
-    const btn = el("button", {
-      class: "mode-tab",
-      type: "button",
-      text: t(`mode_${m}` as const),
-      dataset: { mode: m },
-      on: { click: () => switchMode(m) },
-    });
-    withShortcut(btn, String(i + 1)); // 1–5 mode shortcuts (see onGlobalKey)
-    modeTabs.append(btn);
-  });
-  const modeDesc = el("p", { class: "mode-desc" });
-
-  const origin = inputEl("text", "station-list");
-  const destination = inputEl("text", "station-list");
-  const via = inputEl("text", "station-list");
-  // Flag a station field whose text doesn't match any real station, so a typo or a
-  // made-up name reads as invalid instead of silently doing nothing. Neutral while
-  // typing (cleared on input); validated on commit (blur / datalist pick).
-  for (const input of [origin, destination, via]) {
-    input.addEventListener("input", () => input.classList.remove("is-invalid"));
-    input.addEventListener("change", () => {
-      const v = input.value.trim();
-      input.classList.toggle("is-invalid", v !== "" && !resolveStation(v));
-    });
+function setMobileForm(open: boolean): void {
+  if (!rootRef) return;
+  const apply = (): void => {
+    rootRef.dataset.mform = open ? "form" : "results";
+    if (!open) {
+      updateSearchBar();
+      updateRailMetrics();
+      requestAnimationFrame(() => mapInstance?.invalidate());
+    }
+  };
+  const mq = (q: string): boolean => typeof matchMedia === "function" && matchMedia(q).matches;
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  // Morph the collapsed search bar into the full form (and back) on phones, via a
+  // shared view-transition-name; instant everywhere it isn't supported.
+  if (mq("(max-width: 860px)") && !mq("(prefers-reduced-motion: reduce)") && typeof doc.startViewTransition === "function") {
+    doc.startViewTransition(apply);
+  } else {
+    apply();
   }
-  // Mobile UX: in exact-trip mode, committing a valid "from" station jumps focus
-  // straight to the still-empty "to" box, so you can fill the route in one flow
-  // without reaching for the next field. Only on touch, and only when "to" is empty
-  // (don't steal focus while editing an already-complete route).
-  origin.addEventListener("change", () => {
-    if (!isTouch() || query.mode !== "od") return;
-    if (resolveStation(origin.value) && !destination.value.trim()) {
-      destination.focus();
-    }
-  });
-  const date = inputEl("date");
-  // Constrain dates to exactly the window the 30-day calendar renders.
-  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const lastBookable = windowDates[windowDates.length - 1] ?? today;
-  date.min = today;
-  date.max = lastBookable;
-  const dateField = field(t("field_date"), date);
-  // Optional tour finish-by date (shown only when a tour has a destination).
-  const endDate = inputEl("date");
-  endDate.min = today;
-  endDate.max = lastBookable;
-  endDate.setAttribute("aria-label", t("field_end_date"));
-  const endDateField = field(t("field_end_date"), endDate);
-  const departAfter = inputEl("time");
-  const departBefore = inputEl("time");
-  const arriveBefore = inputEl("time");
-  const maxDuration = inputEl("number");
-  // Max trip length in days (exact trip): caps how many calendar days a journey may
-  // straddle — overnight stopovers can chain trains across several days.
-  const maxSpanDays = inputEl("number");
-  maxSpanDays.min = "1";
-  maxSpanDays.max = "14";
-  maxSpanDays.placeholder = "2";
-  maxSpanDays.setAttribute("aria-label", t("field_maxSpanDays"));
-  // Search radius (km) around the endpoints: suggest nearby stations with free MAX
-  // seats, for a paid hop to/from them when the exact route has none ("exact trip").
-  const radius = inputEl("number");
-  radius.min = "10";
-  radius.step = "10";
-  radius.placeholder = "100";
-  radius.setAttribute("aria-label", t("field_radius"));
-  const radiusField = field(t("field_radius"), radius);
-  const trainType = el("select", { class: "input" }, [
-    optionEl("", t("field_anyType"), true),
-    ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
-  ]) as HTMLSelectElement;
-  const maxConnections = el("select", { class: "input" }, [
-    optionEl("0", t("conn_0"), false),
-    optionEl("1", t("conn_1"), true),
-    optionEl("2", t("conn_2"), false),
-    optionEl("3", t("conn_3"), false),
-    optionEl("6", t("conn_max"), false),
-  ]) as HTMLSelectElement;
-  const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const overnightField = el("label", { class: "field field-check" }, [
-    overnight,
-    el("span", { class: "field-label", text: t("field_overnight") }),
-  ]);
-  // Night trains: a checkbox to include them (off by default → trains that leave
-  // late or arrive past midnight are dropped). When it's on, a second checkbox
-  // narrows to ONLY journeys you can sleep aboard. syncFormFromQuery sets both from
-  // the query's excludeNight / onlyNight; the default query carries excludeNight.
-  const night = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const nightField = el("label", { class: "field field-check" }, [
-    night,
-    el("span", { class: "field-label", text: t("field_night") }),
-  ]);
-  const onlyNight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const onlyNightField = el("label", { class: "field field-check field-sub" }, [
-    onlyNight,
-    el("span", { class: "field-label", text: t("night_only") }),
-  ]);
-  // The "only night trains" choice only makes sense once night trains are on.
-  const syncNightOpts = (): void => {
-    onlyNightField.style.display = night.checked ? "" : "none";
-    if (!night.checked) onlyNight.checked = false;
-  };
-  night.addEventListener("change", syncNightOpts);
-  // "Round trip" controls — shown only in "Where to?" mode. The toggle flips the
-  // destinations list into round trips (out and back, both free MAX); its options
-  // (nights away, min hours on site for a day trip, a late ~02:00 return) appear
-  // only once it's on. Nights = 0 is a same-day day trip.
-  const roundTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const roundTripToggle = el("label", { class: "field field-check daytrip-toggle" }, [
-    roundTrip,
-    el("span", { class: "field-label", text: t("field_roundtrip") }),
-  ]);
-  const nights = el("select", { class: "input" }, [
-    optionEl("0", t("nights_sameday"), true),
-    optionEl("1", t("nights_n", { n: 1 }), false),
-    optionEl("2", t("nights_n", { n: 2 }), false),
-    optionEl("3", t("nights_n", { n: 3 }), false),
-    optionEl("flex", t("nights_flex"), false),
-  ]) as HTMLSelectElement;
-  const nightsField = field(t("field_nights"), nights);
-  const stayHours = inputEl("number");
-  stayHours.min = "1";
-  stayHours.max = "12";
-  stayHours.placeholder = "4";
-  stayHours.setAttribute("aria-label", t("field_daytrip_hours"));
-  const stayHoursField = field(t("field_daytrip_hours"), stayHours);
-  const lateReturn = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const lateReturnField = el("label", { class: "field field-check" }, [
-    lateReturn,
-    el("span", { class: "field-label", text: t("field_late_return") }),
-  ]);
-  const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
-  const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
-  // Reveal/hide the round-trip options the moment the toggle or nights change. The
-  // form-level `change` handler only re-syncs the tour finish-by date, so these
-  // mode-specific fields are toggled here directly (staged, without the search
-  // running). The "min hours on site" field is meaningful only for a same-day trip.
-  const syncRoundTripOpts = (): void => {
-    roundTripOpts.style.display = roundTrip.checked ? "" : "none";
-    stayHoursField.style.display = nights.value === "0" ? "" : "none";
-  };
-  roundTrip.addEventListener("change", syncRoundTripOpts);
-  nights.addEventListener("change", syncRoundTripOpts);
-  // Flexible dates ("± N days"): a compact −/+ stepper (fewer controls than a row
-  // of buttons). Widens the browse to a window around the chosen date.
-  const flex = buildStepper(t("field_flex"));
-  const flexField = field(t("field_flex"), flex);
-  const regionList = [
-    ...new Set(deps.registry.all().map((s) => s.region).filter((r): r is string => Boolean(r))),
-  ].sort();
-  const region = el("select", { class: "input" }, [
-    optionEl("", t("region_any"), true),
-    ...regionList.map((r) => optionEl(r, r, false)),
-  ]) as HTMLSelectElement;
-  // Tour "cities to visit": a chip/tag input. Typing a city and pressing Enter
-  // (or comma) turns it into a removable chip; Backspace on an empty field drops
-  // the last one. Much clearer than a comma-separated string when adding several.
-  const cities = inputEl("text", "station-list");
-  cities.placeholder = t("cities_add");
-  const cityChips = el("div", { class: "city-chips" });
-  const citiesBox = el("div", { class: "cities-input" }, [cityChips, cities]);
-  const commitCities = (raw: string): void => {
-    let added = false;
-    for (const part of raw.split(",")) {
-      const id = resolveStation(part);
-      if (id && !tourCities.includes(id)) {
-        tourCities.push(id);
-        added = true;
-      }
-    }
-    if (added) renderCityChips();
-  };
-  cities.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === ",") {
-      // Enter would otherwise submit the form (running the search); intercept it so
-      // the text becomes a chip instead. The staged chip waits for the Search button.
-      e.preventDefault();
-      commitCities(cities.value);
-      cities.value = "";
-    } else if (e.key === "Backspace" && cities.value === "" && tourCities.length) {
-      tourCities.pop();
-      renderCityChips();
-    }
-  });
-  cities.addEventListener("change", () => {
-    // Fired when a datalist suggestion is picked.
-    if (cities.value.trim()) {
-      commitCities(cities.value);
-      cities.value = "";
-    }
-  });
-
-  const originField = clearableField(t("field_origin"), origin);
-  const destinationField = clearableField(t("field_destination"), destination);
-  const viaField = clearableField(t("field_via"), via);
-  const regionField = field(t("field_region"), region);
-  const clearCitiesBtn = el("button", {
-    class: "linklike cities-clear",
-    type: "button",
-    text: t("cities_clear"),
-    attrs: { hidden: "" },
-    on: { click: clearTourCities },
-  });
-  withShortcut(clearCitiesBtn, "C"); // "c" clears every tour city
-  cityClearBtnEl = clearCitiesBtn;
-  // "Nearest stop": greedily extend the trip to the closest reachable new station.
-  // It lives next to "Surprise me" in the form actions and only shows for a tour.
-  const nearestBtn = el("button", {
-    class: "btn btn-ghost nearest-btn",
-    type: "button",
-    text: t("act_nearest"),
-    attrs: { title: t("nearest_hint") },
-    on: { click: addNearestCity },
-  });
-  withShortcut(nearestBtn, "N"); // "n" grows the tour to the nearest stop
-  nearestBtn.style.display = "none"; // shown only in tour mode by updateFieldVisibility()
-  nearestBtnEl = nearestBtn;
-  const citiesField = field(
-    t("field_cities"),
-    el("div", { class: "cities-wrap" }, [
-      citiesBox,
-      el("div", { class: "cities-actions" }, [clearCitiesBtn]),
-    ]),
-  );
-  // How many days to spend in each city before the next hop — a range, so the
-  // planner can find a feasible schedule (a free-MAX, multi-day vacation plan).
-  const minDays = inputEl("number");
-  minDays.min = "1";
-  minDays.max = "14";
-  minDays.value = "1";
-  minDays.setAttribute("aria-label", t("field_stay_min"));
-  const maxDays = inputEl("number");
-  maxDays.min = "1";
-  maxDays.max = "14";
-  maxDays.value = "3";
-  maxDays.setAttribute("aria-label", t("field_stay_max"));
-  const stayField = el("div", { class: "stay-fields" }, [
-    field(t("field_stay_min"), minDays),
-    field(t("field_stay_max"), maxDays),
-  ]);
-  // How many cities Surprise me / Nearest stop add per click — set to 5 and click
-  // once to "find me a tour of 5 cities".
-  const tourCount = inputEl("number");
-  tourCount.min = "1";
-  tourCount.max = String(MAX_TOUR_FILL);
-  tourCount.placeholder = "1";
-  tourCount.setAttribute("aria-label", t("field_tour_count"));
-  const tourCountField = field(t("field_tour_count"), tourCount);
-  // Optional distance caps (km, straight line): the whole tour's total, and each
-  // single hop ("a tour, but no more than ~1000 km total and no train over ~400 km").
-  // No minimum — any positive cap is valid (an empty box means "no cap").
-  const maxKm = inputEl("number");
-  maxKm.step = "50";
-  maxKm.placeholder = "1000";
-  maxKm.setAttribute("aria-label", t("field_maxKm"));
-  const maxLegKm = inputEl("number");
-  maxLegKm.step = "50";
-  maxLegKm.placeholder = "400";
-  maxLegKm.setAttribute("aria-label", t("field_maxLegKm"));
-  const maxKmField = el("div", { class: "stay-fields" }, [
-    field(t("field_maxKm"), maxKm),
-    field(t("field_maxLegKm"), maxLegKm),
-  ]);
-  // Per-train time cap (tour): no single hop longer than N minutes. Time matters
-  // more than distance, so this carries a sensible minimum (a 5-min cap is useless).
-  const maxLegDuration = inputEl("number");
-  maxLegDuration.min = "30";
-  maxLegDuration.step = "15";
-  maxLegDuration.placeholder = "240";
-  maxLegDuration.setAttribute("aria-label", t("field_maxLegDuration"));
-  const maxLegDurationField = field(t("field_maxLegDuration"), maxLegDuration);
-  // Floor on each hop's time — e.g. require ~6 h legs so a tour only chains long
-  // overnight trains, never a quick 1 h regional hop.
-  const minLegDuration = inputEl("number");
-  minLegDuration.min = "0";
-  minLegDuration.step = "15";
-  minLegDuration.placeholder = "0";
-  minLegDuration.setAttribute("aria-label", t("field_minLegDuration"));
-  const minLegDurationField = field(t("field_minLegDuration"), minLegDuration);
-
-  // These three default to Advanced; updateFieldVisibility() promotes them into the
-  // main form for a tour (where connections/overnight/duration matter most). Train
-  // type stays last as a stable insertion anchor. Km caps + max-span sit in Advanced
-  // and are shown per mode (km for tour, span for od).
-  const maxDurationField = field(t("field_maxDuration"), maxDuration);
-  const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
-  const trainTypeField = field(t("field_trainType"), trainType);
-  // Overnight is an option of "Connections" (a long layover is just a slow change),
-  // so group them into one cell — a lone checkbox floating mid-row looks orphaned.
-  const connGroupField = el("div", { class: "conn-group" }, [
-    field(t("field_connections"), maxConnections),
-    overnightField,
-    nightField,
-    onlyNightField,
-  ]);
-
-  const advanced = el("details", { class: "advanced" }, [
-    el("summary", { text: t("field_advanced") }),
-    el("div", { class: "advanced-grid" }, [
-      field(t("field_departAfter"), departAfter),
-      field(t("field_departBefore"), departBefore),
-      field(t("field_arriveBefore"), arriveBefore),
-      connGroupField,
-      maxDurationField,
-      minLegDurationField,
-      maxLegDurationField,
-      maxSpanDaysField,
-      radiusField,
-      maxKmField,
-      trainTypeField,
-    ]),
-  ]);
-
-  const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
-  withShortcut(searchBtn, "G"); // "g" runs the search (see onGlobalKey)
-  // A discreet, playful shortcut to a random city.
-  const surpriseBtn = el("button", {
-    class: "btn btn-ghost surprise-btn",
-    type: "button",
-    text: t("act_surprise"),
-    on: { click: surpriseMe },
-  });
-  withShortcut(surpriseBtn, "S"); // "s" = surprise me
-  // Inline status for "surprise" (e.g. no city can be added to a tour).
-  surpriseMsgEl = el("p", { class: "surprise-msg", attrs: { role: "status" } });
-
-  const howto = el("details", { class: "howto" }, [
-    el("summary", { text: t("how_title") }),
-    el("ul", { class: "howto-list" }, [
-      el("li", { text: t("how_jeune") }),
-      el("li", { text: t("how_senior") }),
-    ]),
-    el("p", { class: "howto-links" }, [
-      el("span", { class: "muted", text: `${t("how_more")} ` }),
-      el("a", {
-        text: "MAX JEUNE",
-        href: MAX_JEUNE_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-      el("span", { class: "muted", text: " · " }),
-      el("a", {
-        text: "MAX SENIOR",
-        href: MAX_SENIOR_URL,
-        attrs: { target: "_blank", rel: "noopener noreferrer" },
-      }),
-    ]),
-    el("p", { class: "muted small", text: t("how_note") }),
-  ]);
-
-  const form = el("form", { class: "search-form" }, [
-    modeTabs,
-    modeDesc,
-    el("div", { class: "fields" }, [
-      originField,
-      destinationField,
-      viaField,
-      dateField,
-      flexField,
-      endDateField,
-      roundTripField,
-      regionField,
-      citiesField,
-      stayField,
-      tourCountField,
-    ]),
-    advanced,
-    el("div", { class: "form-actions" }, [searchBtn, surpriseBtn, nearestBtn]),
-    surpriseMsgEl,
-    howto,
-    stationList,
-  ]);
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    runFromForm();
-  });
-  // Editing a field stages the change but no longer auto-runs the search: on mobile
-  // with a large dataset, recomputing on every field commit (blur / datalist pick /
-  // select) is slow, so the results now wait for the Search button (or Enter / "g").
-  // The `change` handler still keeps dependent fields in sync as you edit — e.g. it
-  // reveals the tour "finish by" date once a destination is filled.
-  form.addEventListener("change", () => refreshTourEndDate());
-
-  return {
-    form,
-    refs: {
-      modeTabs,
-      modeDesc,
-      origin,
-      destination,
-      date,
-      dateField,
-      endDate,
-      endDateField,
-      departAfter,
-      departBefore,
-      arriveBefore,
-      maxDuration,
-      maxSpanDays,
-      maxSpanDaysField,
-      radius,
-      radiusField,
-      trainType,
-      maxConnections,
-      connGroupField,
-      overnight,
-      night,
-      onlyNight,
-      onlyNightField,
-      roundTrip,
-      nights,
-      stayHours,
-      stayHoursField,
-      lateReturn,
-      roundTripField,
-      roundTripOpts,
-      via,
-      flex,
-      flexField,
-      originField,
-      destinationField,
-      viaField,
-      maxDurationField,
-      trainTypeField,
-      region,
-      regionField,
-      cities,
-      citiesField,
-      tourCount,
-      tourCountField,
-      cityChips,
-      minDays,
-      maxDays,
-      stayField,
-      maxKm,
-      maxLegKm,
-      maxKmField,
-      maxLegDuration,
-      maxLegDurationField,
-      minLegDuration,
-      minLegDurationField,
-    },
-  };
 }
+
+function updateSearchBar(): void {
+  const bar = rootRef?.querySelector<HTMLElement>(".msearch-text");
+  if (bar) bar.textContent = refs.title?.textContent || t("appName");
+}
+
 
 /**
  * Prefill the search form with a saved route (origin + destination, exact-trip
@@ -3010,31 +2377,6 @@ function fillRoute(origin: string, destination: string): void {
   store.updateUrl(query); // keep the URL in step with the prefilled route
   if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-/** Render the tour "cities to visit" chips from `tourCities`. */
-function renderCityChips(): void {
-  clear(refs.cityChips);
-  tourCities.forEach((id, i) => {
-    const chip = el("span", { class: "city-chip" }, [
-      el("span", { text: deps.registry.label(id) }),
-      el("button", {
-        class: "chip-x",
-        type: "button",
-        text: "×",
-        attrs: { "aria-label": `${t("act_fav_remove")} — ${deps.registry.label(id)}` },
-        on: {
-          click: () => {
-            // Staged like every other edit — removing a chip waits for the Search button.
-            tourCities.splice(i, 1);
-            renderCityChips();
-          },
-        },
-      }),
-    ]);
-    refs.cityChips.append(chip);
-  });
-  cityClearBtnEl?.toggleAttribute("hidden", tourCities.length === 0);
 }
 
 function renderFavorites(): void {
@@ -3088,13 +2430,13 @@ function savedTripInfo(trip: store.SavedTrip): { label: string; when: string; op
     return {
       label: stops.map((s) => deps.registry.label(s)).join(" → "),
       when: last ? `${formatDate(out.date)} – ${formatDate(last.date)}` : formatDate(out.date),
-      open: () => showTourModal(tour),
+      open: () => showTourModal(tour, ctx()),
     };
   }
   return {
     label: `${deps.registry.label(out.origin)} ${inb ? "⇄" : "→"} ${deps.registry.label(out.destination)}`,
     when: inb ? `${formatDate(out.date)} – ${formatDate(inb.date)}` : formatDate(out.date),
-    open: () => showTripModal(out, inb),
+    open: () => showTripModal(out, ctx(), { inbound: inb, onShare: shareCurrentUrl }),
   };
 }
 
@@ -3203,113 +2545,3 @@ function renderSavedPage(): void {
   }
 }
 
-// --- small DOM helpers ------------------------------------------------------
-
-function inputEl(type: string, list?: string): HTMLInputElement {
-  // Accessible name comes from the wrapping <label> built by field().
-  const i = el("input", { class: "input", type }) as HTMLInputElement;
-  if (list) i.setAttribute("list", list);
-  return i;
-}
-
-function field(label: string, control: HTMLElement): HTMLElement {
-  return el("label", { class: "field" }, [el("span", { class: "field-label", text: label }), control]);
-}
-
-const FLEX_MAX = 7;
-
-/**
- * A compact −/+ stepper with a writable number in the middle (used for date
- * flexibility): nudge with the buttons or just type the number of ± days. The
- * value lives on `data-value`.
- */
-function buildStepper(ariaLabel: string): HTMLElement {
-  const stepper = el("div", { class: "stepper", attrs: { role: "group", "aria-label": ariaLabel } });
-  const input = el("input", {
-    class: "step-input",
-    type: "number",
-    attrs: { min: "0", max: String(FLEX_MAX), inputmode: "numeric", "aria-label": ariaLabel },
-  }) as HTMLInputElement;
-  const minus = el("button", { class: "step-btn", type: "button", text: "−", attrs: { "aria-label": "−1" } });
-  const plus = el("button", { class: "step-btn", type: "button", text: "+", attrs: { "aria-label": "+1" } });
-  // Nudging the value only updates the field — like every other form control, the
-  // new flexibility is applied when the search is run, not on the spot.
-  minus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) - 1));
-  plus.addEventListener("click", () => setStepper(stepper, getStepper(stepper) + 1));
-  input.addEventListener("change", () => setStepper(stepper, Number(input.value)));
-  stepper.append(minus, input, el("span", { class: "step-unit muted", text: t("flex_days") }), plus);
-  setStepper(stepper, 0);
-  return stepper;
-}
-
-/** Set the stepper value (0..FLEX_MAX), clamping, and update its number field. */
-function setStepper(stepper: HTMLElement, n: number): void {
-  const v = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
-  stepper.dataset.value = String(v);
-  const input = stepper.querySelector<HTMLInputElement>(".step-input");
-  if (input) input.value = String(v);
-}
-
-/** Read the stepper value. */
-function getStepper(stepper: HTMLElement): number {
-  return Number(stepper.dataset.value ?? 0);
-}
-
-/**
- * A field whose text input carries a clear "×" button (shown only when there's
- * something to clear). Clearing fires input+change so the field's invalid flag and
- * any dependent fields re-sync — the search itself waits for the Search button.
- */
-function clearableField(label: string, input: HTMLInputElement): HTMLElement {
-  input.classList.add("has-clear");
-  const clearBtn = el("button", {
-    class: "input-clear",
-    type: "button",
-    // An SVG cross centres reliably (the "×" glyph sits optically high in its box).
-    html: '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-    attrs: { "aria-label": t("act_clear"), tabindex: "-1", title: t("act_clear") },
-  });
-  const sync = (): void => {
-    clearBtn.style.display = input.value ? "" : "none";
-  };
-  input.addEventListener("input", sync);
-  clearBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    input.value = "";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.focus();
-    sync();
-  });
-  sync();
-  return field(label, el("span", { class: "input-wrap" }, [input, clearBtn]));
-}
-
-/**
- * Append a keyboard-shortcut badge to a button. The badge stays out of the way
- * until the pointer hovers (or the button is keyboard-focused), when CSS reveals
- * it — so the same key shown in the "?" help is discoverable right on the button.
- */
-function withShortcut(btn: HTMLElement, key: string): HTMLElement {
-  btn.classList.add("has-kbd");
-  btn.append(el("kbd", { class: "kbd-hint", text: key, attrs: { "aria-hidden": "true" } }));
-  return btn;
-}
-
-function optionEl(value: string, label: string, selected: boolean): HTMLElement {
-  const o = el("option", { value, text: label }) as HTMLOptionElement;
-  o.selected = selected;
-  return o;
-}
-
-/** Monochrome theme glyph (sun / moon / half-disc) drawn in currentColor. */
-function themeSvg(theme: store.Theme): string {
-  const wrap = (inner: string): string =>
-    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-  if (theme === "light")
-    return wrap(
-      '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4l1.4-1.4M18 6l1.4-1.4"/>',
-    );
-  if (theme === "dark") return wrap('<path d="M20.5 13.2A8 8 0 1 1 10.8 3.5 6.3 6.3 0 0 0 20.5 13.2z"/>');
-  return wrap('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>');
-}

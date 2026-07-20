@@ -26,6 +26,9 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
+    "@fontsource/hanken-grotesk": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@fontsource/space-mono": "^5.2.9",
     "leaflet": "^1.9.4"
   },
   "devDependencies": {

@@ -38,8 +38,10 @@ export class RouteMap {
   private markers: Map<string, L.CircleMarker> = new Map();
   /** The currently emphasised marker and its resting radius/weight, to restore. */
   private highlighted: { m: L.CircleMarker; radius: number; weight: number } | null = null;
+  private peeked: { m: L.CircleMarker; radius: number; weight: number } | null = null;
   /** Called with a station id when its marker is clicked. */
   onSelect: ((id: string) => void) | null = null;
+  onHover: ((id: string | null) => void) | null = null;
 
   constructor(
     private container: HTMLElement,
@@ -54,7 +56,18 @@ export class RouteMap {
   private ensure(): { map: L.Map; layer: L.LayerGroup } | null {
     if (this.map && this.layer) return { map: this.map, layer: this.layer };
     try {
-      this.map = L.map(this.container, { scrollWheelZoom: true }).setView([46.6, 2.4], 5);
+      this.map = L.map(this.container, {
+        dragging: true,
+        scrollWheelZoom: false,
+        // Pinch-zoom and double-tap zoom stay on: on phones the full-bleed map is
+        // the centrepiece and the +/- control is hidden under 860px (styles.css),
+        // so these gestures are the only way to zoom there.
+        doubleClickZoom: true,
+        boxZoom: false,
+        keyboard: false,
+        touchZoom: true,
+        zoomControl: true,
+      }).setView([46.6, 2.4], 5);
       this.map.attributionControl.setPrefix(false); // drop the default "Leaflet" + flag prefix
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap",
@@ -96,10 +109,28 @@ export class RouteMap {
     m.bringToFront();
   }
 
+  peek(id: string | null): void {
+    if (this.peeked) {
+      this.peeked.m.setRadius(this.peeked.radius);
+      this.peeked.m.setStyle({ weight: this.peeked.weight });
+      this.peeked = null;
+    }
+    if (!id) return;
+    const m = this.markers.get(id);
+    if (!m) return;
+    const radius = m.getRadius();
+    const weight = (m.options.weight as number | undefined) ?? 2;
+    this.peeked = { m, radius, weight };
+    m.setRadius(radius + 3);
+    m.setStyle({ weight: weight + 1 });
+    m.bringToFront();
+  }
+
   /** Forget the markers + highlight from the previous render. */
   private resetMarkers(): void {
     this.markers.clear();
     this.highlighted = null;
+    this.peeked = null;
   }
 
   /**
@@ -185,6 +216,8 @@ export class RouteMap {
       m.bindPopup(pop, { closeButton: false, className: "map-popup", offset: [0, -4] });
     }
 
+    m.on("mouseover", () => this.onHover?.(id));
+    m.on("mouseout", () => this.onHover?.(null));
     if (this.onSelect) m.on("click", () => this.onSelect?.(id));
     this.markers.set(id, m);
     return m;
@@ -219,8 +252,9 @@ export class RouteMap {
       this.marker(hub, hubC, "anchor").addTo(layer);
     }
 
-    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.25));
-    else if (pts.length === 1) map.setView(pts[0]!, 6);
+    map.invalidateSize();
+    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.12));
+    else if (pts.length === 1) map.setView(pts[0]!, 8);
   }
 
   /**
@@ -255,8 +289,9 @@ export class RouteMap {
     });
 
     const pts = known.map((s) => s.c);
-    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.3));
-    else if (pts.length === 1) map.setView(pts[0]!, 6);
+    map.invalidateSize();
+    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.18));
+    else if (pts.length === 1) map.setView(pts[0]!, 8);
   }
 
   /**
@@ -287,6 +322,7 @@ export class RouteMap {
       if (!c) continue;
       this.marker(id, c, "via").addTo(layer);
     }
+    map.invalidateSize();
     if (bounds) map.fitBounds(bounds.pad(0.1));
   }
 }

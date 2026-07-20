@@ -1,0 +1,395 @@
+import type { Theme } from "../state/store";
+import { el, optionEl, isTouch } from "./dom";
+import { t, LANGS, getLang } from "../i18n";
+import {
+  SHARE_SVG,
+  CHECK_SVG,
+  MENU_SVG,
+  MENU_CLOSE_SVG,
+  INSTALL_SVG,
+  LOGO_SVG,
+  GITHUB_SVG,
+  SEARCH_SVG,
+  themeSvg,
+} from "./icons";
+
+type Card = "jeune" | "senior";
+
+/** Callbacks and initial state the shell needs; it holds no app state of its own. */
+export interface ShellProps {
+  theme: Theme;
+  card: Card;
+  updatedText: string;
+  form: HTMLElement;
+  githubUrl: string;
+  issuesUrl: string;
+  goHome: () => void;
+  onLang: (code: string) => void;
+  onThemeChange: (theme: Theme) => void;
+  onCard: (card: Card) => void;
+  onShare: (onCopied: () => void) => void;
+  onInstall: () => void;
+  onShortcuts: () => void;
+  onOpenMobileForm: () => void;
+  onSelect: (id: string) => void;
+  onPeek: (id: string | null) => void;
+}
+
+/** The elements the controller wires results/favorites/map into. */
+export interface ShellHandles {
+  header: HTMLElement;
+  layout: HTMLElement;
+  cardSelect: HTMLSelectElement;
+  title: HTMLElement;
+  results: HTMLElement;
+  mapEl: HTMLElement;
+  favList: HTMLElement;
+  tripList: HTMLElement;
+}
+
+/**
+ * Reflect the chosen theme on the document root, where the stylesheet keys off it.
+ * @param theme the theme to apply.
+ */
+export function applyTheme(theme: Theme): void {
+  document.documentElement.dataset.theme = theme;
+}
+
+/** Close the header overflow menu if it is open, restoring the toggle button. */
+export function closeHeaderMenu(): void {
+  const nav = document.querySelector<HTMLElement>(".header-nav.menu-open");
+  if (!nav) return;
+  nav.classList.remove("menu-open");
+  const btn = nav.querySelector<HTMLButtonElement>(".menu-btn");
+  if (btn) {
+    btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = MENU_SVG;
+  }
+}
+
+// The shell is rebuilt on every language change; the previous drawer's media-query
+// and resize listeners would otherwise pile up, each keeping a detached drawer alive
+// and being resized. buildShell tears the old one down before wiring a new one.
+let teardownDrawer: (() => void) | null = null;
+
+/**
+ * Make the results drawer a draggable bottom sheet on narrow screens, snapping
+ * between peek / half / full detents. A no-op where matchMedia is unavailable.
+ * @param drawer the drawer element to size.
+ * @param handle the grab handle that drives the drag.
+ * @param mapSection the map behind the drawer, used to measure available height.
+ * @returns a cleanup that removes the media-query/resize listeners it installed.
+ */
+function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLElement): () => void {
+  const mq = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 860px)") : null;
+  if (!mq) return () => {};
+  const order = ["peek", "half", "full"] as const;
+  type Detent = (typeof order)[number];
+  let state: Detent = "peek";
+
+  const sizes = (): Record<Detent, number> => {
+    const mapTop = mapSection.getBoundingClientRect().top;
+    const full = Math.max(240, Math.round(window.innerHeight - mapTop - 6));
+    const handleH = handle.offsetHeight || 46;
+    return {
+      peek: Math.max(handleH + 92, Math.round(full * 0.24)),
+      half: Math.round(full * 0.55),
+      full,
+    };
+  };
+
+  const snap = (s: Detent): void => {
+    state = s;
+    drawer.dataset.state = s;
+    if (mq.matches) drawer.style.height = `${sizes()[s]}px`;
+  };
+
+  let dragging = false;
+  let startY = 0;
+  let startH = 0;
+  let moved = false;
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (!mq.matches) return;
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startH = drawer.getBoundingClientRect().height;
+    drawer.style.transition = "none";
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {
+      startH = drawer.getBoundingClientRect().height;
+    }
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    if (Math.abs(e.clientY - startY) > 6) moved = true;
+    const s = sizes();
+    const h = Math.max(s.peek, Math.min(s.full, startH + (startY - e.clientY)));
+    drawer.style.height = `${h}px`;
+  });
+  const finish = (): void => {
+    if (!dragging) return;
+    dragging = false;
+    drawer.style.transition = "";
+    const s = sizes();
+    const h = drawer.getBoundingClientRect().height;
+    let best: Detent = order[0];
+    for (const k of order) {
+      if (Math.abs(s[k] - h) < Math.abs(s[best] - h)) best = k;
+    }
+    snap(best);
+  };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", () => {
+    finish();
+    // No click follows a cancelled gesture, so the click handler can't clear
+    // `moved` — reset it here or the next genuine tap on the handle is swallowed.
+    moved = false;
+  });
+  handle.addEventListener("click", () => {
+    if (moved) {
+      moved = false;
+      return;
+    }
+    snap(state === "peek" ? "half" : "peek");
+  });
+
+  const sync = (): void => {
+    if (mq.matches) {
+      snap(state);
+    } else {
+      drawer.style.height = "";
+      drawer.style.transition = "";
+    }
+  };
+  mq.addEventListener("change", sync);
+  window.addEventListener("resize", sync);
+  // The initial sync must wait until the layout is attached: buildShell runs before
+  // buildLayout appends the shell, so a synchronous measure here reads a detached
+  // mapSection (top = 0) and snaps to a too-tall drawer. Defer one frame so `full`
+  // is measured against the real viewport position.
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => sync());
+  else sync();
+  return () => {
+    mq.removeEventListener("change", sync);
+    window.removeEventListener("resize", sync);
+  };
+}
+
+/* ── header ── */
+
+/**
+ * Build the site header: brand, and an overflow menu holding the language and pass
+ * selectors plus the icon actions (GitHub, shortcuts, theme, share, install).
+ * @param props shell state and callbacks.
+ * @returns the header element and the pass selector (needed by the controller).
+ */
+function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTMLSelectElement } {
+  const langSel = el(
+    "select",
+    { class: "ctl", attrs: { "aria-label": t("ctl_lang") } },
+    LANGS.map((l) => optionEl(l.code, l.label, getLang() === l.code)),
+  ) as HTMLSelectElement;
+  langSel.addEventListener("change", () => props.onLang(langSel.value));
+
+  let currentTheme = props.theme;
+  const themeBtn = el("button", {
+    class: "ctl icon-ctl",
+    type: "button",
+    attrs: { "aria-label": t("ctl_theme"), title: t("ctl_theme") },
+    html: themeSvg(currentTheme),
+  });
+  themeBtn.addEventListener("click", () => {
+    const order: Theme[] = ["auto", "light", "dark"];
+    currentTheme = order[(order.indexOf(currentTheme) + 1) % order.length]!;
+    applyTheme(currentTheme);
+    themeBtn.innerHTML = themeSvg(currentTheme);
+    props.onThemeChange(currentTheme);
+  });
+
+  const keysBtn = el("button", {
+    class: "ctl icon-ctl keys-btn",
+    type: "button",
+    text: "?",
+    attrs: { "aria-label": t("keys_title"), title: t("keys_title") },
+    on: { click: () => props.onShortcuts() },
+  });
+  if (isTouch()) keysBtn.style.display = "none";
+
+  const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
+    optionEl("jeune", t("card_jeune"), props.card === "jeune"),
+    optionEl("senior", t("card_senior"), props.card === "senior"),
+  ]) as HTMLSelectElement;
+  cardSel.addEventListener("change", () => props.onCard(cardSel.value === "senior" ? "senior" : "jeune"));
+
+  const installBtn = el("button", {
+    class: "ctl install-btn",
+    type: "button",
+    attrs: { "aria-label": t("act_install"), title: t("act_install") },
+    html: `${INSTALL_SVG}<span class="install-label">${t("act_install")}</span>`,
+    on: { click: () => props.onInstall() },
+  });
+
+  const shareBtn = el("button", {
+    class: "ctl icon-ctl share-btn",
+    type: "button",
+    attrs: { "aria-label": t("act_share"), title: t("act_share") },
+    html: SHARE_SVG,
+  });
+  shareBtn.addEventListener("click", () => {
+    props.onShare(() => {
+      shareBtn.innerHTML = CHECK_SVG;
+      shareBtn.title = t("share_copied");
+      setTimeout(() => {
+        shareBtn.innerHTML = SHARE_SVG;
+        shareBtn.title = t("act_share");
+      }, 1600);
+    });
+  });
+
+  const ghLink = el("a", {
+    class: "ctl icon-ctl gh-link",
+    html: GITHUB_SVG,
+    href: props.githubUrl,
+    attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub", title: "GitHub" },
+  });
+
+  const headerCtls = el("div", { class: "header-ctls" }, [
+    el("div", { class: "menu-selects" }, [langSel, cardSel]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, themeBtn, shareBtn, installBtn]),
+  ]);
+  const menuBtn = el("button", {
+    class: "ctl icon-ctl menu-btn",
+    type: "button",
+    attrs: {
+      "aria-label": t("ctl_menu"),
+      title: t("ctl_menu"),
+      "aria-expanded": "false",
+      "aria-haspopup": "true",
+    },
+    html: MENU_SVG,
+  });
+  const headerNav = el("div", { class: "header-nav" }, [menuBtn, headerCtls]);
+  menuBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const open = headerNav.classList.toggle("menu-open");
+    menuBtn.setAttribute("aria-expanded", String(open));
+    menuBtn.innerHTML = open ? MENU_CLOSE_SVG : MENU_SVG;
+  });
+
+  const header = el("header", { class: "site-header" }, [
+    el("div", { class: "brand" }, [
+      el("button", {
+        class: "logo",
+        type: "button",
+        attrs: { "aria-label": t("appName"), title: t("appName") },
+        on: { click: () => props.goHome() },
+        html: LOGO_SVG,
+      }),
+      el("div", { class: "brand-head" }, [
+        el("h1", { text: t("appName") }),
+        el("span", { class: "brand-badge", text: "SNCF · OPEN DATA" }),
+      ]),
+    ]),
+    headerNav,
+  ]);
+  return { header, cardSelect: cardSel };
+}
+
+/* ── shell ── */
+
+/**
+ * Build the whole page shell: header, the search form column with its results
+ * drawer and mobile search bar, and the map column.
+ * @param props shell state and callbacks.
+ * @returns the header, layout, and the element handles the controller wires into.
+ */
+export function buildShell(props: ShellProps): ShellHandles {
+  // Tear down the previous shell's drawer listeners before building a new one, so a
+  // language-change rebuild doesn't stack them on orphaned elements.
+  teardownDrawer?.();
+  teardownDrawer = null;
+  const { header, cardSelect } = buildHeader(props);
+
+  const title = el("h2", {
+    class: "results-title",
+    id: "results-title",
+    text: t("tagline"),
+    attrs: { tabindex: "-1" },
+  });
+  const results = el("div", { class: "results", attrs: { "aria-live": "polite" } });
+  const mapEl = el("div", { class: "map", attrs: { "aria-label": t("map_title") } });
+
+  const tripList = el("div", { class: "trip-list" });
+  const savedAside = el("aside", { class: "saved-trips" }, [el("h2", { text: t("saved_title") }), tripList]);
+
+  const favList = el("div", { class: "fav-list" });
+  const aside = el("aside", { class: "favorites" }, [el("h2", { text: t("fav_title") }), favList]);
+
+  const footer = el("footer", { class: "site-footer" }, [
+    el("p", { class: "muted small updated", attrs: { title: t("data_why") }, text: props.updatedText }),
+    el("p", { class: "muted", text: t("foot_source") }),
+    el("p", { class: "muted small", text: t("foot_disclaimer") }),
+    el("div", { class: "foot-actions" }, [
+      el("a", {
+        class: "btn btn-ghost feedback-btn",
+        text: t("act_report"),
+        href: props.issuesUrl,
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+      el("a", {
+        class: "foot-link",
+        text: "GitHub",
+        href: props.githubUrl,
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+    ]),
+  ]);
+
+  const mapSection = el("section", { class: "map-section", attrs: { "aria-label": t("map_title") } }, [mapEl]);
+  const drawerHandle = el(
+    "button",
+    { class: "drawer-handle", type: "button", attrs: { "aria-label": t("act_results"), title: t("act_results") } },
+    [el("span", { class: "drawer-grip", attrs: { "aria-hidden": "true" } })],
+  );
+  const resultsDrawer = el("div", { class: "results-drawer" }, [
+    drawerHandle,
+    el("div", { class: "drawer-scroll" }, [title, results, savedAside, aside, footer]),
+  ]);
+  const msearchBar = el(
+    "button",
+    { class: "msearch-bar", type: "button", attrs: { "aria-label": t("btn_search") }, on: { click: () => props.onOpenMobileForm() } },
+    [
+      el("span", { class: "msearch-icon", attrs: { "aria-hidden": "true" }, html: SEARCH_SVG }),
+      el("span", { class: "msearch-text" }),
+    ],
+  );
+  const layout = el("div", { class: "layout" }, [
+    el("div", { class: "main-col" }, [msearchBar, props.form, resultsDrawer]),
+    el("div", { class: "side-col" }, [mapSection]),
+  ]);
+
+  teardownDrawer = setupDrawer(resultsDrawer, drawerHandle, mapSection);
+
+  results.addEventListener("click", (ev) => {
+    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
+    if (card?.dataset.station) props.onSelect(card.dataset.station);
+  });
+  let peekedStation: string | null = null;
+  results.addEventListener("mouseover", (ev) => {
+    const card = (ev.target as HTMLElement).closest<HTMLElement>("[data-station]");
+    const id = card?.dataset.station ?? null;
+    if (id !== peekedStation) {
+      peekedStation = id;
+      props.onPeek(id);
+    }
+  });
+  results.addEventListener("mouseleave", () => {
+    peekedStation = null;
+    props.onPeek(null);
+  });
+
+  return { header, layout, cardSelect, title, results, mapEl, favList, tripList };
+}

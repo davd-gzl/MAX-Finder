@@ -45,3 +45,24 @@ export function qs<T extends HTMLElement = HTMLElement>(sel: string, root: Paren
   if (!found) throw new Error(`Element not found: ${sel}`);
   return found as T;
 }
+
+/**
+ * A single `<option>` element.
+ * @param value the option value.
+ * @param label the visible text.
+ * @param selected whether it is the selected option.
+ * @returns the option element.
+ */
+export function optionEl(value: string, label: string, selected: boolean): HTMLElement {
+  const o = el("option", { value, text: label }) as HTMLOptionElement;
+  o.selected = selected;
+  return o;
+}
+
+/**
+ * Whether the primary pointer is coarse (touch), used to tune touch-only UX.
+ * @returns true on coarse-pointer (touch) devices.
+ */
+export function isTouch(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+}

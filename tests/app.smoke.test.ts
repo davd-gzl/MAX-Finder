@@ -87,13 +87,46 @@ describe("app (jsdom smoke)", () => {
     // Only reachable via a connection (Bordeaux) that day.
     expect(root.querySelector(".chip-via")).not.toBeNull();
     expect(text).toContain("Bordeaux");
-    // The 30-day route availability calendar is rendered (first .cal-grid; the
-    // "come back?" section adds a second, return-availability calendar below it).
+    // The 30-day route availability calendar is rendered.
     const routeCal = root.querySelector(".cal-grid");
     expect(routeCal).not.toBeNull();
     expect(routeCal!.querySelectorAll(".cal-cell").length).toBe(30);
-    // The return calendar exists too (a second grid).
+    // A one-way exact-trip shows no "come back?" section — only the round trip does.
+    expect(root.querySelector(".od-return")).toBeNull();
+    expect(root.querySelectorAll(".cal-grid").length).toBe(1);
+  });
+
+  it("adds a return-availability calendar for a round-trip exact-trip deep-link", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    // The "come back?" section adds a second, return-availability calendar.
+    const retSection = root.querySelector(".od-return");
+    expect(retSection).not.toBeNull();
+    expect(retSection!.querySelector(".cal-grid")).not.toBeNull();
     expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps the Return tab when the destination is cleared", () => {
+    // Regression: the return date was gated on mode === "od", but a blank destination
+    // derives mode "from" — so a Return-tab search dropped rdate from the URL and a
+    // reload silently fell back to the Simple tab, losing the picked return.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    const dest = root.querySelectorAll<HTMLInputElement>('.search-form .fields input[list="station-list"]')[1];
+    expect(dest).toBeTruthy();
+    dest!.value = "";
+    dest!.dispatchEvent(new Event("input", { bubbles: true }));
+    dest!.dispatchEvent(new Event("change", { bubbles: true }));
+    (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+
+    const url = location.search;
+    expect(new URLSearchParams(url).get("rdate")).toBe("2026-06-27");
+    // What the URL actually restores: reloading it must land back on the Return tab.
+    const reloaded = setup(url);
+    expect(reloaded.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
   });
 
   it("drills into a connecting destination and back again", () => {
@@ -219,10 +252,12 @@ describe("app (jsdom smoke)", () => {
     // searched edit — the "my filter disappeared" bug.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
     const nightBox = () => {
-      const label = Array.from(root.querySelectorAll("label.field-check")).find((l) =>
+      // Booleans render as a Yes/No segmented control; the checkbox behind it is
+      // still the value, so the staged-edit assertions below read it directly.
+      const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((l) =>
         (l.textContent ?? "").trim().startsWith("Night trains"),
       );
-      return label?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
+      return wrap?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
     };
     // Stage: tick "Night trains" (do NOT run the search).
     const night = nightBox();
@@ -244,29 +279,197 @@ describe("app (jsdom smoke)", () => {
     expect(nightBox()!.checked).toBe(true);
   });
 
-  it("Surprise me does not resurrect a tour finish the user just removed", () => {
-    // Regression: exact-trip destination carries into Tour as the "finish"; removing
-    // it is a staged edit. "Surprise me" used to rebuild from the stale last-searched
-    // query and push the removed city right back into the form and URL.
+  it("Multi-city builds explicit leg rows and can add another leg", () => {
+    const root = setup("");
+    const multiTab = root.querySelector('[data-trip="multi"]');
+    expect(multiTab).toBeTruthy();
+    (multiTab as HTMLElement).click();
+    // Starts with two leg rows; "Add another leg" appends a third.
+    expect(root.querySelectorAll(".mc-leg").length).toBe(2);
+    (root.querySelector(".mc-add") as HTMLElement).click();
+    expect(root.querySelectorAll(".mc-leg").length).toBe(3);
+  });
+
+  it("renders a multi-city deep-link as one result section per leg", () => {
     const root = setup(
-      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+      `?mode=tour&legs=${encodeURIComponent(
+        "PARIS (intramuros)>LYON (intramuros)@2026-06-25~LYON (intramuros)>TOULON@2026-06-27",
+      )}`,
     );
-    // Switch to Tour — Lyon becomes the tour finish (destination) field.
-    const tourTab = Array.from(root.querySelectorAll(".mode-tab")).find((t) => /Tour/i.test(t.textContent ?? ""));
-    expect(tourTab).toBeTruthy();
-    (tourTab as HTMLElement).click();
-    const dest = Array.from(root.querySelectorAll<HTMLInputElement>(".search-form input")).find((i) =>
-      /Lyon/i.test(i.value),
+    expect(root.querySelectorAll(".mc-result").length).toBe(2);
+  });
+
+  it("ignores a malformed leg date in a deep-link instead of crashing the render", () => {
+    // Regression: `formatDate(new Date("garbageT00:00:00"))` threw RangeError, blanking
+    // the results. The bad-date leg is now dropped; the valid one still renders.
+    const root = setup(
+      `?mode=tour&legs=${encodeURIComponent(
+        "PARIS (intramuros)>LYON (intramuros)@garbage~LYON (intramuros)>TOULON@2026-06-27",
+      )}`,
     );
+    expect(root.querySelectorAll(".mc-result").length).toBe(1);
+  });
+
+  it("Multi-city defaults to custom legs and toggles to the tour planner", () => {
+    const root = setup("");
+    (root.querySelector('[data-trip="multi"]') as HTMLElement).click();
+    // The sub-mode toggle offers both surfaces, custom legs leading.
+    const subTabs = Array.from(root.querySelectorAll<HTMLElement>(".multi-switch .multi-tab"));
+    expect(subTabs.length).toBe(2);
+    expect(subTabs[0]!.getAttribute("aria-pressed")).toBe("true");
+    const citiesField = root.querySelector(".cities-wrap")?.closest(".field") as HTMLElement;
+    const legsBlock = root.querySelector(".mc-block") as HTMLElement;
+    // Legs is the default: the hop editor is shown, the cities chip input hidden.
+    expect(legsBlock.style.display).not.toBe("none");
+    expect(citiesField.style.display).toBe("none");
+    // Switch to the planner: the cities input appears and the editor is hidden.
+    subTabs[1]!.click();
+    expect(citiesField.style.display).not.toBe("none");
+    expect(legsBlock.style.display).toBe("none");
+  });
+
+  it("renders a legacy cities tour link as a planned tour (not the legs editor)", () => {
+    // The exact deep-link shape shared before v2. Regression: it silently fell through
+    // to the empty multi-city state because the planner had become unreachable.
+    const root = setup(
+      `?mode=tour&from=${encodeURIComponent("PARIS (intramuros)")}&cities=${encodeURIComponent(
+        "LYON (intramuros)",
+      )}&date=2026-06-25&dmin=1&dmax=3`,
+    );
+    expect(root.querySelector(".tour")).not.toBeNull();
+    expect(root.querySelector(".mc-result")).toBeNull();
+    // The Multi tab is restored on its "plan" sub-mode — the SECOND button in the
+    // switch, since custom legs now lead it.
+    const planTab = root.querySelectorAll<HTMLElement>(".multi-switch .multi-tab")[1];
+    expect(planTab?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("opens the date picker to keyboard focus and navigates the grid with arrows", () => {
+    const root = setup("");
+    const trigger = root.querySelector<HTMLElement>(".dp-trigger");
+    expect(trigger).not.toBeNull();
+    trigger!.click();
+    const pop = document.body.querySelector<HTMLElement>(".datepop:not([hidden])");
+    expect(pop).not.toBeNull();
+    // The dialog is named + modal, and focus has moved onto a day cell inside it.
+    expect(pop!.getAttribute("aria-modal")).toBe("true");
+    expect(pop!.getAttribute("aria-label")).toBeTruthy();
+    const active = document.activeElement as HTMLElement;
+    expect(active.classList.contains("dp-cell")).toBe(true);
+    // ArrowRight moves focus to the next day cell.
+    const cells = Array.from(pop!.querySelectorAll<HTMLElement>("button.dp-cell"));
+    const start = cells.indexOf(active);
+    pop!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(cells.indexOf(document.activeElement as HTMLElement)).toBe(start + 1);
+    // Escape closes the popover and restores focus to the trigger.
+    pop!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.body.querySelector(".datepop:not([hidden])")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("does not leak date-picker popovers when the language changes", () => {
+    const root = setup("");
+    const count = () => document.body.querySelectorAll(".datepop").length;
+    const before = count();
+    expect(before).toBeGreaterThan(0); // the departure picker's popover is in <body>
+    // Changing the language rebuilds the whole shell + form. Old popovers must be
+    // torn down, not orphaned in <body> with their live document/window listeners.
+    const langSel = root.querySelector<HTMLSelectElement>(".site-header select.ctl");
+    expect(langSel).not.toBeNull();
+    langSel!.value = "en";
+    langSel!.dispatchEvent(new Event("change", { bubbles: true }));
+    langSel!.value = "fr";
+    langSel!.dispatchEvent(new Event("change", { bubbles: true }));
+    // Two rebuilds later, the popover count is stable (not 3×) — no accumulation.
+    expect(count()).toBe(before);
+  });
+
+  it("Surprise me does not resurrect a tour finish the user just cleared", () => {
+    // Regression (the guard deleted in v2): a destination left in a hidden field used
+    // to leak back into the tour as its finish. readQueryFromForm now reads only the
+    // active surface's fields, so a cleared finish stays cleared through Surprise me.
+    const root = setup(
+      `?mode=tour&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent(
+        "LYON (intramuros)",
+      )}&date=2026-06-25`,
+    );
+    // The plan surface is active with Lyon as the fixed finish (serialized as to=).
+    expect(new URLSearchParams(location.search).get("to")).toBeTruthy();
+    // Clear the finish (the 2nd clearable field on the plan surface: origin, then finish).
+    const dest = root.querySelectorAll<HTMLInputElement>(".fields input.has-clear")[1];
     expect(dest).toBeTruthy();
-    // Remove it (staged), then hit "Surprise me".
     dest!.value = "";
+    dest!.dispatchEvent(new Event("input", { bubbles: true }));
     dest!.dispatchEvent(new Event("change", { bubbles: true }));
-    const surprise = root.querySelector(".surprise-btn") as HTMLElement;
-    expect(surprise).not.toBeNull();
-    surprise.click();
-    // The removed finish must stay gone — not in the field, not in the URL.
-    expect(dest!.value).toBe("");
+    // Surprise me (adds a random city). The cleared finish must NOT come back.
+    (root.querySelector(".surprise-btn") as HTMLElement).click();
     expect(new URLSearchParams(location.search).get("to")).toBeNull();
+  });
+
+  it("hosts round-trip getaways on the Return tab's duration surface, not on Simple", () => {
+    const root = setup("");
+    // Simple is a one-way search now — the round-trip group is built but not shown.
+    expect((root.querySelector(".daytrip-group") as HTMLElement).style.display).toBe("none");
+    (root.querySelector('[data-trip="return"]') as HTMLElement).click();
+    const subTabs = Array.from(root.querySelectorAll<HTMLElement>(".return-switch .multi-tab"));
+    expect(subTabs.length).toBe(2);
+    // "By duration" reveals the stay options and drops the now-redundant checkbox
+    // (the sub-mode itself is the opt-in).
+    subTabs[1]!.click();
+    expect((root.querySelector(".daytrip-group") as HTMLElement).style.display).not.toBe("none");
+    expect((root.querySelector(".daytrip-toggle") as HTMLElement).style.display).toBe("none");
+  });
+
+  it("drives a boolean field through its Yes/No control", () => {
+    const root = setup("");
+    const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((f) =>
+      (f.textContent ?? "").trim().startsWith("Night trains"),
+    ) as HTMLElement;
+    expect(wrap).toBeTruthy();
+    const box = wrap.querySelector<HTMLInputElement>("input[type=checkbox]")!;
+    const [yes, no] = Array.from(wrap.querySelectorAll<HTMLElement>(".yesno .multi-tab"));
+    // The default search excludes night trains, so the control starts on "no".
+    expect(box.checked).toBe(false);
+    expect(wrap.querySelector(".yesno")!.classList.contains("is-no")).toBe(true);
+    // Answering "yes" flips the value and fires change — which is what un-greys the
+    // nested "only night trains" sub-field.
+    yes!.click();
+    expect(box.checked).toBe(true);
+    expect(wrap.querySelector(".yesno")!.classList.contains("is-yes")).toBe(true);
+    expect(yes!.getAttribute("aria-pressed")).toBe("true");
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
+    // Clicking the answer already selected must not toggle back.
+    yes!.click();
+    expect(box.checked).toBe(true);
+    no!.click();
+    expect(box.checked).toBe(false);
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(true);
+  });
+
+  it("lists cities, not times, on the duration search's first page", () => {
+    // `?mode=from&rt=1` used to open the Simple tab; the getaway surface moved to the
+    // Return tab. Page 1 compares PLACES — one row per city, no per-leg times.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`);
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+    expect(root.querySelector(".daytrip-card")).toBeNull();
+  });
+
+  it("opens a city's own page with a calendar and its dated solutions", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=1`,
+    );
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    const solutions = root.querySelectorAll(".daytrip-card").length;
+    if (solutions === 0) {
+      // No round trip in the sample window: the empty state, never the exact-trip view.
+      expect(root.querySelector(".empty")).not.toBeNull();
+      return;
+    }
+    // A calendar of workable start days leads the page, and it agrees with the list:
+    // one available cell per solution below it.
+    const grid = root.querySelector(".cal-grid");
+    expect(grid).not.toBeNull();
+    expect(grid!.querySelectorAll(".cal-cell.ok").length).toBe(solutions);
   });
 });

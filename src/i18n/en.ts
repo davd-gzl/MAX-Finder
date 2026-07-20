@@ -2,6 +2,25 @@ import type { Dict } from "./fr";
 
 export const en: Dict = {
   appName: "MAX Finder",
+  leg_add: "Add another leg",
+  leg_remove: "Remove leg",
+  multi_title: "Multi-city — {n} leg(s)",
+  multi_hint: "Fill in at least one leg (from and to).",
+  multi_incomplete: "Some legs have no free MAX seat — this itinerary is incomplete.",
+  ph_anywhere: "Anywhere",
+  tab_simple: "One-way",
+  tab_return: "Round trip",
+  tab_multi: "Multi-city",
+  tab_ideas: "Ideas",
+  multi_plan: "Tour",
+  multi_legs: "Custom legs",
+  ret_dates: "By dates",
+  ret_duration: "By duration",
+  opt_yes: "Yes",
+  opt_no: "No",
+  field_depart: "Departure",
+  field_ret: "Return",
+  datepick_window: "dotted = days within the ± margin",
   err_load: "Couldn't load the data.",
   act_retry: "Retry",
   view_label: "View",
@@ -94,6 +113,8 @@ export const en: Dict = {
   lbl_dayoffset: "+{n} d",
 
   act_book: "Book on SNCF Connect",
+  act_next: "Next step",
+  act_results: "Results",
   act_book_leg: "Book train {n}",
   book_steps_title: "Book each train",
   book_steps_note: "A MAX connection is booked one train at a time — open each link in order.",
@@ -148,6 +169,7 @@ export const en: Dict = {
 
   ctl_theme: "Theme",
   ctl_lang: "Language",
+  ctl_menu: "Menu",
   loading: "Loading…",
 
   desc_from: "Every destination with a free MAX seat from your station.",
@@ -207,6 +229,9 @@ export const en: Dict = {
   nights_n: "{n} night(s)",
   nights_flex: "Flexible (≤ 3)",
   getaway_title: "Round trips from {station} — {date}",
+  getaway_od_title: "Round trips {origin} → {destination} — {date}",
+  getaway_cal_title: "Possible start days",
+  getaway_days_hint: "{n} start days work for this city across the bookable window. Open the city to see which.",
   getaway_count: "{n} round trip(s) possible",
   getaway_nights: "{n} night(s) away",
   getaway_nights_hint: "Nights at the destination before the return.",
@@ -227,8 +252,6 @@ export const en: Dict = {
 
   ret_cal_title: "Return availability",
   ret_view_round: "See round trip",
-
-  getaway_cal_title: "Round trips by day",
 
   flex_days: "days",
   cal_legend_count: "number = trains that day",

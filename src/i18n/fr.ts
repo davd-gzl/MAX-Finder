@@ -1,5 +1,24 @@
 export const fr = {
   appName: "MAX Finder",
+  leg_add: "Ajouter un trajet",
+  leg_remove: "Supprimer ce trajet",
+  multi_title: "Multiville — {n} trajet(s)",
+  multi_hint: "Renseignez au moins un trajet (départ et arrivée).",
+  multi_incomplete: "Certains trajets n'ont pas de place MAX gratuite — cet itinéraire est incomplet.",
+  ph_anywhere: "Toutes les gares",
+  tab_simple: "Aller simple",
+  tab_return: "Aller-retour",
+  tab_multi: "Multiville",
+  tab_ideas: "Idées",
+  multi_plan: "Périple",
+  multi_legs: "Trajets manuels",
+  ret_dates: "Par dates",
+  ret_duration: "Par durée",
+  opt_yes: "Oui",
+  opt_no: "Non",
+  field_depart: "Aller",
+  field_ret: "Retour",
+  datepick_window: "pointillés = jours compris dans la marge ±",
   err_load: "Impossible de charger les données.",
   act_retry: "Réessayer",
   view_label: "Affichage",
@@ -92,6 +111,8 @@ export const fr = {
   lbl_dayoffset: "+{n} j",
 
   act_book: "Réserver sur SNCF Connect",
+  act_next: "Étape suivante",
+  act_results: "Résultats",
   act_book_leg: "Réserver le train {n}",
   book_steps_title: "Réserver chaque train",
   book_steps_note: "Une correspondance MAX se réserve train par train — ouvrez chaque lien dans l’ordre.",
@@ -146,6 +167,7 @@ export const fr = {
 
   ctl_theme: "Thème",
   ctl_lang: "Langue",
+  ctl_menu: "Menu",
   loading: "Chargement…",
 
   desc_from: "Toutes les destinations avec une place MAX gratuite depuis votre gare.",
@@ -205,6 +227,9 @@ export const fr = {
   nights_n: "{n} nuit(s)",
   nights_flex: "Flexible (≤ 3)",
   getaway_title: "Allers-retours depuis {station} — {date}",
+  getaway_od_title: "Allers-retours {origin} → {destination} — {date}",
+  getaway_cal_title: "Jours de départ possibles",
+  getaway_days_hint: "{n} jours de départ possibles vers cette ville sur la période réservable. Ouvrez la ville pour voir lesquels.",
   getaway_count: "{n} aller(s)-retour(s) possible(s)",
   getaway_nights: "{n} nuit(s) sur place",
   getaway_nights_hint: "Nuits à destination avant le retour.",
@@ -225,8 +250,6 @@ export const fr = {
 
   ret_cal_title: "Disponibilité des retours",
   ret_view_round: "Voir l'aller-retour",
-
-  getaway_cal_title: "Aller-retours par jour",
 
   flex_days: "jours",
   cal_legend_count: "le nombre = trains ce jour",

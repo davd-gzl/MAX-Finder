@@ -48,6 +48,13 @@ export interface Station {
   aliases?: string[];
 }
 
+/** One leg of a multi-city trip: an origin→destination pair on a specific date. */
+export interface TripLeg {
+  from: string;
+  to: string;
+  date: string;
+}
+
 /** A fully-specified search. Serializable to/from the URL. */
 export interface SearchQuery {
   mode: SearchMode;
@@ -72,6 +79,10 @@ export interface SearchQuery {
   via?: string;
   /** Flexible dates: also search ±N days around `date` ("exact trip" mode). */
   flexDays?: number;
+  /** Return date for a round trip ("aller-retour"): the day to travel back. */
+  returnDate?: string;
+  /** Explicit multi-city legs (Multiville): each an origin→destination on its own date. */
+  legs?: TripLeg[];
   /** Region filter, used by "best" mode. */
   region?: string;
   /** Cities to visit, used by "tour" mode. */

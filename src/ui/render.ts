@@ -7,7 +7,7 @@ import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { isAirportStation } from "../data/stations";
-import { formatDuration, dayIndex } from "../util/time";
+import { formatDuration, dayIndex, addDays } from "../util/time";
 import { t } from "../i18n";
 
 export interface RenderCtx {
@@ -118,28 +118,6 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
   return el("div", { class: "train-row" }, [time, meta]);
 }
 
-function bookLink(
-  ctx: RenderCtx,
-  origin: string,
-  destination: string,
-  date: string,
-  time?: string,
-): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "btn btn-book",
-      href: ctx.bookUrl(origin, destination, date, time),
-      attrs: { target: "_blank", rel: "noopener noreferrer" },
-    },
-    [
-      el("span", { text: t("act_book") }),
-      icon(I.external),
-      el("span", { class: "sr-only", text: t("link_newtab") }),
-    ],
-  );
-}
-
 /** External travel-guide link styled as a button (matches the Save button). */
 export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
   return el(
@@ -230,6 +208,7 @@ export function journeyEl(
   opts: {
     saveable?: boolean;
     onPick?: (journey: Journey) => void;
+    onArrow?: (journey: Journey) => void;
     selected?: boolean;
     /** Container within which the active/selected highlight is exclusive (defaults
      * to the card's parent). Use it when the cards aren't direct siblings — e.g. the
@@ -241,115 +220,84 @@ export function journeyEl(
 ): HTMLElement {
   const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
-  const legs = el("div", { class: "legs" });
-  j.legs.forEach((leg, i) => {
-    if (i > 0) {
-      legs.append(
-        el("div", { class: "layover" }, [
-          icon(I.clock),
-          el("span", {
-            text: t("lbl_connection", {
-              dur: formatDuration(j.layovers[i - 1] ?? 0),
-              hub: ctx.label(j.hubs[i - 1] ?? leg.origin),
-            }),
-          }),
-        ]),
-      );
-    }
-    const route = el("div", { class: "leg-route" }, [
-      stationNameEl("", leg.origin, legEndpointLabel(ctx, leg, "origin")),
-      icon(I.arrow),
-      stationNameEl("", leg.destination, legEndpointLabel(ctx, leg, "destination")),
-      ...(leg.date !== j.date
-        ? [
-            el("span", {
-              class: "day-badge",
-              text: t("lbl_dayoffset", { n: dayIndex(leg.date) - dayIndex(j.date) }),
-            }),
-          ]
-        : []),
-    ]);
-    legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
-  });
-
-  const tag =
-    j.legs.length === 1
-      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
-      : el("span", {
-          class: "chip chip-via",
-          text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
-        });
-
-  const head = el("div", { class: "journey-head" }, [
-    tag,
-    el("span", { class: "journey-total" }, [
-      icon(I.clock),
-      el("span", { text: formatDuration(j.totalDurationMin) }),
-    ]),
-  ]);
 
   // A through-ticket can't be pinned to the exact free trains in a single SNCF
   // Connect search (the connection time isn't settable from a deep link, so it
   // re-optimises to the earliest connection). So a connecting trip books train by
   // train via the step modal; a direct trip deep-links straight through.
-  const actions = el("div", { class: "actions" }, [
-    connecting
-      ? el(
-          "button",
-          { class: "btn btn-book", type: "button", on: { click: () => ctx.onBookSteps(j) } },
-          // A "steps" icon (not the new-tab arrow): this opens the book-each-train
-          // modal rather than deep-linking straight to SNCF Connect.
-          [el("span", { text: t("act_book") }), icon(I.steps)],
-        )
-      : bookLink(ctx, j.origin, j.destination, j.date, j.legs[0]?.depart),
-    el(
-      "button",
-      { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } },
-      [icon(I.cal), el("span", { text: t("act_ics") })],
-    ),
-    ...(opts.hideMap
-      ? []
-      : [
-          el(
-            "button",
-            { class: "btn btn-ghost", type: "button", on: { click: () => showOnMap() } },
-            [icon(I.pin), el("span", { text: t("act_map") })],
-          ),
-        ]),
-    ...(saveable ? [tripSaveBtn(j, ctx)] : []),
-  ]);
+  const bookBtn = opts.onArrow
+    ? el(
+        "button",
+        {
+          class: "book-arrow",
+          type: "button",
+          attrs: { "aria-label": t("act_next"), title: t("act_next") },
+          on: {
+            click: () => {
+              select("is-selected");
+              opts.onArrow!(j);
+            },
+          },
+        },
+        [icon(I.arrow)],
+      )
+    : connecting
+    ? el(
+        "button",
+        {
+          class: "book-arrow",
+          type: "button",
+          attrs: { "aria-label": t("act_book"), title: t("act_book") },
+          on: { click: () => ctx.onBookSteps(j) },
+        },
+        [icon(I.arrow)],
+      )
+    : el(
+        "a",
+        {
+          class: "book-arrow",
+          href: ctx.bookUrl(j.origin, j.destination, j.date, j.legs[0]?.depart),
+          attrs: {
+            target: "_blank",
+            rel: "noopener noreferrer",
+            "aria-label": t("act_book"),
+            title: t("act_book"),
+          },
+        },
+        [icon(I.arrow), el("span", { class: "sr-only", text: t("link_newtab") })],
+      );
 
-  const article = el("article", { class: "journey is-clickable" }, [head, legs, actions]);
+  const article = el("article", { class: "journey is-clickable" }, [
+    el("div", { class: "journey-main" }, [
+      journeyBodyEl(j, ctx),
+      journeyActionsEl(j, ctx, { saveable, hideMap: opts.hideMap }),
+    ]),
+    el("div", { class: "journey-book" }, [bookBtn]),
+  ]);
   if (opts.selected) article.classList.add("is-selected");
 
-  // The scope within which only one card may be highlighted at a time.
   const scope = (): HTMLElement | null => opts.group ?? article.parentElement;
-  // Clicking the card (anywhere but the action buttons) draws this journey on
-  // the map and marks it active among its siblings.
-  function showOnMap(): void {
-    ctx.onShowJourney(j);
+  function select(cls: "is-active" | "is-selected"): void {
     scope()
-      ?.querySelectorAll(".journey.is-active")
-      .forEach((x) => x.classList.remove("is-active"));
-    article.classList.add("is-active");
-  }
-  // Pick mode: clicking selects this card (exclusively within its scope), then
-  // runs onPick. Used to pick the round-trip outbound and to highlight one leg.
-  function pick(): void {
-    scope()
-      ?.querySelectorAll(".journey.is-selected")
-      .forEach((x) => x.classList.remove("is-selected"));
-    article.classList.add("is-selected");
-    opts.onPick!(j);
+      ?.querySelectorAll(".journey.is-active, .journey.is-selected")
+      .forEach((x) => x.classList.remove("is-active", "is-selected"));
+    article.classList.add(cls);
   }
   article.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".actions")) return;
-    if (opts.onPick) pick();
-    else showOnMap();
+    if ((e.target as HTMLElement).closest("button, a")) return;
+    if (opts.onPick) {
+      select("is-selected");
+      opts.onPick(j);
+    } else {
+      select("is-active");
+      ctx.onShowJourney(j);
+    }
   });
 
   return article;
 }
+
+
 
 /** A favourite-toggle star button for a route, with live aria/label updates. */
 function favStarEl(route: RoutePair, ctx: RenderCtx): HTMLElement {
@@ -488,101 +436,222 @@ export function reachTripRowEl(
   ]);
 }
 
+
 /**
- * A from→to→from time span ("09:51 → 10:40"), with a via chip when it changes.
- * `withDay` prefixes the weekday so a multi-night leg's date is unambiguous.
+ * A journey's detail: the direct/via chip with the total duration opposite it, then
+ * each leg — the route, a rule, and the train row (times, "+1d", duration, number).
+ * `label` names the leg (ALLER / RETOUR) when several journeys share one card, and
+ * leads the head line beside the chip. Split out of journeyEl so the getaway card
+ * can stack two of them in ONE ticket.
  */
-function legTimesEl(label: string, j: Journey, ctx: RenderCtx, withDay: boolean): HTMLElement {
-  const first = j.legs[0];
-  const last = j.legs[j.legs.length - 1];
-  const via = j.legs.length > 1;
-  // Days the arrival lands after departure (a sleeper arrives "+1d" the next
-  // morning), so an overnight leg's arrival time isn't misread as same-day.
-  const arriveDayOffset = last
-    ? dayIndex(last.date) + Math.floor(last.arriveMin / 1440) - dayIndex(j.date)
-    : 0;
-  return el("span", { class: "daytrip-leg" }, [
-    el("span", { class: "daytrip-leg-label muted", text: label }),
-    ...(withDay ? [el("span", { class: "daytrip-day muted", text: ctx.formatWeekday(j.date) })] : []),
-    el("span", { class: "daytrip-times" }, [
-      el("strong", { text: first?.depart ?? "" }),
+function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string): HTMLElement {
+  const legs = el("div", { class: "legs" });
+  j.legs.forEach((leg, i) => {
+    if (i > 0) {
+      legs.append(
+        el("div", { class: "layover" }, [
+          icon(I.clock),
+          el("span", {
+            text: t("lbl_connection", {
+              dur: formatDuration(j.layovers[i - 1] ?? 0),
+              hub: ctx.label(j.hubs[i - 1] ?? leg.origin),
+            }),
+          }),
+        ]),
+      );
+    }
+    const route = el("div", { class: "leg-route" }, [
+      stationNameEl("", leg.origin, legEndpointLabel(ctx, leg, "origin")),
       icon(I.arrow),
-      el("strong", { text: last?.arrive ?? "" }),
-      ...(arriveDayOffset > 0
-        ? [el("span", { class: "day-offset", text: t("lbl_dayoffset", { n: arriveDayOffset }) })]
+      stationNameEl("", leg.destination, legEndpointLabel(ctx, leg, "destination")),
+      ...(leg.date !== j.date
+        ? [
+            el("span", {
+              class: "day-badge",
+              text: t("lbl_dayoffset", { n: dayIndex(leg.date) - dayIndex(j.date) }),
+            }),
+          ]
         : []),
+    ]);
+    legs.append(el("div", { class: "leg" }, [route, trainRowEl(leg)]));
+  });
+  const tag =
+    j.legs.length === 1
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", {
+          class: "chip chip-via",
+          text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
+        });
+  const head = el("div", { class: "journey-head" }, [
+    ...(label ? [el("h3", { class: "trip-leg-title", text: label })] : []),
+    tag,
+    el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(j.totalDurationMin) })]),
+  ]);
+  return el("div", { class: "journey-body" }, [head, legs]);
+}
+
+/**
+ * The calendar / map / save row under a journey's legs. Split out of journeyEl so the
+ * getaway card can close with ONE row for the round trip instead of one per leg.
+ */
+function journeyActionsEl(
+  j: Journey,
+  ctx: RenderCtx,
+  opts: { saveable?: boolean; hideMap?: boolean } = {},
+): HTMLElement {
+  return el("div", { class: "journey-sub" }, [
+    el("button", { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onIcs(j) } }, [
+      icon(I.cal),
+      el("span", { text: t("act_ics") }),
     ]),
-    ...(via
-      ? [el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })]
-      : []),
+    ...(opts.hideMap
+      ? []
+      : [
+          el("button", { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onShowJourney(j) } }, [
+            icon(I.pin),
+            el("span", { text: t("act_map") }),
+          ]),
+        ]),
+    ...(opts.saveable !== false ? [tripSaveBtn(j, ctx)] : []),
+  ]);
+}
+
+
+/**
+ * One destination in the duration search's LIST page: the city, how many start days
+ * work (in the searched window and across the whole bookable one), the best
+ * round-trip travel time, and an arrow into the city's own page — its calendar of
+ * workable days plus every dated solution. Deliberately says nothing about times:
+ * comparing places comes first, picking a day second.
+ */
+export function getawayCityRowEl(
+  trip: Getaway,
+  ctx: RenderCtx,
+  stat: { days: number; windowDays: number },
+): HTMLElement {
+  const origin = trip.outbound.origin;
+  const route: RoutePair = { origin, destination: trip.destination };
+  const summary = t("stat_day_month", { day: stat.days, month: stat.windowDays });
+  const main = el(
+    "button",
+    {
+      class: "dest-main",
+      type: "button",
+      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${summary}` },
+      on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
+    },
+    [
+      stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
+      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        el("span", {
+          class: "stat-chip",
+          text: summary,
+          attrs: { title: t("getaway_days_hint", { n: stat.windowDays }) },
+        }),
+        el("bdi", { text: formatDuration(trip.travelMin) }),
+      ]),
+      el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
+    ],
+  );
+  return el("article", { class: "group-card", dataset: { station: trip.destination } }, [
+    el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
   ]);
 }
 
 /**
- * A round-trip ("getaway") card: the city, how long you get there (the headline —
- * time on site for a day trip, nights for a stay), the total round-trip travel
- * time, and the out / back times. Clicking opens the exact route, where the 30-day
- * calendar and the "come back?" section let you pick and book both legs.
+ * One dated solution on a city's page: ONE ticket holding the whole round trip. The
+ * head names the destination and how long you get there; below it each leg reads as
+ * it does in the round-trip detail — its name and direct/via chip with the duration
+ * opposite, the route, a rule, then the times / "+1d" / duration / train number. One
+ * action row closes the card, for the trip as a whole; the stub's arrow opens it.
  */
 export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: boolean } = {}): HTMLElement {
   const origin = trip.outbound.origin;
   const route: RoutePair = { origin, destination: trip.destination };
-  // The headline chip shows the figure that actually VARIES between rows: time on
-  // site for same-day trips, round-trip travel time for N-night stays (the nights
-  // are fixed for the whole search, so they're stated once in the section header,
-  // not repeated as an identical chip on every row).
+  // The headline shows the figure that actually VARIES between rows: time on site
+  // for same-day trips, round-trip travel time for N-night stays.
   const sameDay = trip.nights === 0;
   const headlineText = sameDay
     ? t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin ?? 0) })
     : t("daytrip_travel", { dur: formatDuration(trip.travelMin) });
-  const headline = el("span", {
-    class: "chip chip-onsite",
-    text: headlineText,
-    attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
-  });
-  // A multi-night stay departs and returns on different days, so stamp each leg
-  // with its weekday; a same-day trip needs no date. Same-day also shows the
-  // round-trip travel time inline (its headline is on-site, not travel).
-  const multiDay = trip.outbound.date !== trip.back.date;
-  const main = el(
-    "button",
-    {
-      class: "dest-main daytrip-main",
-      type: "button",
-      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${headlineText}` },
-      // The getaway already names exact trains both ways — open the whole round trip
-      // on one page (book both legs, save it) rather than the generic route calendar.
-      on: { click: () => ctx.onShowTrip(trip.outbound, trip.back) },
-    },
+  const head = el("div", { class: "daytrip-head" }, [
+    favStarEl(route, ctx),
+    stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
+    // Rows on a city's page differ by start day, so it always leads.
+    ...(opts.showDate
+      ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
+      : []),
+    ...(sameDay
+      ? []
+      : [
+          el("span", { class: "daytrip-travel muted" }, [
+            el("bdi", { text: t("getaway_nights", { n: trip.nights }) }),
+          ]),
+        ]),
+    el("span", {
+      class: "chip chip-onsite",
+      text: headlineText,
+      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
+    }),
+  ]);
+  // One action row for the whole card, after both legs. Every button therefore acts
+  // on the round trip: the calendar export writes an event per leg, the map draws the
+  // route (identical either way), and Save stores the pair as one trip.
+  const actions = el("div", { class: "journey-sub daytrip-actions" }, [
+    el(
+      "button",
+      {
+        class: "btn btn-ghost",
+        type: "button",
+        on: {
+          click: () => {
+            ctx.onIcs(trip.outbound);
+            ctx.onIcs(trip.back);
+          },
+        },
+      },
+      [icon(I.cal), el("span", { text: t("act_ics") })],
+    ),
+    el(
+      "button",
+      { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onShowJourney(trip.outbound) } },
+      [icon(I.pin), el("span", { text: t("act_map") })],
+    ),
+    tripSaveBtn(trip.outbound, ctx, trip.back),
+  ]);
+  const open = (): void => ctx.onShowTrip(trip.outbound, trip.back);
+  const article = el(
+    "article",
+    { class: "journey daytrip-card is-clickable", dataset: { station: trip.destination } },
     [
-      el("span", { class: "daytrip-top" }, [
-        stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
-        headline,
+      el("div", { class: "journey-main" }, [
+        head,
+        journeyBodyEl(trip.outbound, ctx, t("daytrip_out")),
+        journeyBodyEl(trip.back, ctx, t("daytrip_back")),
+        actions,
       ]),
-      el("span", { class: "daytrip-legs" }, [
-        // With flexible dates the rows fall on different days, so lead with the date.
-        ...(opts.showDate
-          ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
-          : []),
-        legTimesEl(t("daytrip_out"), trip.outbound, ctx, multiDay),
-        legTimesEl(t("daytrip_back"), trip.back, ctx, multiDay),
-        // Trailing secondary metric: travel time for same-day (its headline is on
-        // site), or the night count for a stay (its headline is travel) — kept quiet
-        // so it supports rather than competes with the destination name.
-        sameDay
-          ? el("span", { class: "daytrip-travel muted" }, [
-              icon(I.clock),
-              el("bdi", { text: t("daytrip_travel", { dur: formatDuration(trip.travelMin) }) }),
-            ])
-          : el("span", { class: "daytrip-travel muted" }, [
-              el("bdi", { text: t("getaway_nights", { n: trip.nights }) }),
-            ]),
+      el("div", { class: "journey-book" }, [
+        el(
+          "button",
+          {
+            class: "book-arrow",
+            type: "button",
+            attrs: {
+              "aria-label": `${ctx.label(trip.destination)} — ${headlineText}`,
+              title: t("act_next"),
+            },
+            on: { click: open },
+          },
+          [icon(I.arrow)],
+        ),
       ]),
     ],
   );
-  return el("article", { class: "group-card daytrip-card", dataset: { station: trip.destination } }, [
-    el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
-  ]);
+  article.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("button, a")) return;
+    open();
+  });
+  return article;
 }
 
 /**
@@ -757,6 +826,9 @@ export function calendarEl(
       : cells.length - 1;
     cells[Math.max(0, Math.min(cells.length - 1, target))]?.focus();
   });
+  const first = days[0]?.date ?? "";
+  const leading = first ? (new Date(`${first}T00:00:00`).getDay() + 6) % 7 : 0;
+  for (let i = 0; i < leading; i++) grid.append(el("span", { class: "cal-blank", attrs: { "aria-hidden": "true" } }));
   let anyNearby = false;
   let anyBoth = false;
   for (const d of days) {
@@ -791,8 +863,6 @@ export function calendarEl(
         on: { click: () => ctx.onSelectDay(d.date) },
       },
       [
-        // Weekday above the day number, so each cell reads as a real date.
-        el("span", { class: "cal-dow", text: ctx.formatWeekday(d.date), attrs: { "aria-hidden": "true" } }),
         el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
         // A tiny per-day count, shown only where it's exact (route / return strips).
         ...(showCount && d.available && d.count > 0
@@ -808,8 +878,13 @@ export function calendarEl(
     ...(anyNearby ? [t("cal_legend_nearby")] : []),
     ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
   ].join(" · ");
+  const dowHead = el("div", { class: "cal-dow-head", attrs: { "aria-hidden": "true" } });
+  const refMonday = first ? addDays(first, -leading) : "";
+  for (let i = 0; i < 7; i++)
+    dowHead.append(el("span", { class: "cal-dow-c", text: refMonday ? ctx.formatWeekday(addDays(refMonday, i)) : "" }));
   return el("section", { class: "calendar" }, [
     el("h3", { text: opts?.title ?? t("cal_title") }),
+    dowHead,
     grid,
     el("p", { class: "cal-legend muted", text: legend }),
   ]);
@@ -916,6 +991,50 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
       guideButtonEl(ctx, outbound.destination),
     ]),
   );
+  return view;
+}
+
+/**
+ * One leg of a multi-city recap: the requested hop plus the chosen journey, or
+ * `null` when that hop has no free MAX seat. Carrying the null (instead of dropping
+ * the leg) lets the recap show the trip honestly as incomplete.
+ */
+export interface RecapLeg {
+  from: string;
+  to: string;
+  date: string;
+  journey: Journey | null;
+}
+
+export function multiTripViewEl(legs: RecapLeg[], ctx: RenderCtx): HTMLElement {
+  const stops = legs.length ? [legs[0]!.from, ...legs.map((l) => l.to)] : [];
+  const title = stops.map((s) => ctx.label(s)).join(" → ");
+  const totalTravel = legs.reduce((sum, l) => sum + (l.journey?.totalDurationMin ?? 0), 0);
+  const incomplete = legs.some((l) => !l.journey);
+  const view = el("div", { class: "trip-view" }, [
+    el("h2", { class: "modal-title trip-title", text: title }),
+    el("p", { class: "muted trip-summary" }, [
+      icon(I.clock),
+      el("span", { text: formatDuration(totalTravel) }),
+    ]),
+  ]);
+  // A leg with no seat can't just vanish — call the whole itinerary out as incomplete
+  // so an N-1-leg chain isn't presented as a finished trip.
+  if (incomplete) view.append(el("p", { class: "notice trip-incomplete", text: t("multi_incomplete") }));
+  legs.forEach((leg) => {
+    view.append(
+      el("section", { class: "trip-leg" }, [
+        el("h3", { class: "trip-leg-title" }, [
+          el("bdi", { text: ctx.label(leg.from) }),
+          el("span", { class: "muted", text: " → " }),
+          el("bdi", { text: ctx.label(leg.to) }),
+        ]),
+        leg.journey
+          ? journeyEl(leg.journey, ctx, { saveable: false, hideMap: true })
+          : emptyEl(`${t("res_none")} · ${ctx.formatDate(leg.date)}`),
+      ]),
+    );
+  });
   return view;
 }
 
