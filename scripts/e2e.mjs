@@ -271,25 +271,24 @@ await scenario(
   },
 );
 
-// 11. Mobile layout: below 860px, searching swaps the full form sheet for the
-//     full-bleed map + results drawer behind a floating search bar. Asserts on what
-//     is *displayed*, not on presence — every one of these nodes also exists at
-//     1366px (they are only display:none'd), so counting them proves nothing.
+// 11. Mobile layout: below 860px the app is either the full form sheet or the
+//     full-bleed map + results drawer behind a floating search bar — never both.
+//     A deep link opens on results (it already carries a search); the bar reopens
+//     the form and Search collapses it again. Asserts on what is *displayed*, not
+//     on presence — every one of these nodes also exists at 1366px (they are only
+//     display:none'd), so counting them proves nothing.
 await scenario(
-  "mobile: searching at 390px swaps the form sheet for the results drawer",
+  "mobile: the form sheet and the results drawer swap at 390px",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
     const shown = (sel) =>
       page.$eval(sel, (el) => el.getBoundingClientRect().height > 0).catch(() => false);
-    assert(await shown(".search-form"), "the form sheet should be open on a mobile deep link");
-    assert(!(await shown(".msearch-bar")), "the collapsed bar should be hidden while the form is open");
-    await page.click(".search-form .form-actions button.btn-primary");
-    await sleep(900); // the form→bar view transition runs 0.34s
-    const mform = await page.$eval("#app", (el) => el.dataset.mform);
-    assert(mform === "results", `#app[data-mform] should be "results", got "${mform}"`);
-    assert(await shown(".msearch-bar"), "no floating search bar after searching on mobile");
+    const mform = () => page.$eval("#app", (el) => el.dataset.mform);
+    // A shared link runs its search straight away, so it lands on the results view.
+    assert((await mform()) === "results", `deep link should land on results, got "${await mform()}"`);
+    assert(await shown(".msearch-bar"), "no floating search bar after a mobile deep link");
     assert(await shown(".results-drawer"), "the results drawer is not displayed");
-    assert(!(await shown(".search-form")), "the form sheet should be collapsed after searching");
+    assert(!(await shown(".search-form")), "the form sheet should be collapsed on results");
     // The results view is locked to 100dvh: neither axis may scroll the page.
     const over = await page.evaluate(() => ({
       x: document.documentElement.scrollWidth - window.innerWidth,
@@ -297,6 +296,18 @@ await scenario(
     }));
     assert(over.x <= 2, `page scrolls horizontally at 390px (${over.x}px)`);
     assert(over.y <= 2, `results view scrolls vertically at 390px (${over.y}px)`);
+    // The bar reopens the whole form...
+    await page.click(".msearch-bar");
+    await sleep(900); // the bar→form view transition runs 0.34s
+    assert((await mform()) === "form", `the bar should reopen the form, got "${await mform()}"`);
+    assert(await shown(".search-form"), "the form sheet did not open from the search bar");
+    assert(!(await shown(".msearch-bar")), "the collapsed bar should be hidden while the form is open");
+    // ...and searching collapses it back to the drawer.
+    await page.click(".search-form .form-actions button.btn-primary");
+    await sleep(900);
+    assert((await mform()) === "results", `searching should return to results, got "${await mform()}"`);
+    assert(await shown(".results-drawer"), "the results drawer is not displayed after searching");
+    assert(!(await shown(".search-form")), "the form sheet should be collapsed after searching");
   },
   { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
 );
