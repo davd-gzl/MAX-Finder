@@ -428,20 +428,22 @@ describe("app (jsdom smoke)", () => {
     expect(wrap).toBeTruthy();
     const box = wrap.querySelector<HTMLInputElement>("input[type=checkbox]")!;
     const [yes, no] = Array.from(wrap.querySelectorAll<HTMLElement>(".yesno .multi-tab"));
-    // Night trains default to included, so the control starts on "yes".
-    expect(box.checked).toBe(true);
-    expect(wrap.querySelector(".yesno")!.classList.contains("is-yes")).toBe(true);
-    // Answering "no" flips the value and fires change — which is what hides the
-    // nested "only night trains" sub-field.
-    no!.click();
+    // The default search excludes night trains, so the control starts on "no".
     expect(box.checked).toBe(false);
     expect(wrap.querySelector(".yesno")!.classList.contains("is-no")).toBe(true);
-    expect(no!.getAttribute("aria-pressed")).toBe("true");
-    // Clicking the answer already selected must not toggle back.
-    no!.click();
-    expect(box.checked).toBe(false);
+    // Answering "yes" flips the value and fires change — which is what un-greys the
+    // nested "only night trains" sub-field.
     yes!.click();
     expect(box.checked).toBe(true);
+    expect(wrap.querySelector(".yesno")!.classList.contains("is-yes")).toBe(true);
+    expect(yes!.getAttribute("aria-pressed")).toBe("true");
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
+    // Clicking the answer already selected must not toggle back.
+    yes!.click();
+    expect(box.checked).toBe(true);
+    no!.click();
+    expect(box.checked).toBe(false);
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(true);
   });
 
   it("lists cities, not times, on the duration search's first page", () => {
