@@ -7,13 +7,14 @@ import {
   reachableGroups,
   windowStats,
 } from "./core/destinations";
-import { filterTrains, isNightTrain } from "./core/search";
+import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
 import { getawaysToAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
-import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
+import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
@@ -201,6 +202,66 @@ function nearbyAlternatives(
     }
   }
   return { fromOrigin, toDest, bothEnds };
+}
+
+// How many nearby anchor substitutes to probe in a browse-mode radius search
+// (nearest-first), and how many extra places to surface. Kept modest so the section
+// stays scannable and the (linear-per-neighbour) scan stays quick.
+const NEARBY_ANCHOR_CAP = 12;
+const NEARBY_BROWSE_RESULTS = 30;
+
+/** One extra browse destination/origin unlocked by hopping to a nearby anchor. */
+interface NearbyBrowseTrip {
+  /** The newly-reachable "other" station (a destination for "from", an origin for "to"). */
+  station: string;
+  /** The nearby anchor substitute you'd hop to/from, and its distance from the anchor. */
+  via: string;
+  km: number;
+  /** The free-MAX direct leg between the nearby anchor and the other station. */
+  journey: Journey;
+}
+
+/**
+ * Browse-mode radius search. The anchor (your origin in "Where to?", your destination
+ * in "Where from?") is substituted for stations within `radiusKm`, surfacing extra
+ * places you could reach by paying a short hop to/from a neighbouring station — the
+ * browse twin of {@link nearbyAlternatives}. Direct free-MAX legs only,
+ * nearest-anchor-first, excluding places already listed.
+ */
+function nearbyBrowse(
+  anchor: string,
+  dir: "from" | "to",
+  date: string,
+  radiusKm: number,
+  opts: FilterOptions,
+  exclude: Set<string>,
+): NearbyBrowseTrip[] {
+  const near = deps.registry
+    .list()
+    .map((s) => ({ id: s.id, km: stationDistanceKm(anchor, s.id) }))
+    .filter((x) => x.id !== anchor && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
+    .sort((a, b) => a.km - b.km)
+    .slice(0, NEARBY_ANCHOR_CAP);
+  // Keep the nearest-anchor option per newly-reachable station.
+  const best = new Map<string, NearbyBrowseTrip>();
+  for (const n of near) {
+    const groups =
+      dir === "from"
+        ? reachableDestinations(deps.trains, n.id, date, opts)
+        : reachableOrigins(deps.trains, n.id, date, opts);
+    for (const g of groups) {
+      const other = g.station;
+      if (other === anchor || exclude.has(other)) continue;
+      // Fastest direct leg between the neighbour and this station, as a one-leg journey.
+      const leg = [...g.trains].sort((a, b) => a.durationMin - b.durationMin)[0];
+      if (!leg) continue;
+      const prev = best.get(other);
+      if (!prev || n.km < prev.km) best.set(other, { station: other, via: n.id, km: n.km, journey: toJourney([leg]) });
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => a.km - b.km || a.journey.totalDurationMin - b.journey.totalDurationMin)
+    .slice(0, NEARBY_BROWSE_RESULTS);
 }
 
 /**
@@ -753,6 +814,7 @@ function syncFormFromQuery(): void {
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
   refs.radius.value = query.radiusKm != null ? String(query.radiusKm) : "";
+  refs.hidden.checked = Boolean(query.hidden);
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
@@ -868,8 +930,15 @@ function readQueryFromForm(): SearchQuery {
       planMode && Number.isFinite(minLegDur) && minLegDur > 0 ? Math.floor(minLegDur) : undefined,
     maxSpanDays:
       mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
+    // Search radius (km): exact trip, plus the browse modes ("Where to?" / "Where
+    // from?"), where it substitutes the anchor for a nearby station.
     radiusKm:
-      mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+      (mode === "od" || mode === "from" || mode === "to") && Number.isFinite(rad) && rad >= 10
+        ? Math.min(300, Math.floor(rad))
+        : undefined,
+    // "Hidden train" (hidden-city ticketing) is an exact-trip feature only — gate it
+    // to od so the flag never leaks into another mode's URL.
+    hidden: (mode === "od" && refs.hidden.checked) || undefined,
     // Round-trip getaways (Where to? / Ideas): the toggle plus its stay options.
     roundTrip: roundTrip || undefined,
     nights: roundTrip && !flexNights && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
@@ -1122,10 +1191,10 @@ function renderSearch(): void {
   updateDocTitle();
   rootRef.dataset.detail = navStack.length ? "on" : "";
 
-  // Default the map to the bare France basemap; a mode that has something to plot
-  // overrides this with its own markers below. This keeps the map from sitting
-  // empty when a search can't run yet (e.g. no origin entered).
-  showBaseMap();
+  // NB: the map is drawn by exactly ONE call per render — the mode's own show()/
+  // route(), or showBaseMap() on an empty state (via showHint / a "nothing to plot"
+  // branch). Don't reset to the France basemap up front and then re-fit to markers:
+  // that was a visible zoom-out-then-in on every search (jarring on Surprise me).
 
   // Back to the previous list (instant — journeys are memoized).
   if (navStack.length) {
@@ -1234,31 +1303,57 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   })();
 
   const total = groups.length + connecting.length;
+
+  // Radius (browse): extra places reachable by hopping to a nearby anchor station,
+  // excluding everywhere already listed. Computed on the selected day, and used both
+  // to fill an otherwise-empty result and as a supplement below the main list.
+  const already = new Set<string>([...directStations, ...connecting.map((tr) => tr.station)]);
+  const nearby = query.radiusKm
+    ? nearbyBrowse(anchor, dir, query.date, query.radiusKm, filterOpts(), already)
+    : [];
+
   if (total === 0) {
-    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
-    showMap(anchor, []);
-    return;
-  }
-  // Sort applies to the direct destinations (the rich cards); "rec" keeps the
-  // most-served default. Via rows stay appended after, in their duration order.
-  const sortedGroups = applySort(groups, {
-    name: (g) => registry.label(g.station),
-    distanceKm: (g) => stationDistanceKm(anchor, g.station),
-    durationMin: (g) => g.minDurationMin,
-  });
-  refs.results.append(
-    render.listToolbarEl(
-      t(countKey, { n: total }),
-      query.sort ?? "rec",
-      sortOptions(["rec", "fastest", "closest", "name"]),
-      onSort,
-    ),
-  );
-  for (const g of sortedGroups)
+    // Suppress the empty message when nearby alternatives will fill the gap below.
+    if (nearby.length === 0) {
+      refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+      showMap(anchor, []);
+      return;
+    }
+  } else {
+    // Sort applies to the direct destinations (the rich cards); "rec" keeps the
+    // most-served default. Via rows stay appended after, in their duration order.
+    const sortedGroups = applySort(groups, {
+      name: (g) => registry.label(g.station),
+      distanceKm: (g) => stationDistanceKm(anchor, g.station),
+      durationMin: (g) => g.minDurationMin,
+    });
     refs.results.append(
-      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      render.listToolbarEl(
+        t(countKey, { n: total }),
+        query.sort ?? "rec",
+        sortOptions(["rec", "fastest", "closest", "name"]),
+        onSort,
+      ),
     );
-  for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+    for (const g of sortedGroups)
+      refs.results.append(
+        render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      );
+    for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+  }
+
+  // Nearby paid-hop alternatives: a station near your anchor reaches (or is reached
+  // by) somewhere your exact anchor doesn't. Each row opens that nearby leg's route.
+  if (query.radiusKm) {
+    const sec = el("section", { class: "nearby" }, [
+      el("h3", { text: t("nearby_title", { km: query.radiusKm }) }),
+      el("p", { class: "muted small", text: t(dir === "from" ? "nearby_browse_from" : "nearby_browse_to") }),
+    ]);
+    if (nearby.length === 0) sec.append(render.emptyEl(t("nearby_none")));
+    else for (const n of nearby) sec.append(render.nearbyTripRowEl(n.station, Math.round(n.km), n.journey, c));
+    refs.results.append(sec);
+  }
+
   // Tint map pins by how many changes each place takes: direct = green, each
   // extra connection pushes toward red (see RouteMap.reachColor).
   const mapInfo = new Map<string, MarkerInfo>();
@@ -1268,7 +1363,13 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       title: registry.label(tr.station),
       connections: tr.journey.legs.length - 1,
     });
-  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)], mapInfo);
+  showMap(
+    anchor,
+    [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station), ...nearby.map((n) => n.station)],
+    mapInfo,
+  );
+  // Draw the search-radius circle around the anchor and mark the nearby substitutes.
+  if (query.radiusKm) showRadius([{ id: anchor, km: query.radiusKm }], nearby.map((n) => n.via));
 }
 
 /**
@@ -1356,6 +1457,15 @@ function runMultiCity(c: RenderCtx): void {
   const stations: string[] = [];
   const legSections: HTMLElement[] = [];
   const chosen: (Journey | null)[] = legs.map(() => null);
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+  // Pick a leg's date straight from the results: update that leg, re-sync the form so
+  // its date field matches, and re-render in place (no history spam, keeps scroll).
+  const setLegDate = (i: number, d: string): void => {
+    if (legs[i]?.date === d) return;
+    query = { ...query, legs: legs.map((lg, k) => (k === i ? { ...lg, date: d } : lg)) };
+    syncFormFromQuery();
+    refreshInPlace();
+  };
   legs.forEach((leg, i) => {
     const opts = { ...filterOpts(), maxConnections: query.maxConnections };
     const journeys = findJourneys(trains, leg.from, leg.to, leg.date, opts).sort(
@@ -1373,6 +1483,12 @@ function runMultiCity(c: RenderCtx): void {
         el("span", { class: "mc-date muted", text: formatDate(leg.date) }),
       ]),
     ]);
+    // Which days this leg has a free MAX seat, shown right here in the results so you
+    // can see (and pick) an available date without opening the leg's own calendar —
+    // handy when you left the date blank. Clicking a day sets it and re-runs.
+    const legCal = availabilityCalendar(trains, leg.from, leg.to, windowDates, opts);
+    const legCtx: RenderCtx = { ...c, onSelectDay: (d) => setLegDate(i, d) };
+    sec.append(render.calendarEl(legCal, legCtx, leg.date));
     if (journeys.length === 0) sec.append(render.emptyEl(t("res_none")));
     else
       for (const j of journeys)
@@ -1417,6 +1533,7 @@ function runTourSearch(c: RenderCtx): void {
   const cities = query.cities ?? [];
   if (cities.length === 0) {
     refs.results.append(render.emptyEl(t("tour_hint")));
+    showBaseMap();
     return;
   }
   const lo = query.minDays ?? 1;
@@ -1447,6 +1564,7 @@ function runTourSearch(c: RenderCtx): void {
   }
   if (tours.length === 0) {
     refs.results.append(render.emptyEl(t("tour_none")), render.hintEl(t("tour_none_hint")));
+    showBaseMap();
     return;
   }
   for (const tour of tours) refs.results.append(render.tourEl(tour, c));
@@ -1518,6 +1636,7 @@ function runBestSearch(c: RenderCtx): void {
   }
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+    showBaseMap();
     return;
   }
 
@@ -1537,7 +1656,7 @@ function runBestSearch(c: RenderCtx): void {
     render.listToolbarEl(
       t("res_destinations", { n: trips.length }),
       query.sort ?? "rec",
-      sortOptions(["rec", "trains", "days", "closest", "name"]),
+      sortOptions(["rec", "trains", "days", "closest", "fastest", "name"]),
       onSort,
     ),
   );
@@ -1736,6 +1855,27 @@ function runOdSearch(c: RenderCtx): void {
       );
   }
 
+  // "Hidden train" (hidden-city ticketing): trains that call at your destination on
+  // the way to a stop past it. You book the longer ticket — same départ — and step
+  // off early. Only shown when the toggle is on; the départ is always your origin, so
+  // this never changes where you board, only how far the ticket runs.
+  if (query.hidden) {
+    const hidden = findHiddenTrains(trains, query.origin, query.destination, query.date, {
+      departAfter: query.departAfter,
+      departBefore: query.departBefore,
+      trainType: query.trainType,
+      excludeNight: query.excludeNight,
+    });
+    if (hidden.length > 0) {
+      const sec = el("section", { class: "hidden-trains" }, [
+        el("h3", { text: t("hidden_title") }),
+        el("p", { class: "muted small", text: t("hidden_hint") }),
+      ]);
+      for (const h of hidden) sec.append(render.hiddenTrainRowEl(h, c));
+      refs.results.append(sec);
+    }
+  }
+
   // Nearby paid-connection alternatives (radius search): surface nearby stations
   // that DO have a free MAX seat, so you can pay a short hop to/from one when the
   // exact route has none. Most useful with zero direct journeys, but always shown
@@ -1816,13 +1956,16 @@ function runOdSearch(c: RenderCtx): void {
         retList.append(render.emptyEl(t("ret_none")));
         return;
       }
-      // Clicking a return opens the whole round trip (the chosen outbound + this
-      // return) on one page, ready to book both legs and save.
+      // Clicking anywhere on a return card opens the whole round trip (the chosen
+      // outbound + this return) on one page, ready to book both legs and save — not
+      // only the arrow on the right. onPick and the arrow both open the trip.
+      const openTrip = (rj: Journey): void =>
+        showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl });
       for (const j of back)
         retList.append(
           render.journeyEl(j, c, {
-            onPick: () => {},
-            onArrow: (rj) => showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl }),
+            onPick: openTrip,
+            onArrow: openTrip,
           }),
         );
     };
@@ -1857,6 +2000,9 @@ function runOdSearch(c: RenderCtx): void {
 function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
+  // Nothing to plot yet: rest the map on the bare France basemap. (renderSearch no
+  // longer does this unconditionally, to avoid a base→markers double-zoom.)
+  showBaseMap();
   // On phones, don't auto-focus the field: it pops the keyboard + the station
   // suggestion dropdown over the whole UI on entry. Let the user tap it first.
   if (!isTouch()) input.focus({ preventScroll: true });

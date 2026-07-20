@@ -58,6 +58,8 @@ export interface FormRefs {
   maxSpanDaysField: HTMLElement;
   radius: HTMLInputElement;
   radiusField: HTMLElement;
+  hidden: HTMLInputElement;
+  hiddenField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
   overnight: HTMLInputElement;
@@ -135,6 +137,8 @@ export interface FormHandle {
   clearCities(): void;
   getLegValues(): LegValues[];
   setLegs(legs: LegValues[]): void;
+  /** Set one leg row's date (used when a date is picked from the results calendar). */
+  setLegDate(index: number, date: string): void;
   setActiveTab(trip: TripType): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
@@ -745,63 +749,57 @@ export function createForm(props: FormProps): FormHandle {
     return sync;
   }
 
-  /** Resync of every yes/no control, replayed when `.checked` is set from outside. */
+  /** Resync of every switch control, replayed when `.checked` is set from outside. */
   const yesNoSyncs: (() => void)[] = [];
   function syncYesNoFields(): void {
     for (const s of yesNoSyncs) s();
   }
+  let switchSeq = 0;
 
   /**
-   * A boolean field as a Yes/No segmented control, built like the tab selectors: the
-   * pill slides between the two answers, green on "yes" and red on "no". The
+   * A boolean field as a compact toggle switch (role="switch"). It replaces the older
+   * Yes/No pill pair: one control instead of two words, so it takes far less room. The
+   * state is shown by the knob's POSITION (and a ✓/✕ glyph on it), never by colour
+   * alone, so it stays legible without relying on the green/red accent. The backing
    * <input type="checkbox"> stays in the DOM as the value, so the controller keeps
    * reading `.checked` and every existing `change` listener keeps firing.
    */
   function yesNoField(label: string, input: HTMLInputElement, extraClass = ""): HTMLElement {
-    // The checkbox is the value, never the control: the two buttons carry the
-    // semantics (a named group of aria-pressed answers), so it is taken out of the
+    // The checkbox is the value, never the control: the switch button carries the
+    // semantics (role="switch" + aria-checked), so the checkbox is taken out of the
     // tab order and hidden from assistive tech rather than being announced twice.
-    input.classList.add("yesno-state");
+    input.classList.add("switch-state");
     input.tabIndex = -1;
     input.setAttribute("aria-hidden", "true");
-    const answer = (text: string, on: boolean): HTMLElement =>
-      el("button", {
-        class: "multi-tab",
-        type: "button",
-        text,
-        attrs: { "aria-pressed": "false" },
-        on: {
-          click: () => {
-            if (input.checked === on) return;
-            input.checked = on;
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            sync();
-          },
+    const labelId = `sw-${(switchSeq += 1)}`;
+    const knob = el("span", { class: "switch-knob", attrs: { "aria-hidden": "true" } });
+    const track = el("span", { class: "switch-track", attrs: { "aria-hidden": "true" } }, [knob]);
+    const toggle = el("button", {
+      class: "switch",
+      type: "button",
+      attrs: { role: "switch", "aria-checked": "false", "aria-labelledby": labelId },
+      on: {
+        click: () => {
+          if (input.disabled) return;
+          input.checked = !input.checked;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          sync();
         },
-      });
-    const yes = answer(t("opt_yes"), true) as HTMLButtonElement;
-    const no = answer(t("opt_no"), false) as HTMLButtonElement;
-    const group = el("div", { class: "yesno", attrs: { role: "group", "aria-label": label } }, [yes, no]);
-    const syncThumb = makeThumb(group);
-    const root = el("div", { class: `field field-yesno ${extraClass}`.trim() }, [
-      el("span", { class: "field-label", text: label, attrs: { title: label } }),
-      group,
+      },
+    }, [track]);
+    const root = el("div", { class: `field field-switch ${extraClass}`.trim() }, [
+      el("span", { class: "field-label", text: label, attrs: { id: labelId, title: label } }),
+      toggle,
       input,
     ]);
     // A control whose dependency is off stays on screen but inert: set `.disabled`
     // on the backing checkbox and the next resync greys the whole field out.
     function sync(): void {
       const on = input.checked;
-      yes.classList.toggle("active", on);
-      no.classList.toggle("active", !on);
-      yes.setAttribute("aria-pressed", String(on));
-      no.setAttribute("aria-pressed", String(!on));
-      group.classList.toggle("is-yes", on);
-      group.classList.toggle("is-no", !on);
-      yes.disabled = input.disabled;
-      no.disabled = input.disabled;
+      toggle.classList.toggle("is-on", on);
+      toggle.setAttribute("aria-checked", String(on));
+      (toggle as HTMLButtonElement).disabled = input.disabled;
       root.classList.toggle("is-disabled", input.disabled);
-      syncThumb();
     }
     yesNoSyncs.push(sync);
     sync();
@@ -906,6 +904,20 @@ export function createForm(props: FormProps): FormHandle {
     // (a start day + how long on site; the return day is derived).
     const byDuration = ret && returnMode === "duration";
 
+    // A one-line description of what the active mode does, under the tabs.
+    const descKey = multi
+      ? plan
+        ? "desc_multi_plan"
+        : "desc_multi_legs"
+      : ret
+        ? byDuration
+          ? "desc_return_duration"
+          : "desc_return_dates"
+        : ideas
+          ? "desc_ideas"
+          : "desc_simple";
+    modeDesc.textContent = t(descKey);
+
     // The departure and start date belong to every surface except the legs editor,
     // where each leg row carries its own origin and date.
     originField.style.display = legs ? "none" : "";
@@ -914,6 +926,10 @@ export function createForm(props: FormProps): FormHandle {
     destinationField.style.display = single || plan ? "" : "none";
     destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
     origin.placeholder = single ? t("ph_anywhere") : "";
+    // Swap only makes sense with two real endpoints (single trips). The "you can fill
+    // just one" hint only applies to the simple tab, where a lone endpoint browses.
+    swapBtn.style.display = single ? "" : "none";
+    odHint.style.display = simple ? "" : "none";
     // Only the "dates" surface picks two days; a duration search picks a start day
     // and lets the stay length decide the return.
     departDate.setRange(ret && !byDuration);
@@ -941,7 +957,12 @@ export function createForm(props: FormProps): FormHandle {
     // Region filters "Ideas" and focuses a tour plan ("visit Bretagne").
     regionField.style.display = ideas || plan ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
+    // Radius (nearby-station reach) applies to the single trip tabs; the hidden-train
+    // toggle is exact-trip only, so it rides the simple tab. Hide the whole band when
+    // neither applies.
     radiusField.style.display = single ? "" : "none";
+    hiddenField.style.display = simple ? "" : "none";
+    scopeField.style.display = single ? "" : "none";
 
     // Round-trip getaways (day trips + N-night escapes) live on the Ideas tab, where
     // an opt-in checkbox turns the ideas list into escapes, and on the Return tab's
@@ -1020,7 +1041,19 @@ export function createForm(props: FormProps): FormHandle {
   radius.step = "10";
   radius.placeholder = "100";
   radius.setAttribute("aria-label", t("field_radius"));
-  const radiusField = field(t("field_radius"), radius);
+  // The search radius is one of the most useful but least obvious options, so it
+  // gets a full field with an explaining hint and lives in the main form (not buried
+  // in Advanced): widen the search to nearby stations to surface more free seats.
+  const radiusField = el("label", { class: "field field-radius" }, [
+    el("span", { class: "field-label", text: t("field_radius"), attrs: { title: t("field_radius") } }),
+    radius,
+    el("span", { class: "field-hint muted small", text: t("radius_hint") }),
+  ]);
+  // "Hidden train" (hidden-city ticketing): also surface trains that call at your
+  // destination on the way to a stop past it — book the longer ticket (same départ),
+  // step off early. Exact-trip only; applyFieldVisibility gates it.
+  const hidden = el("input", { type: "checkbox" }) as HTMLInputElement;
+  const hiddenField = yesNoField(t("field_hidden"), hidden);
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
     ...["SUD EST", "ATLANTIQUE", "NORD", "EST"].map((a) => optionEl(a, a, false)),
@@ -1118,6 +1151,32 @@ export function createForm(props: FormProps): FormHandle {
 
   const originField = clearableField(t("field_origin"), origin);
   const destinationField = clearableField(t("field_destination"), destination);
+  // Swap départ ⇄ arrivée in one tap, so reversing a route is trivial. Swapping the
+  // raw text (then re-firing input/change) keeps validity flags and dependent fields
+  // — the date picker's availability, the tour end date — in step.
+  const swapBtn = el("button", {
+    class: "swap-btn",
+    type: "button",
+    attrs: { "aria-label": t("act_swap"), title: t("act_swap") },
+    html:
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>',
+    on: {
+      click: () => {
+        const o = origin.value;
+        origin.value = destination.value;
+        destination.value = o;
+        for (const inp of [origin, destination]) {
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      },
+    },
+  });
+  // Browse-by-one-end hint: on the simple tab you can fill only the départ (→ "where
+  // to?"), only the arrivée (→ "where from?"), or both (an exact trip). Spell that out
+  // so the two fields don't read as both-required.
+  const odHint = el("p", { class: "od-hint muted small", text: t("hint_od_optional") });
+  const odFields = el("div", { class: "od-fields" }, [originField, swapBtn, destinationField]);
   const viaField = clearableField(t("field_via"), via);
   const regionField = field(t("field_region"), region);
   const clearCitiesBtn = el("button", {
@@ -1158,13 +1217,19 @@ export function createForm(props: FormProps): FormHandle {
   tourCount.placeholder = "1";
   tourCount.setAttribute("aria-label", t("field_tour_count"));
   const tourCountField = field(t("field_tour_count"), tourCount);
-  // The planner's three numbers read as one setting ("how many cities, how long in
-  // each"), so they share a row instead of scattering across the auto-fit grid.
-  const stayField = el("div", { class: "stay-fields" }, [
-    tourCountField,
-    field(t("field_stay_min"), minDays),
-    field(t("field_stay_max"), maxDays),
+  // Min/max days in each city read as ONE setting ("how long per city"), so they
+  // share a single control — a min–max pair — instead of two separate number fields.
+  minDays.classList.add("days-end");
+  maxDays.classList.add("days-end");
+  const daysRange = el("div", { class: "days-range" }, [
+    minDays,
+    el("span", { class: "days-range-sep muted", text: "–", attrs: { "aria-hidden": "true" } }),
+    maxDays,
   ]);
+  const daysRangeField = field(t("field_stay_range"), daysRange);
+  // The planner's numbers read as one setting ("how many cities, how long in each"),
+  // so they share a row instead of scattering across the auto-fit grid.
+  const stayField = el("div", { class: "stay-fields" }, [tourCountField, daysRangeField]);
   const maxKm = inputEl("number");
   maxKm.step = "50";
   maxKm.placeholder = "1000";
@@ -1214,11 +1279,13 @@ export function createForm(props: FormProps): FormHandle {
       minLegDurationField,
       maxLegDurationField,
       maxSpanDaysField,
-      radiusField,
       maxKmField,
       trainTypeField,
     ]),
   ]);
+  // Radius + hidden-train sit in their own band in the main form (not Advanced), so
+  // these "reach more free seats" options are visible without unfolding a panel.
+  const scopeField = el("div", { class: "field scope-field" }, [radiusField, hiddenField]);
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
   withShortcut(searchBtn, "G");
@@ -1316,16 +1383,20 @@ export function createForm(props: FormProps): FormHandle {
     // The cities to visit are what a tour plan is ABOUT, so they lead the form (and
     // the tab order) on that surface; every other tab hides the field entirely.
     citiesField,
-    originField,
-    destinationField,
+    odFields,
+    odHint,
     dateField,
     endDateField,
     roundTripField,
     regionField,
     legsBlock,
     stayField,
+    scopeField,
   ]);
-  const formBody = el("div", { class: "form-body" }, [modeBar, fields, advanced]);
+  // A one-line description under the tabs telling you what the current mode does,
+  // updated by applyFieldVisibility for the active trip (and sub-mode).
+  const modeDesc = el("p", { class: "mode-desc muted small", attrs: { "aria-live": "polite" } });
+  const formBody = el("div", { class: "form-body" }, [modeBar, modeDesc, fields, advanced]);
   const form = el("form", { class: "search-form" }, [
     formBody,
     el("div", { class: "form-stub" }, [
@@ -1361,6 +1432,8 @@ export function createForm(props: FormProps): FormHandle {
     maxSpanDaysField,
     radius,
     radiusField,
+    hidden,
+    hiddenField,
     trainType,
     maxConnections,
     overnight,
@@ -1413,6 +1486,9 @@ export function createForm(props: FormProps): FormHandle {
       for (const l of legRows) l.dateCtl.destroy(); // discard the replaced rows' popovers
       legRows = legs.map((l) => makeLeg(l.from, l.to, l.date));
       renderLegs();
+    },
+    setLegDate: (index, date) => {
+      legRows[index]?.dateCtl.setDate(date);
     },
     setActiveTab,
     getMultiMode: () => multiMode,

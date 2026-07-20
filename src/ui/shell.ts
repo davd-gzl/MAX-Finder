@@ -85,7 +85,10 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
   if (!mq) return () => {};
   const order = ["peek", "half", "full"] as const;
   type Detent = (typeof order)[number];
-  let state: Detent = "peek";
+  // Open at the half detent, not the tiny peek: a peek-height sheet showed only a
+  // row or two and read as "stuck, can't scroll the list" until you found the drag
+  // handle. Half shows a usable chunk of results straight away (still draggable).
+  let state: Detent = "half";
 
   const sizes = (): Record<Detent, number> => {
     const mapTop = mapSection.getBoundingClientRect().top;

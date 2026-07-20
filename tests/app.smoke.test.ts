@@ -252,9 +252,9 @@ describe("app (jsdom smoke)", () => {
     // searched edit — the "my filter disappeared" bug.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
     const nightBox = () => {
-      // Booleans render as a Yes/No segmented control; the checkbox behind it is
-      // still the value, so the staged-edit assertions below read it directly.
-      const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((l) =>
+      // Booleans render as a toggle switch; the checkbox behind it is still the
+      // value, so the staged-edit assertions below read it directly.
+      const wrap = Array.from(root.querySelectorAll(".field-switch")).find((l) =>
         (l.textContent ?? "").trim().startsWith("Night trains"),
       );
       return wrap?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
@@ -420,28 +420,27 @@ describe("app (jsdom smoke)", () => {
     expect((root.querySelector(".daytrip-toggle") as HTMLElement).style.display).toBe("none");
   });
 
-  it("drives a boolean field through its Yes/No control", () => {
+  it("drives a boolean field through its toggle switch", () => {
     const root = setup("");
-    const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((f) =>
+    const wrap = Array.from(root.querySelectorAll(".field-switch")).find((f) =>
       (f.textContent ?? "").trim().startsWith("Night trains"),
     ) as HTMLElement;
     expect(wrap).toBeTruthy();
     const box = wrap.querySelector<HTMLInputElement>("input[type=checkbox]")!;
-    const [yes, no] = Array.from(wrap.querySelectorAll<HTMLElement>(".yesno .multi-tab"));
-    // The default search excludes night trains, so the control starts on "no".
+    const toggle = wrap.querySelector<HTMLElement>(".switch")!;
+    // The default search excludes night trains, so the switch starts off.
     expect(box.checked).toBe(false);
-    expect(wrap.querySelector(".yesno")!.classList.contains("is-no")).toBe(true);
-    // Answering "yes" flips the value and fires change — which is what un-greys the
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle.classList.contains("is-on")).toBe(false);
+    // Toggling on flips the value and fires change — which is what un-greys the
     // nested "only night trains" sub-field.
-    yes!.click();
+    toggle.click();
     expect(box.checked).toBe(true);
-    expect(wrap.querySelector(".yesno")!.classList.contains("is-yes")).toBe(true);
-    expect(yes!.getAttribute("aria-pressed")).toBe("true");
+    expect(toggle.classList.contains("is-on")).toBe(true);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
     expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
-    // Clicking the answer already selected must not toggle back.
-    yes!.click();
-    expect(box.checked).toBe(true);
-    no!.click();
+    // Toggling again flips it back off.
+    toggle.click();
     expect(box.checked).toBe(false);
     expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(true);
   });
