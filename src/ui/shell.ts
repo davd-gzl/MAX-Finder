@@ -1,4 +1,4 @@
-import type { Theme } from "../state/store";
+import type { Theme, Density } from "../state/store";
 import { el, optionEl, isTouch } from "./dom";
 import { t, LANGS, getLang } from "../i18n";
 import {
@@ -18,6 +18,7 @@ type Card = "jeune" | "senior";
 /** Callbacks and initial state the shell needs; it holds no app state of its own. */
 export interface ShellProps {
   theme: Theme;
+  density: Density;
   card: Card;
   updatedText: string;
   form: HTMLElement;
@@ -26,6 +27,7 @@ export interface ShellProps {
   goHome: () => void;
   onLang: (code: string) => void;
   onThemeChange: (theme: Theme) => void;
+  onDensityChange: (density: Density) => void;
   onCard: (card: Card) => void;
   onShare: (onCopied: () => void) => void;
   onInstall: () => void;
@@ -53,6 +55,11 @@ export interface ShellHandles {
  */
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
+}
+
+/** Reflect the results density on the document root, where the stylesheet keys off it. */
+export function applyDensity(density: Density): void {
+  document.documentElement.dataset.density = density;
 }
 
 /** Close the header overflow menu if it is open, restoring the toggle button. */
@@ -221,6 +228,27 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
   });
   if (isTouch()) keysBtn.style.display = "none";
 
+  // Results density: comfortable ⇄ compact (fit more trains per screen).
+  const DENSITY_SVG =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+  let currentDensity: Density = props.density;
+  const densityLabel = (): string =>
+    currentDensity === "compact" ? t("density_comfortable") : t("density_compact");
+  const densityBtn = el("button", {
+    class: "ctl icon-ctl density-btn",
+    type: "button",
+    attrs: { "aria-label": densityLabel(), title: densityLabel(), "aria-pressed": String(currentDensity === "compact") },
+    html: DENSITY_SVG,
+  });
+  densityBtn.addEventListener("click", () => {
+    currentDensity = currentDensity === "compact" ? "comfortable" : "compact";
+    applyDensity(currentDensity);
+    densityBtn.setAttribute("aria-label", densityLabel());
+    densityBtn.title = densityLabel();
+    densityBtn.setAttribute("aria-pressed", String(currentDensity === "compact"));
+    props.onDensityChange(currentDensity);
+  });
+
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
     optionEl("jeune", t("card_jeune"), props.card === "jeune"),
     optionEl("senior", t("card_senior"), props.card === "senior"),
@@ -261,7 +289,7 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
 
   const headerCtls = el("div", { class: "header-ctls" }, [
     el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, themeBtn, shareBtn, installBtn]),
   ]);
   const menuBtn = el("button", {
     class: "ctl icon-ctl menu-btn",

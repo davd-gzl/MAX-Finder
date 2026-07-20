@@ -115,6 +115,8 @@ export const ko: Dict = {
   field_stay_range: "도시당 일수",
   mc_toggle: "이 구간 펼치기/접기",
   gw_more: "그날의 다른 시간대 ({n})",
+  density_compact: "좁게 보기",
+  density_comfortable: "넓게 보기",
   res_none_hint: "환승 횟수를 늘리거나 날짜 유연성을 넓히거나 야간 경유를 켜거나 필터를 줄여 보세요.",
   tour_none_hint: "도시당 일수를 늘리거나 도시를 줄이거나 환승을 더 허용해 보세요.",
   res_destinations: "목적지 {n}곳",

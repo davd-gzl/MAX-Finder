@@ -117,6 +117,8 @@ export const fr = {
   field_stay_range: "Jours par ville",
   mc_toggle: "Développer ou réduire ce trajet",
   gw_more: "Autres horaires ce jour ({n})",
+  density_compact: "Vue compacte",
+  density_comfortable: "Vue confortable",
   res_none_hint: "Essayez plus de correspondances, une souplesse de dates plus large, les escales de nuit, ou retirez des filtres.",
   tour_none_hint: "Essayez d'élargir les jours par ville, de retirer une ville, ou d'autoriser plus de correspondances.",
   res_destinations: "{n} destination(s)",

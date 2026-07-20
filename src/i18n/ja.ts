@@ -115,6 +115,8 @@ export const ja: Dict = {
   field_stay_range: "都市ごとの日数",
   mc_toggle: "この区間を展開／折りたたむ",
   gw_more: "その日の他の便（{n}）",
+  density_compact: "コンパクト表示",
+  density_comfortable: "広めの表示",
   res_none_hint: "乗り換えを増やす、日付の柔軟性を広げる、夜行乗り継ぎを使う、フィルターを減らす、などをお試しください。",
   tour_none_hint: "都市ごとの日数を広げる、都市を減らす、乗り換えを増やす、などをお試しください。",
   res_destinations: "目的地 {n} 件",

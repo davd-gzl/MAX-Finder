@@ -3964,3 +3964,44 @@ select.input::-ms-expand {
     padding-right: 1.1rem;
   }
 }
+
+/* ---- compact results density ----
+   A power-user option (header toggle, persisted): tighten the ticket internals and
+   list rhythm so more trains fit per screen, without changing what's shown. */
+:root[data-density="compact"] .results {
+  gap: 0.28rem;
+}
+:root[data-density="compact"] .journey-main {
+  padding: 0.5rem 0.8rem;
+  gap: 0.4rem;
+}
+:root[data-density="compact"] .legs {
+  gap: 0.3rem;
+}
+:root[data-density="compact"] .journey-head {
+  margin-bottom: 0.1rem;
+}
+:root[data-density="compact"] .train-row {
+  font-size: 0.9rem;
+}
+:root[data-density="compact"] .journey-sub {
+  gap: 0.3rem;
+}
+:root[data-density="compact"] .journey-sub .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+:root[data-density="compact"] .journey-book {
+  width: 3rem;
+}
+:root[data-density="compact"] .dest-row {
+  min-height: 0;
+}
+:root[data-density="compact"] .dest-main > .dest-name,
+:root[data-density="compact"] .dest-main > .dest-meta {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+:root[data-density="compact"] .daytrip-card .journey-main {
+  gap: 0.3rem;
+}

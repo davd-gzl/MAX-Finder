@@ -115,6 +115,8 @@ export const es: Dict = {
   field_stay_range: "Días por ciudad",
   mc_toggle: "Expandir o contraer este trayecto",
   gw_more: "Otros horarios ese día ({n})",
+  density_compact: "Vista compacta",
+  density_comfortable: "Vista cómoda",
   res_none_hint: "Prueba con más conexiones, mayor flexibilidad de fechas, escalas nocturnas o quita filtros.",
   tour_none_hint: "Prueba a ampliar los días por ciudad, quitar una ciudad o permitir más conexiones.",
   res_destinations: "{n} destino(s)",

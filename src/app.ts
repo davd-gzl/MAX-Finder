@@ -18,7 +18,7 @@ import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
-import { buildShell, applyTheme, closeHeaderMenu } from "./ui/shell";
+import { buildShell, applyTheme, applyDensity, closeHeaderMenu } from "./ui/shell";
 import { createForm } from "./ui/form";
 import type { FormHandle, FormRefs, TripType } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
@@ -525,6 +525,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   settings = store.loadSettings();
   const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
+  applyDensity(settings.density);
   setLang(isLang(urlLang) ? urlLang : settings.lang);
   // Every station present in the dataset becomes searchable (the curated registry
   // only covers map coordinates for the major ones).
@@ -2548,6 +2549,7 @@ function buildLayout(root: HTMLElement): void {
   const built = formApi;
   const shell = buildShell({
     theme: settings.theme,
+    density: settings.density,
     card: settings.card,
     updatedText: footerUpdatedText(),
     form: built.form,
@@ -2562,6 +2564,10 @@ function buildLayout(root: HTMLElement): void {
     },
     onThemeChange: (theme) => {
       settings = { ...settings, theme };
+      store.saveSettings(settings);
+    },
+    onDensityChange: (density) => {
+      settings = { ...settings, density };
       store.saveSettings(settings);
     },
     onCard: (card) => {

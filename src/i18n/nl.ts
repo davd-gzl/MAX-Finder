@@ -115,6 +115,8 @@ export const nl: Dict = {
   field_stay_range: "Dagen per stad",
   mc_toggle: "Dit traject uit- of invouwen",
   gw_more: "Andere tijden die dag ({n})",
+  density_compact: "Compacte weergave",
+  density_comfortable: "Ruime weergave",
   res_none_hint: "Probeer meer overstappen, ruimere datumflexibiliteit, nachtoverstappen of minder filters.",
   tour_none_hint: "Probeer meer dagen per stad, een stad te verwijderen of meer overstappen toe te staan.",
   res_destinations: "{n} bestemming(en)",

@@ -15,7 +15,11 @@ export interface Settings {
   theme: Theme;
   card: CardType;
   view: ViewMode;
+  /** Results density: "comfortable" (default) or "compact" (more trains per screen). */
+  density: Density;
 }
+
+export type Density = "comfortable" | "compact";
 
 const KEY = {
   settings: "mj.settings",
@@ -56,6 +60,7 @@ export function loadSettings(): Settings {
     theme: s.theme === "light" || s.theme === "dark" ? s.theme : "auto",
     card: s.card === "senior" ? "senior" : "jeune",
     view: s.view === "map" ? "map" : "list",
+    density: s.density === "compact" ? "compact" : "comfortable",
   };
 }
 

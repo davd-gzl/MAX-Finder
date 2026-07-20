@@ -115,6 +115,8 @@ export const de: Dict = {
   field_stay_range: "Tage pro Stadt",
   mc_toggle: "Diese Etappe ein- oder ausklappen",
   gw_more: "Andere Zeiten an dem Tag ({n})",
+  density_compact: "Kompakte Ansicht",
+  density_comfortable: "Komfortable Ansicht",
   res_none_hint: "Versuchen Sie mehr Umstiege, mehr Datumsflexibilität, Übernachtstopps oder weniger Filter.",
   tour_none_hint: "Versuchen Sie mehr Tage pro Stadt, eine Stadt zu entfernen oder mehr Umstiege zu erlauben.",
   res_destinations: "{n} Ziel(e)",
