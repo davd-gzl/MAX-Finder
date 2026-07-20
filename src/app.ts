@@ -574,6 +574,11 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     navStack = [];
     syncFormFromQuery();
     runSearch();
+    // On mobile the form and the results are two different screens. Back/Forward must
+    // move between them too: a URL with no search is the initial (form) screen, one
+    // with a search is the results screen. Without this, Back to the home URL left the
+    // phone stuck on a blank results view instead of returning to the search form.
+    setMobileForm(!store.urlHasQuery());
   });
 }
 
@@ -2605,6 +2610,11 @@ function fillRoute(origin: string, destination: string): void {
   query = { ...query, mode: "od", origin, destination, via: undefined };
   syncFormFromQuery();
   store.updateUrl(query); // keep the URL in step with the prefilled route
+  // Favorites live in the results drawer, but the form they prefill is a different
+  // screen on mobile (display:none in results view). Bring the form sheet forward so
+  // the prefilled route is actually visible — otherwise tapping a favorite did
+  // nothing on a phone (the "come back" bug).
+  setMobileForm(true);
   if (!isTouch()) refs.origin.focus({ preventScroll: true }); // no dropdown pop on phones
   refs.modeTabs.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -2727,6 +2737,10 @@ function openSavedPage(): void {
   navStack.push({ ...query }); // so the page's Back returns to the current list
   if (pendingRaf) cancelAnimationFrame(pendingRaf);
   pendingRaf = 0;
+  // Enter the full-page detail layout (like drilling into a route) so this isn't
+  // crammed into the 30vh bottom sheet with the map behind it on mobile. renderSearch
+  // sets this from navStack on the way back, so goBack clears it.
+  rootRef.dataset.detail = "on";
   clear(refs.results);
   renderSavedPage();
   refs.title.focus({ preventScroll: true });

@@ -126,19 +126,24 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
     startY = e.clientY;
     startH = drawer.getBoundingClientRect().height;
     drawer.style.transition = "none";
+    // Try to capture, but the drag no longer DEPENDS on it: the move/up listeners are
+    // on window, so the gesture keeps working even where setPointerCapture is refused.
     try {
       handle.setPointerCapture(e.pointerId);
     } catch {
-      startH = drawer.getBoundingClientRect().height;
+      /* window listeners below still track the drag */
     }
   });
-  handle.addEventListener("pointermove", (e) => {
+  // Move/up on WINDOW, not the handle: once the finger slides off the thin grip the
+  // events target whatever is underneath, so a handle-bound listener would miss them
+  // and the sheet would freeze mid-drag. Guarded by `dragging` so it's inert otherwise.
+  const onMove = (e: PointerEvent): void => {
     if (!dragging) return;
     if (Math.abs(e.clientY - startY) > 6) moved = true;
     const s = sizes();
     const h = Math.max(s.peek, Math.min(s.full, startH + (startY - e.clientY)));
     drawer.style.height = `${h}px`;
-  });
+  };
   const finish = (): void => {
     if (!dragging) return;
     dragging = false;
@@ -151,13 +156,15 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
     }
     snap(best);
   };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", () => {
+  const onCancel = (): void => {
     finish();
     // No click follows a cancelled gesture, so the click handler can't clear
     // `moved` — reset it here or the next genuine tap on the handle is swallowed.
     moved = false;
-  });
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", finish);
+  window.addEventListener("pointercancel", onCancel);
   handle.addEventListener("click", () => {
     if (moved) {
       moved = false;
@@ -185,6 +192,9 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
   return () => {
     mq.removeEventListener("change", sync);
     window.removeEventListener("resize", sync);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", onCancel);
   };
 }
 

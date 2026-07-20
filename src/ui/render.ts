@@ -552,7 +552,9 @@ function journeyActionsEl(
     ...(opts.hideMap
       ? []
       : [
-          el("button", { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onShowJourney(j) } }, [
+          // btn-map so CSS can drop it in the mobile detail view, where the map is
+          // hidden and the action would be a dead no-op.
+          el("button", { class: "btn btn-ghost btn-map", type: "button", on: { click: () => ctx.onShowJourney(j) } }, [
             icon(I.pin),
             el("span", { text: t("act_map") }),
           ]),

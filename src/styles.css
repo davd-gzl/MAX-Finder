@@ -4005,3 +4005,30 @@ select.input::-ms-expand {
 :root[data-density="compact"] .daytrip-card .journey-main {
   gap: 0.3rem;
 }
+
+/* ---- mobile / touch fixes ---- */
+/* In the mobile drilled-in detail view the map is hidden, so its "Map" action would
+   be a dead no-op — drop it there. */
+@media (max-width: 860px) {
+  [data-mform="results"][data-detail="on"] .journey-sub .btn-map {
+    display: none;
+  }
+}
+/* Comfortable touch targets: the tiny "×" removers (multi-city leg, tour city chip)
+   are ~27px — grow their HIT area to ~44px on coarse pointers without changing the
+   glyph size. */
+@media (pointer: coarse) {
+  .mc-remove,
+  .chip-x {
+    position: relative;
+  }
+  .mc-remove::after,
+  .chip-x::after {
+    content: "";
+    position: absolute;
+    inset: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
