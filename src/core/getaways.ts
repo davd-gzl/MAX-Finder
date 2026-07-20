@@ -28,6 +28,25 @@ export interface GetawayOptions extends ConnectionOptions {
   lateReturn?: boolean;
 }
 
+/** What a whole-window getaway sweep reports. */
+export interface GetawaySweep {
+  /** The single best escape per destination, best first. */
+  trips: Getaway[];
+  /** Per date, how many distinct destinations you can START a round trip to. */
+  perDay: CalendarDay[];
+  /**
+   * Per destination, every start date that works. Lets a caller rank places by how
+   * often they're reachable and build a per-city calendar without sweeping twice.
+   */
+  datesByDest: Map<string, string[]>;
+}
+
+function pushDate(map: Map<string, string[]>, key: string, date: string): void {
+  const cur = map.get(key);
+  if (cur) cur.push(date);
+  else map.set(key, [date]);
+}
+
 const MIDNIGHT = 24 * 60;
 const LATE_RETURN_CEIL = 26 * 60; // ~02:00 next day
 // Sleeper round trips ("only night trains"): you ride overnight there AND back, so
@@ -155,12 +174,17 @@ function betterGetaway(a: Getaway, b: Getaway): boolean {
   );
 }
 
+
 /**
  * Round-trip "ideas" across a whole set of `dates`: run {@link getaways} for each
  * day and keep the single best escape per destination (whichever day offers more
  * nights / time on site / less travel). `accept` optionally filters destinations
  * (e.g. by region). Also returns a per-day count of distinct round-trip
- * destinations startable that day, for the ideas calendar. Sorted best-first.
+ * destinations startable that day. Sorted best-first.
+ *
+ * Exhaustive rather than fast — a per-station search on every day. The app runs
+ * {@link getawayIdeas} instead; this stays as the reference implementation the unit
+ * tests hold that faster two-sweep version against.
  */
 export function getawaysAcrossWindow(
   trains: MaxTrain[],
@@ -168,20 +192,44 @@ export function getawaysAcrossWindow(
   dates: string[],
   opts: GetawayOptions = {},
   accept: (destination: string) => boolean = () => true,
-): { trips: Getaway[]; perDay: CalendarDay[] } {
+): GetawaySweep {
   const byDest = new Map<string, Getaway>();
+  const datesByDest = new Map<string, string[]>();
   const perDay: CalendarDay[] = [];
   for (const date of dates) {
     let count = 0;
     for (const g of getaways(trains, origin, date, opts)) {
       if (!accept(g.destination)) continue;
       count++;
+      pushDate(datesByDest, g.destination, date);
       const cur = byDest.get(g.destination);
       if (!cur || betterGetaway(g, cur)) byDest.set(g.destination, g);
     }
     perDay.push({ date, available: count > 0, count });
   }
-  return { trips: [...byDest.values()].sort(sortGetaways), perDay };
+  return { trips: [...byDest.values()].sort(sortGetaways), perDay, datesByDest };
+}
+
+/**
+ * The same round trip to ONE known destination, started on each of `dates`: "I want
+ * Paris → Lyon with two nights there — which days work?". Unlike
+ * {@link getawayIdeas}, which keeps the single best escape per destination, this
+ * keeps one entry per start day (days with no feasible there-and-back drop out) and
+ * leaves them in the order given, i.e. chronological.
+ */
+export function getawaysToAcrossWindow(
+  trains: MaxTrain[],
+  origin: string,
+  destination: string,
+  dates: string[],
+  opts: GetawayOptions = {},
+): Getaway[] {
+  const out: Getaway[] = [];
+  for (const date of dates) {
+    const g = bestGetawayTo(trains, origin, destination, date, opts);
+    if (g) out.push(g);
+  }
+  return out;
 }
 
 /**
@@ -200,7 +248,7 @@ export function getawayIdeas(
   dates: string[],
   opts: GetawayOptions = {},
   accept: (destination: string) => boolean = () => true,
-): { trips: Getaway[]; perDay: CalendarDay[] } {
+): GetawaySweep {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
   const minOnSite = opts.minOnSiteMin ?? 240;
   // Sleeper round trips arrive each morning, so the return lands the day after it
@@ -210,6 +258,7 @@ export function getawayIdeas(
   const nightChoices = stayChoices(maxNights, Boolean(opts.flexibleNights), sleeper);
 
   const byDest = new Map<string, Getaway>();
+  const datesByDest = new Map<string, string[]>();
   const perDay: CalendarDay[] = [];
   for (const date of dates) {
     // Outbound must be the EARLIEST-ARRIVING journey per destination (the Getaway
@@ -240,7 +289,8 @@ export function getawayIdeas(
         if (!cur || betterGetaway(g, cur)) byDest.set(dest, g);
       }
     }
+    for (const dest of startable) pushDate(datesByDest, dest, date);
     perDay.push({ date, available: startable.size > 0, count: startable.size });
   }
-  return { trips: [...byDest.values()].sort(sortGetaways), perDay };
+  return { trips: [...byDest.values()].sort(sortGetaways), perDay, datesByDest };
 }
