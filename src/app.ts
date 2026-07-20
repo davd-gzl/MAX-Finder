@@ -1458,12 +1458,15 @@ function runMultiCity(c: RenderCtx): void {
   const legSections: HTMLElement[] = [];
   const chosen: (Journey | null)[] = legs.map(() => null);
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
-  // Pick a leg's date straight from the results: update that leg, re-sync the form so
-  // its date field matches, and re-render in place (no history spam, keeps scroll).
+  // Pick a leg's date straight from the results: update that leg in the query and
+  // MIRROR the date into just its form field (like refreshInPlace mirrors the main
+  // date), then re-render in place. Deliberately NOT syncFormFromQuery — a full
+  // re-sync would wipe staged, not-yet-searched edits (a toggled filter, a half-typed
+  // extra leg), the "my filter disappeared" bug refreshInPlace exists to avoid.
   const setLegDate = (i: number, d: string): void => {
     if (legs[i]?.date === d) return;
+    formApi.setLegDate(i, d);
     query = { ...query, legs: legs.map((lg, k) => (k === i ? { ...lg, date: d } : lg)) };
-    syncFormFromQuery();
     refreshInPlace();
   };
   legs.forEach((leg, i) => {

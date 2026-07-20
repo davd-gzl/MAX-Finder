@@ -919,7 +919,9 @@ export function createForm(props: FormProps): FormHandle {
     modeDesc.textContent = t(descKey);
 
     // The departure and start date belong to every surface except the legs editor,
-    // where each leg row carries its own origin and date.
+    // where each leg row carries its own origin and date. Hide the whole départ/arrivée
+    // wrapper in legs mode too, so its empty grid cell doesn't leave a phantom row-gap.
+    odFields.style.display = legs ? "none" : "";
     originField.style.display = legs ? "none" : "";
     dateField.style.display = legs ? "none" : "";
     // Destination is an endpoint in single trips and the optional finish in a tour plan.
