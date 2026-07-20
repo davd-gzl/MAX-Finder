@@ -8,7 +8,7 @@ export const de: Dict = {
   multi_hint: "Gib mindestens einen Abschnitt an (Start und Ziel).",
   multi_incomplete: "Für einige Abschnitte gibt es keinen freien MAX-Platz — diese Reise ist unvollständig.",
   ph_anywhere: "Überallhin",
-  tab_simple: "Einfach",
+  tab_simple: "Reise",
   tab_return: "Hin und zurück",
   tab_multi: "Mehrere Städte",
   tab_ideas: "Ideen",

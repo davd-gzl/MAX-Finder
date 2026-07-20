@@ -6,7 +6,7 @@ export const fr = {
   multi_hint: "Renseignez au moins un trajet (départ et arrivée).",
   multi_incomplete: "Certains trajets n'ont pas de place MAX gratuite — cet itinéraire est incomplet.",
   ph_anywhere: "Toutes les gares",
-  tab_simple: "Aller simple",
+  tab_simple: "Trajet",
   tab_return: "Aller-retour",
   tab_multi: "Multiville",
   tab_ideas: "Idées",

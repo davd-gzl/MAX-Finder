@@ -4,7 +4,7 @@ import { el, clear, optionEl, isTouch } from "./dom";
 import { t, getLang } from "../i18n";
 import { addDays, dayIndex } from "../util/time";
 
-export type TripType = "simple" | "return" | "multi" | "ideas";
+export type TripType = "simple" | "multi" | "ideas";
 
 /** The date-picker control returned by makeDateField. */
 export interface DateFieldCtl {
@@ -122,7 +122,6 @@ export interface FormProps {
   ) => Map<string, number>;
   onSwitchTab: (trip: TripType) => void;
   onMultiMode: (mode: "plan" | "legs") => void;
-  onReturnMode: (mode: "dates" | "duration") => void;
   onSubmit: () => void;
   onSurprise: () => void;
   onNearest: () => void;
@@ -142,8 +141,6 @@ export interface FormHandle {
   setActiveTab(trip: TripType): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
-  getReturnMode(): "dates" | "duration";
-  setReturnMode(mode: "dates" | "duration"): void;
   updateFieldVisibility(trip: TripType): void;
   refreshTourEndDate(): void;
   setSurpriseMsg(text: string): void;
@@ -240,10 +237,6 @@ export function createForm(props: FormProps): FormHandle {
   // them, Surprise / Nearest) and "legs" (spell out each hop). Tracked here so the
   // controller can read which one is active and lay the fields out for it.
   let multiMode: "plan" | "legs" = "legs";
-  // The Return tab hosts two surfaces too: "dates" (pick an outbound and a return
-  // day) and "duration" (pick a start day and how long you want on site — the app
-  // finds the return for you).
-  let returnMode: "dates" | "duration" = "dates";
   let currentTrip: TripType = "simple";
 
   /** Availability search options taken from the current form inputs. */
@@ -842,18 +835,9 @@ export function createForm(props: FormProps): FormHandle {
     syncMultiThumb();
   }
 
-  /** Reflect the active Return sub-mode on its segmented toggle. */
-  function setReturnMode(mode: "dates" | "duration"): void {
-    returnMode = mode;
-    for (const [btn, m] of [
-      [retDatesBtn, "dates"],
-      [retDurationBtn, "duration"],
-    ] as const) {
-      const active = m === mode;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-pressed", String(active));
-    }
-    syncReturnThumb();
+  /** Whether the form currently names a full origin→destination route (both filled). */
+  function hasOdRoute(): boolean {
+    return Boolean(props.resolveStation(origin.value) && props.resolveStation(destination.value));
   }
 
   /**
@@ -892,30 +876,24 @@ export function createForm(props: FormProps): FormHandle {
 
   function applyFieldVisibility(trip: TripType): void {
     currentTrip = trip;
-    const ret = trip === "return";
     const multi = trip === "multi";
     const ideas = trip === "ideas";
     const simple = trip === "simple";
-    const single = simple || ret;
+    const single = simple;
     // The Multi tab's two surfaces: "plan" the tour (cities) vs edit "legs" by hand.
     const plan = multi && multiMode === "plan";
     const legs = multi && multiMode === "legs";
-    // The Return tab's two surfaces: "dates" (outbound → return day) vs "duration"
-    // (a start day + how long on site; the return day is derived).
-    const byDuration = ret && returnMode === "duration";
+    // Round trip is now a toggle on the Trip tab (and Ideas), not a separate tab; its
+    // getaway options only apply while discovering (see syncRoundTripOpts).
 
     // A one-line description of what the active mode does, under the tabs.
     const descKey = multi
       ? plan
         ? "desc_multi_plan"
         : "desc_multi_legs"
-      : ret
-        ? byDuration
-          ? "desc_return_duration"
-          : "desc_return_dates"
-        : ideas
-          ? "desc_ideas"
-          : "desc_simple";
+      : ideas
+        ? "desc_ideas"
+        : "desc_simple";
     modeDesc.textContent = t(descKey);
 
     // The departure and start date belong to every surface except the legs editor,
@@ -932,13 +910,12 @@ export function createForm(props: FormProps): FormHandle {
     // just one" hint only applies to the simple tab, where a lone endpoint browses.
     swapBtn.style.display = single ? "" : "none";
     odHint.style.display = simple ? "" : "none";
-    // Only the "dates" surface picks two days; a duration search picks a start day
-    // and lets the stay length decide the return.
-    departDate.setRange(ret && !byDuration);
+    // A single outbound date now — the return day is picked from the results calendar
+    // (od round trip) or derived from the stay length (getaway), never a range picker.
+    departDate.setRange(false);
 
     // Sub-mode toggle + its two panels.
     multiSwitch.style.display = multi ? "" : "none";
-    returnSwitch.style.display = ret ? "" : "none";
     legsBlock.style.display = legs ? "" : "none";
     citiesField.style.display = plan ? "" : "none";
     stayField.style.display = plan ? "" : "none";
@@ -964,16 +941,16 @@ export function createForm(props: FormProps): FormHandle {
     radiusField.style.display = single ? "" : "none";
     scopeField.style.display = single ? "" : "none";
 
-    // Round-trip getaways (day trips + N-night escapes) live on the Ideas tab, where
-    // an opt-in checkbox turns the ideas list into escapes, and on the Return tab's
-    // "duration" surface, where the sub-mode IS the opt-in (so the checkbox is hidden).
-    roundTripField.style.display = ideas || byDuration ? "" : "none";
+    // The "Round trip" toggle rides the Trip tab and Ideas. Its getaway options only
+    // show while discovering (no fixed destination); a known route uses the results
+    // calendars, so they'd be redundant there. `discover`/`roundOn` gate that inside
+    // syncRoundTripOpts.
+    roundTripField.style.display = simple || ideas ? "" : "none";
     syncRoundTripOpts();
     // A hidden control measures as zero, so the pills can only be placed once their
     // control is on screen — reposition them after the display flags above. This is
     // also where a query-driven `.checked` (set without a `change` event) lands.
     syncMultiThumb();
-    syncReturnThumb();
     syncYesNoFields();
   }
 
@@ -981,7 +958,7 @@ export function createForm(props: FormProps): FormHandle {
   for (const label of props.stationLabels) stationList.append(el("option", { value: label }));
 
   const modeTabs = el("div", { class: "mode-tabs", attrs: { role: "group", "aria-label": t("appName") } });
-  (["simple", "return", "multi"] as const).forEach((trip, i) => {
+  (["simple", "multi"] as const).forEach((trip, i) => {
     const btn = el("button", {
       class: "mode-tab",
       type: "button",
@@ -1000,7 +977,7 @@ export function createForm(props: FormProps): FormHandle {
     dataset: { trip: "ideas" },
     on: { click: () => props.onSwitchTab("ideas") },
   });
-  withShortcut(ideasBtn, "4");
+  withShortcut(ideasBtn, "3");
   const modeBar = el("div", { class: "mode-bar" }, [modeTabs, ideasBtn]);
 
   const origin = inputEl("text", "station-list");
@@ -1012,6 +989,12 @@ export function createForm(props: FormProps): FormHandle {
       const v = input.value.trim();
       input.classList.toggle("is-invalid", v !== "" && !props.resolveStation(v));
     });
+  }
+  // Filling / clearing a destination flips whether the round-trip getaway options
+  // apply (a known route picks its return from the results calendars instead), so
+  // re-sync them whenever an endpoint changes.
+  for (const input of [origin, destination]) {
+    input.addEventListener("change", () => syncRoundTripOpts());
   }
   origin.addEventListener("change", () => {
     if (!isTouch() || props.mode() !== "od") return;
@@ -1104,14 +1087,11 @@ export function createForm(props: FormProps): FormHandle {
   const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
   const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
   const syncRoundTripOpts = (): void => {
-    // On the Return tab's duration surface the checkbox would be a second, redundant
-    // switch for a choice the sub-mode already made — hide it and force the options on.
-    const forced = currentTrip === "return" && returnMode === "duration";
-    roundTripToggle.style.display = forced ? "none" : "";
-    // Without the toggle above them the options are no longer a sub-group: drop the
-    // indent and let them sit on the same grid as every other field.
-    roundTripField.classList.toggle("daytrip-bare", forced);
-    roundTripOpts.style.display = forced || roundTrip.checked ? "" : "none";
+    // Getaway options (nights / time on site) apply while DISCOVERING — Ideas, or the
+    // Trip tab without a fixed destination ("where can I round-trip to?"). With a known
+    // od route the results calendars pick the return, so the options would be redundant.
+    const discover = currentTrip === "ideas" || (currentTrip === "simple" && !hasOdRoute());
+    roundTripOpts.style.display = roundTrip.checked && discover ? "" : "none";
     stayHoursField.style.display = nights.value === "0" ? "" : "none";
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
@@ -1359,32 +1339,8 @@ export function createForm(props: FormProps): FormHandle {
   );
   const syncMultiThumb = makeThumb(multiSwitch);
 
-  // Return sub-mode toggle: pick both days yourself, or say how long you want on
-  // site and let the app find the return. Shown only on the Return tab.
-  const retDatesBtn = el("button", {
-    class: "multi-tab active",
-    type: "button",
-    text: t("ret_dates"),
-    attrs: { "aria-pressed": "true" },
-    on: { click: () => props.onReturnMode("dates") },
-  });
-  const retDurationBtn = el("button", {
-    class: "multi-tab",
-    type: "button",
-    text: t("ret_duration"),
-    attrs: { "aria-pressed": "false" },
-    on: { click: () => props.onReturnMode("duration") },
-  });
-  const returnSwitch = el(
-    "div",
-    { class: "return-switch", attrs: { role: "group", "aria-label": t("tab_return") } },
-    [retDatesBtn, retDurationBtn],
-  );
-  const syncReturnThumb = makeThumb(returnSwitch);
-
   const fields = el("div", { class: "fields" }, [
     multiSwitch,
-    returnSwitch,
     // The cities to visit are what a tour plan is ABOUT, so they lead the form (and
     // the tab order) on that surface; every other tab hides the field entirely.
     citiesField,
@@ -1498,8 +1454,6 @@ export function createForm(props: FormProps): FormHandle {
     setActiveTab,
     getMultiMode: () => multiMode,
     setMultiMode,
-    getReturnMode: () => returnMode,
-    setReturnMode,
     updateFieldVisibility,
     refreshTourEndDate,
     setSurpriseMsg: (text) => {

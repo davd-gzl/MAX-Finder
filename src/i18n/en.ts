@@ -8,7 +8,7 @@ export const en: Dict = {
   multi_hint: "Fill in at least one leg (from and to).",
   multi_incomplete: "Some legs have no free MAX seat — this itinerary is incomplete.",
   ph_anywhere: "Anywhere",
-  tab_simple: "One-way",
+  tab_simple: "Trip",
   tab_return: "Round trip",
   tab_multi: "Multi-city",
   tab_ideas: "Ideas",

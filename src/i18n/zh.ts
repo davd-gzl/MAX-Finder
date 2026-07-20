@@ -8,7 +8,7 @@ export const zh: Dict = {
   multi_hint: "请至少填写一段行程（出发和到达）。",
   multi_incomplete: "部分行程没有免费 MAX 座位——此行程不完整。",
   ph_anywhere: "任意车站",
-  tab_simple: "单程",
+  tab_simple: "行程",
   tab_return: "往返",
   tab_multi: "多城市",
   tab_ideas: "灵感",

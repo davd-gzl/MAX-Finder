@@ -131,8 +131,8 @@ const resultsState = (page) =>
 console.log(`\nE2E against ${BASE} (offline, committed snapshot)\n`);
 
 // 1. Home shell renders with the expected controls.
-await scenario("home: shell renders (4 trip tabs, default 'simple', search form)", BASE, async (page) => {
-  assert((await $count(page, ".mode-tab")) === 4, "expected 4 trip tabs");
+await scenario("home: shell renders (3 trip tabs, default 'simple', search form)", BASE, async (page) => {
+  assert((await $count(page, ".mode-tab")) === 3, "expected 3 trip tabs (Trip, Multi-city, Ideas)");
   assert((await activeTrip(page)) === "simple", "default active tab should be 'simple'");
   assert((await $count(page, ".search-form")) === 1, "search form missing");
   assert((await $count(page, '.search-form input[list="station-list"]')) >= 1, "no station inputs");
@@ -254,20 +254,21 @@ await scenario(
   },
 );
 
-// 10. od + rdate deep-link maps to the Return tab (not Simple), with the date field
-//     in outbound→return range mode. The return-availability section itself depends
-//     on live seats, so assert the tab mapping + range control, which are what the
-//     serialization actually drives.
+// 10. od + rdate deep-link opens the Trip tab with round trip on — the outbound and
+//     return availability calendars shown together (two strips). Round trip is now a
+//     toggle on the Trip tab, not a separate tab.
 await scenario(
-  "deep-link: od + rdate opens the Return tab",
+  "deep-link: od + rdate opens the Trip tab with round trip on",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${DATE}&rdate=${DATE2}`,
   async (page) => {
-    assert((await activeTrip(page)) === "return", "active tab should be 'return'");
-    // The departure field is a range (outbound → return), shown as an arrow in its label.
-    const dateLabel = (await $text(page, ".dp-value-text")) || "";
-    assert(dateLabel.includes("→"), `date field not in return-range mode: "${dateLabel}"`);
-    const rs = await resultsState(page);
-    assert(rs.children >= 1, "return results panel empty");
+    assert((await activeTrip(page)) === "simple", "active tab should be 'simple' (Trip)");
+    const roundOn = await page
+      .$eval(".daytrip-toggle input[type=checkbox]", (el) => el.checked)
+      .catch(() => false);
+    assert(roundOn, "round-trip toggle should be on");
+    // Two availability strips together (outbound + return).
+    assert((await $count(page, ".cal-grid")) >= 2, "expected two calendar strips (outbound + return)");
+    assert((await $count(page, ".od-return-cal")) === 1, "return calendar strip missing");
   },
 );
 

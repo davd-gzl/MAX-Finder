@@ -8,7 +8,7 @@ export const it: Dict = {
   multi_hint: "Inserisci almeno una tratta (partenza e arrivo).",
   multi_incomplete: "Alcune tratte non hanno un posto MAX gratuito — questo itinerario è incompleto.",
   ph_anywhere: "Ovunque",
-  tab_simple: "Solo andata",
+  tab_simple: "Viaggio",
   tab_return: "Andata e ritorno",
   tab_multi: "Multi-città",
   tab_ideas: "Idee",

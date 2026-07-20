@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawaysToAcrossWindow, getawaysForDay, getawayIdeas } from "./core/getaways";
+import { getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
@@ -83,15 +83,14 @@ let navStack: SearchQuery[] = [];
 let bestAllDays = true;
 
 let tripType: TripType = "simple";
-const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
+// Number keys 1..3 select these tabs; "r" toggles round trip (see onGlobalKey).
+const TRIP_TABS: readonly TripType[] = ["simple", "multi", "ideas"];
 
 function tripTypeForQuery(q: SearchQuery): TripType {
   if (q.mode === "tour") return "multi";
   if (q.mode === "best") return "ideas";
-  // A return date restores the "dates" surface; `rt` (round-trip getaways) restores
-  // the "duration" one — including legacy `?mode=from&rt=1` links, which used to open
-  // the Simple tab before the toggle moved here.
-  if (q.returnDate || q.roundTrip) return "return";
+  // Round trip is a toggle on the Trip tab now (not a tab), so a return date / rt flag
+  // restores the Trip tab with the toggle on rather than a separate Return tab.
   return "simple";
 }
 
@@ -787,16 +786,15 @@ function syncFormFromQuery(): void {
   const planned =
     (query.cities && query.cities.length > 0) || Boolean(query.origin) || Boolean(query.destination);
   formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : planned ? "plan" : "legs");
-  formApi.setReturnMode(query.roundTrip ? "duration" : "dates");
   formApi.setActiveTab(tripType);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  refs.departDate.setRange(tripType === "return");
+  // A single outbound date now; the return (when round-trip) is picked in the results.
   refs.departDate.setMargin(query.flexDays ?? 0);
-  refs.departDate.setDates(query.date, query.returnDate ?? "");
+  refs.departDate.setDate(query.date);
   refs.date.value = query.date;
   if (query.legs && query.legs.length > 0) {
     formApi.setLegs(
@@ -821,7 +819,9 @@ function syncFormFromQuery(): void {
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.onlyNight.checked = Boolean(query.onlyNight);
-  refs.roundTrip.checked = Boolean(query.roundTrip);
+  // The round-trip toggle is on for an explicit round trip OR a carried return date
+  // (a legacy `?rdate=` link, or a return picked from the results calendar).
+  refs.roundTrip.checked = Boolean(query.roundTrip || query.returnDate);
   refs.nights.value = query.flexNights ? "flex" : String(query.nights ?? 0);
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
@@ -859,27 +859,29 @@ function readQueryFromForm(): SearchQuery {
   const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
   const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
   const usesDestination = mode === "od" || mode === "to" || planMode;
-  // Round-trip getaways come from two surfaces: the Return tab's "duration" sub-mode
-  // (where the sub-mode itself is the opt-in — with a destination it sweeps start days
-  // for that city, without one it browses everywhere) and the Ideas tab's checkbox.
-  const byDuration = tripType === "return" && formApi.getReturnMode() === "duration";
-  const roundTrip = byDuration
-    ? mode === "from" || mode === "od"
-    : tripType === "ideas" && mode === "best" && refs.roundTrip.checked;
+  // Round trip is the toggle on the Trip tab (and Ideas). It applies to an exact route
+  // (od → outbound + a return picked from the results calendar), a browse from an
+  // origin (from → getaway list), and Ideas (best) — never to a "where from?" browse.
+  const roundTrip =
+    ((tripType === "simple" || tripType === "ideas") &&
+      refs.roundTrip.checked &&
+      (mode === "od" || mode === "from" || mode === "best")) ||
+    undefined;
+  // Only od carries a concrete return date (the second calendar in the results picks
+  // it). Keep a still-valid carried one, else propose outbound + 2 so the results have
+  // a return to show; from/ideas derive their return from the stay length instead.
+  const outDate = refs.date.value || query.date;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
     destination: usesDestination ? resolveStation(refs.destination.value) : undefined,
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
-    // On the Return tab's "dates" surface always carry a return date, defaulting to
-    // the proposed outbound+2 when the user hasn't picked one. It is what restores the
-    // tab on reload/Back, so it must survive a blank destination too (which derives
-    // "from", not "od") — the search itself ignores it outside od. The "duration"
-    // surface derives its return from the stay length instead, and is restored by `rt`.
     returnDate:
-      tripType === "return" && !byDuration
-        ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
+      roundTrip && mode === "od"
+        ? query.returnDate && query.returnDate >= outDate
+          ? query.returnDate
+          : proposedReturn(outDate)
         : undefined,
     legs: legsMode
       ? formApi
@@ -1218,11 +1220,9 @@ function renderSearch(): void {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
-  } else if (query.roundTrip) {
-    // Return tab, "by duration": both endpoints known, so list the start days that
-    // give the requested stay rather than a single outbound/return pair.
-    runOdGetaways(c);
   } else {
+    // Exact trip. When round-trip is on, runOdSearch shows the outbound + return
+    // availability calendars together and the return list (no separate by-duration).
     runOdSearch(c);
   }
   updateSearchBar();
@@ -1407,71 +1407,6 @@ function runGetaways(c: RenderCtx, origin: string): void {
     origin,
     trips.map((trip) => trip.destination),
   );
-}
-
-/**
- * Duration search, page 2: ONE city. A calendar of the start days that work, then
- * every dated solution below it. Reached from the list page, or straight away when
- * the form already names a destination.
- */
-function runOdGetaways(c: RenderCtx): void {
-  const { trains, registry } = deps;
-  const { origin, destination } = query;
-  if (!origin) return showHint(refs.origin);
-  if (!destination) return showHint(refs.destination);
-  refs.title.textContent = t("getaway_od_title", {
-    origin: registry.label(origin),
-    destination: registry.label(destination),
-    date: formatDate(query.date),
-  });
-  const dates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const gwOpts = getawayOpts();
-  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, gwOpts);
-  if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
-    showMap(origin, [destination]);
-    return;
-  }
-  // The calendar is built from the sweep itself: a day is available exactly when it
-  // produced a trip, so it can never disagree with the list under it.
-  const startable = new Set(trips.map((trip) => trip.outbound.date));
-  refs.results.append(
-    render.calendarEl(
-      dates.map((date) => ({ date, available: startable.has(date), count: startable.has(date) ? 1 : 0 })),
-      c,
-      query.date,
-      { title: t("getaway_cal_title"), showCount: false },
-    ),
-    el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }),
-  );
-  // Each day leads with its BEST (longest-stay) round trip — what most people want —
-  // but the same day usually also has earlier-home options. Offer them behind a small
-  // expander per row, so "sometimes I don't want the longest one" is one click away.
-  // findJourneys is memoized, so enumerating a day's options is cheap here.
-  for (const trip of trips) {
-    refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
-    const alts = getawaysForDay(trains, origin, destination, trip.outbound.date, gwOpts)
-      .filter(
-        (g) => g.outbound.departMin !== trip.outbound.departMin || g.back.departMin !== trip.back.departMin,
-      )
-      .slice(0, 8);
-    if (alts.length === 0) continue;
-    const altBox = el("div", { class: "gw-alts" });
-    const moreBtn = el("button", {
-      class: "linklike gw-more",
-      type: "button",
-      text: t("gw_more", { n: alts.length }),
-      on: {
-        click: () => {
-          moreBtn.remove();
-          for (const a of alts) altBox.append(render.getawayRowEl(a, c, { showDate: false }));
-        },
-      },
-    });
-    altBox.append(moreBtn);
-    refs.results.append(altBox);
-  }
-  showMap(origin, [destination]);
 }
 
 function runMultiCity(c: RenderCtx): void {
@@ -1849,6 +1784,10 @@ function runOdSearch(c: RenderCtx): void {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
   odReturnDate = query.returnDate ?? null;
+  // A round trip is on when the toggle set the flag OR a return date rode in on a link
+  // (a legacy `?rdate=` deep link that predates the toggle). Either way, show the
+  // outbound + return calendars together and the return list.
+  const isRound = Boolean(query.roundTrip || query.returnDate);
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
     destination: registry.label(query.destination),
@@ -1892,7 +1831,15 @@ function runOdSearch(c: RenderCtx): void {
       else if (lvl === 2) d.nearbyBoth = true;
     }
   }
-  refs.results.append(render.calendarEl(cal, c, query.date));
+  refs.results.append(
+    render.calendarEl(cal, c, query.date, query.roundTrip ? { title: t("rt_outbound") } : undefined),
+  );
+  // Round trip: a second availability strip for the RETURN, right under the outbound
+  // one, so both legs' free-seat days are visible together at a glance — no picking an
+  // outbound and scrolling to find out if a return exists. Filled by selectReturn
+  // below (which also drives the return train list further down).
+  const retCalHost = isRound ? el("div", { class: "ret-cal" }) : null;
+  if (retCalHost) refs.results.append(el("section", { class: "od-return-cal" }, [retCalHost]));
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   // A journey's day-span cap (e.g. "no trip longer than 2 days"): overnight
@@ -1912,7 +1859,7 @@ function runOdSearch(c: RenderCtx): void {
   // options. Each card then carries its own date (below). A round trip keeps a single
   // outbound day — its return calendar already covers the second dimension, so it's
   // left untouched (per the "don't remove round-trip flexibility" note).
-  const flex = tripType === "return" ? 0 : query.flexDays ?? 0;
+  const flex = isRound ? 0 : query.flexDays ?? 0;
   const searchDates: string[] = [];
   for (let i = -flex; i <= flex; i++) {
     const d = addDays(query.date, i);
@@ -1960,11 +1907,13 @@ function runOdSearch(c: RenderCtx): void {
         refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
       }
     }
-    const ret = tripType === "return";
+    const ret = isRound;
     for (const j of journeys)
       refs.results.append(
         ret
-          ? render.journeyEl(j, c, {
+          ? // Round trip: picking an outbound selects it (so the return list below pairs
+            // with the leg you want) and jumps to the return calendar.
+            render.journeyEl(j, c, {
               selected: j === chosenOutbound,
               onPick: (jj) => {
                 chosenOutbound = jj;
@@ -2044,11 +1993,11 @@ function runOdSearch(c: RenderCtx): void {
     refs.results.append(sec);
   }
 
-  // "Do you want to come back?": a return availability calendar (every bookable
-  // return day at a glance) plus a stay-N-nights quick pick. Picking a day lists
-  // that day's free-MAX returns and lets you open the whole round trip on one page.
-  // Only for a round trip (aller-retour) — a one-way search shows no return.
-  if (tripType === "return" && journeys.length > 0) {
+  // Round trip: the return availability calendar lives in the strip at the top (next
+  // to the outbound one — see retCalHost); the return TRAIN list sits down here, under
+  // the outbound trains. Picking a return day (top strip) fills this list and lets you
+  // open the whole round trip on one page.
+  if (isRound && journeys.length > 0 && retCalHost) {
     const origin = query.origin;
     const destination = query.destination;
     const proposed =
@@ -2062,7 +2011,6 @@ function runOdSearch(c: RenderCtx): void {
     // day from the outbound date onward — so all return options are visible at once.
     const retDates = dateRange(query.date, dayIndex(lastBookable) - dayIndex(query.date) + 1);
     const cal = availabilityCalendar(trains, destination, origin, retDates, returnOpts, withinSpan);
-    const retCal = el("div", { class: "ret-cal" });
     const retList = el("div", { class: "return-list" });
     let selectReturn: (retDate: string) => void = () => {};
     // The return calendar reuses the journey ctx but redirects day clicks to the
@@ -2099,12 +2047,12 @@ function runOdSearch(c: RenderCtx): void {
     };
     selectReturn = (retDate: string): void => {
       odReturnDate = retDate;
-      clear(retCal);
-      retCal.append(render.calendarEl(cal, retCtx, retDate, { title: t("ret_cal_title") }));
+      clear(retCalHost);
+      retCalHost.append(render.calendarEl(cal, retCtx, retDate, { title: t("rt_inbound") }));
       renderReturns(retDate);
     };
+    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]));
     selectReturn(proposed);
-    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retCal, retList]));
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),
@@ -2180,11 +2128,12 @@ function switchMultiMode(mode: "plan" | "legs"): void {
   applyAndRun();
 }
 
-/** Switch the Return sub-surface (pick both days ↔ pick a stay length). */
-function switchReturnMode(mode: "dates" | "duration"): void {
+/** Toggle round trip (the "r" shortcut / the switch): flip the flag and re-run. */
+function toggleRoundTrip(): void {
   navStack = [];
-  formApi.setReturnMode(mode);
-  formApi.updateFieldVisibility("return");
+  refs.roundTrip.checked = !refs.roundTrip.checked;
+  refs.roundTrip.dispatchEvent(new Event("change", { bubbles: true }));
+  formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
   applyAndRun();
 }
@@ -2264,9 +2213,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (tgt && (/^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName) || tgt.isContentEditable)) return;
   if (document.querySelector("dialog[open]")) return; // not while a modal is up
 
-  if (/^[1-4]$/.test(e.key)) {
+  if (/^[1-3]$/.test(e.key)) {
     e.preventDefault();
     switchTab(TRIP_TABS[Number(e.key) - 1]!);
+  } else if (e.key === "r" && (tripType === "simple" || tripType === "ideas")) {
+    e.preventDefault();
+    toggleRoundTrip(); // flip round trip on the Trip / Ideas tab
   } else if (e.key === "/") {
     e.preventDefault();
     const f = deriveMode() === "to" ? refs.destination : refs.origin;
@@ -2541,7 +2493,6 @@ function buildLayout(root: HTMLElement): void {
     },
     onSwitchTab: switchTab,
     onMultiMode: switchMultiMode,
-    onReturnMode: switchReturnMode,
     onSubmit: runFromForm,
     onSurprise: surpriseMe,
     onNearest: addNearestCity,

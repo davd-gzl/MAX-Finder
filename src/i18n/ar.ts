@@ -8,7 +8,7 @@ export const ar: Dict = {
   multi_hint: "أدخل رحلة واحدة على الأقل (المغادرة والوصول).",
   multi_incomplete: "بعض المقاطع لا تحتوي على مقعد MAX مجاني — هذا المسار غير مكتمل.",
   ph_anywhere: "أي محطة",
-  tab_simple: "ذهاب فقط",
+  tab_simple: "رحلة",
   tab_return: "ذهاب وإياب",
   tab_multi: "متعدد المدن",
   tab_ideas: "أفكار",

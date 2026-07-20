@@ -8,7 +8,7 @@ export const nl: Dict = {
   multi_hint: "Vul minstens één traject in (van en naar).",
   multi_incomplete: "Sommige trajecten hebben geen gratis MAX-plaats — deze reis is onvolledig.",
   ph_anywhere: "Overal",
-  tab_simple: "Enkele reis",
+  tab_simple: "Reis",
   tab_return: "Retour",
   tab_multi: "Meerdere steden",
   tab_ideas: "Ideeën",

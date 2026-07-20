@@ -8,7 +8,7 @@ export const ja: Dict = {
   multi_hint: "少なくとも1区間を入力してください（出発・到着）。",
   multi_incomplete: "一部の区間に無料MAX席がありません — この行程は不完全です。",
   ph_anywhere: "どこでも",
-  tab_simple: "片道",
+  tab_simple: "旅程",
   tab_return: "往復",
   tab_multi: "周遊",
   tab_ideas: "アイデア",
