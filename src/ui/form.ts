@@ -332,6 +332,11 @@ export function createForm(props: FormProps): FormHandle {
     };
 
     const pick = (date: string): void => {
+      // paint()/refresh() rebuild every cell, so a keyboard user's focus would fall to
+      // <body>. Put it back: on the day just picked while the popover stays open, on
+      // the trigger once it closes. Only when focus was inside — a mouse pick must not
+      // steal it.
+      const hadFocus = pop.contains(document.activeElement);
       if (range) {
         if (awaitReturn && date >= input.value) {
           retDate = date;
@@ -340,6 +345,7 @@ export function createForm(props: FormProps): FormHandle {
           paint();
           input.dispatchEvent(new Event("change", { bubbles: true }));
           close();
+          if (hadFocus) trigger.focus();
           return;
         }
         input.value = date;
@@ -348,6 +354,7 @@ export function createForm(props: FormProps): FormHandle {
         setLabel();
         input.dispatchEvent(new Event("change", { bubbles: true }));
         refresh();
+        if (hadFocus) focusDay(date);
         return;
       }
       input.value = date;
@@ -355,6 +362,7 @@ export function createForm(props: FormProps): FormHandle {
       paint();
       input.dispatchEvent(new Event("change", { bubbles: true }));
       close();
+      if (hadFocus) trigger.focus();
     };
 
     const paint = (): void => {
@@ -390,11 +398,21 @@ export function createForm(props: FormProps): FormHandle {
             class: cls,
             type: "button",
             text: date.slice(8, 10),
-            attrs: { "aria-label": props.formatDate(date), "data-date": date, ...(isSel ? { "aria-current": "date" } : {}) },
+            attrs: {
+              "aria-label": props.formatDate(date),
+              "data-date": date,
+              tabindex: "-1",
+              ...(isSel ? { "aria-current": "date" } : {}),
+            },
             on: { click: () => pick(date) },
           }),
         );
       }
+      // The grid is one Tab stop with roving focus inside (arrows), so Tab doesn't have
+      // to walk ~90 day cells: only the entry cell is tabbable.
+      (grid.querySelector<HTMLElement>(".dp-cell.sel") ??
+        grid.querySelector<HTMLElement>(".dp-cell.ok") ??
+        grid.querySelector<HTMLElement>("button.dp-cell"))?.setAttribute("tabindex", "0");
       legend.textContent = margin > 0 ? t("datepick_window") : anyOk ? t("cal_legend") : "";
     };
 
@@ -453,12 +471,39 @@ export function createForm(props: FormProps): FormHandle {
     const dayCells = (): HTMLElement[] => Array.from(grid.querySelectorAll<HTMLElement>("button.dp-cell"));
     const focusCell = (cells: HTMLElement[], i: number): void => {
       const clamped = Math.max(0, Math.min(cells.length - 1, i));
-      cells[clamped]?.focus();
+      const target = cells[clamped];
+      if (!target) return;
+      for (const c of cells) c.setAttribute("tabindex", "-1");
+      target.setAttribute("tabindex", "0");
+      target.focus();
     };
+    function focusDay(date: string): void {
+      const cells = dayCells();
+      const i = cells.findIndex((c) => c.getAttribute("data-date") === date);
+      if (i >= 0) focusCell(cells, i);
+    }
     pop.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         close();
         trigger.focus();
+        return;
+      }
+      // aria-modal hides the rest of the page from assistive tech, so Tab must not be
+      // able to leave the dialog (it sits last in <body>, i.e. Tab would exit the page).
+      if (e.key === "Tab") {
+        const stops = Array.from(pop.querySelectorAll<HTMLElement>("button:not([disabled])")).filter(
+          (b) => !b.classList.contains("dp-cell") || b.getAttribute("tabindex") === "0",
+        );
+        if (stops.length === 0) return;
+        const first = stops[0]!;
+        const last = stops[stops.length - 1]!;
+        const active = document.activeElement as HTMLElement | null;
+        const leavingBack = e.shiftKey && (active === first || !pop.contains(active));
+        const leavingFwd = !e.shiftKey && (active === last || !pop.contains(active));
+        if (leavingBack || leavingFwd) {
+          e.preventDefault();
+          (leavingBack ? last : first).focus();
+        }
         return;
       }
       const nav: Record<string, number | "home" | "end"> = {
