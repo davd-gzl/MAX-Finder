@@ -17,6 +17,11 @@ export interface Settings {
   view: ViewMode;
   /** Results density: "comfortable" (default) or "compact" (more trains per screen). */
   density: Density;
+  /** Cut animations/transitions — cheaper on weak GPUs (and a motion-sensitivity option). */
+  reduceMotion: boolean;
+  /** Show the interactive map. Off = no Leaflet/tiles at all: the biggest saving on
+   *  low-end devices and slow connections; results go full-width. */
+  map: boolean;
 }
 
 export type Density = "comfortable" | "compact";
@@ -61,6 +66,8 @@ export function loadSettings(): Settings {
     card: s.card === "senior" ? "senior" : "jeune",
     view: s.view === "map" ? "map" : "list",
     density: s.density === "compact" ? "compact" : "comfortable",
+    reduceMotion: s.reduceMotion === true,
+    map: s.map !== false, // default on
   };
 }
 

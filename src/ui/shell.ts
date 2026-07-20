@@ -32,6 +32,7 @@ export interface ShellProps {
   onShare: (onCopied: () => void) => void;
   onInstall: () => void;
   onShortcuts: () => void;
+  onSettings: () => void;
   onOpenMobileForm: () => void;
   onSelect: (id: string) => void;
   onPeek: (id: string | null) => void;
@@ -60,6 +61,15 @@ export function applyTheme(theme: Theme): void {
 /** Reflect the results density on the document root, where the stylesheet keys off it. */
 export function applyDensity(density: Density): void {
   document.documentElement.dataset.density = density;
+}
+
+/** Reflect the low-end / motion preferences on the root, where the stylesheet + the
+ *  view-transition and map guards key off them. */
+export function applyReduceMotion(on: boolean): void {
+  document.documentElement.dataset.reduceMotion = on ? "on" : "";
+}
+export function applyMap(on: boolean): void {
+  document.documentElement.dataset.map = on ? "on" : "off";
 }
 
 /** Close the header overflow menu if it is open, restoring the toggle button. */
@@ -259,6 +269,17 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
     props.onDensityChange(currentDensity);
   });
 
+  // Settings (performance / display options for low-end devices).
+  const SETTINGS_SVG =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  const settingsBtn = el("button", {
+    class: "ctl icon-ctl settings-btn",
+    type: "button",
+    attrs: { "aria-label": t("act_settings"), title: t("act_settings") },
+    html: SETTINGS_SVG,
+    on: { click: () => props.onSettings() },
+  });
+
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
     optionEl("jeune", t("card_jeune"), props.card === "jeune"),
     optionEl("senior", t("card_senior"), props.card === "senior"),
@@ -299,7 +320,7 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
 
   const headerCtls = el("div", { class: "header-ctls" }, [
     el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, settingsBtn, themeBtn, shareBtn, installBtn]),
   ]);
   const menuBtn = el("button", {
     class: "ctl icon-ctl menu-btn",

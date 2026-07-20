@@ -36,6 +36,83 @@ function closeButton(dialog: HTMLDialogElement, variant: "primary" | "ghost"): H
   });
 }
 
+/**
+ * A labelled toggle switch (role="switch") for the settings modal — same control as
+ * the form's booleans, state read from the knob position + ✓/✕, not colour alone.
+ */
+function settingSwitch(label: string, hint: string, on: boolean, onChange: (v: boolean) => void): HTMLElement {
+  let state = on;
+  const knob = el("span", { class: "switch-knob", attrs: { "aria-hidden": "true" } });
+  const toggle = el(
+    "button",
+    { class: `switch${state ? " is-on" : ""}`, type: "button", attrs: { role: "switch", "aria-checked": String(state) } },
+    [el("span", { class: "switch-track", attrs: { "aria-hidden": "true" } }, [knob])],
+  );
+  const sync = (): void => {
+    toggle.classList.toggle("is-on", state);
+    toggle.setAttribute("aria-checked", String(state));
+  };
+  toggle.addEventListener("click", () => {
+    state = !state;
+    sync();
+    onChange(state);
+  });
+  return el("div", { class: "set-row" }, [
+    el("div", { class: "set-row-text" }, [
+      el("span", { class: "set-row-label", text: label }),
+      ...(hint ? [el("span", { class: "set-row-hint muted small", text: hint })] : []),
+    ]),
+    toggle,
+  ]);
+}
+
+/**
+ * Settings dialog: performance / display options for low-end devices. Each toggle
+ * applies immediately (and is persisted by the caller). "Low-end device" is a preset
+ * that flips the three savers at once.
+ */
+export function showSettingsModal(opts: {
+  reduceMotion: boolean;
+  map: boolean;
+  compact: boolean;
+  onReduceMotion: (v: boolean) => void;
+  onMap: (v: boolean) => void;
+  onCompact: (v: boolean) => void;
+}): void {
+  const dialog = el("dialog", { class: "modal settings-modal" }) as HTMLDialogElement;
+  const body = el("div", { class: "set-rows" }, [
+    settingSwitch(t("set_reduce_motion"), t("set_reduce_motion_hint"), opts.reduceMotion, opts.onReduceMotion),
+    settingSwitch(t("set_show_map"), t("set_show_map_hint"), opts.map, opts.onMap),
+    settingSwitch(t("set_compact"), t("set_compact_hint"), opts.compact, opts.onCompact),
+  ]);
+  // "Low-end device": reduce motion + hide the map + compact list, in one tap. Rebuilds
+  // the dialog so the switches reflect the new state.
+  const preset = el("button", {
+    class: "btn btn-ghost set-preset",
+    type: "button",
+    text: t("set_lowend"),
+    on: {
+      click: () => {
+        opts.onReduceMotion(true);
+        opts.onMap(false);
+        opts.onCompact(true);
+        dialog.close();
+        showSettingsModal({ ...opts, reduceMotion: true, map: false, compact: true });
+      },
+    },
+  });
+  dialog.append(
+    el("div", { class: "modal-body" }, [
+      el("h2", { class: "modal-title", text: t("settings_title") }),
+      el("p", { class: "modal-text muted small", text: t("set_perf") }),
+      body,
+      el("div", { class: "set-preset-row" }, [preset, el("span", { class: "muted small", text: t("set_lowend_hint") })]),
+      el("div", { class: "modal-actions" }, [closeButton(dialog, "primary")]),
+    ]),
+  );
+  mountModal(dialog);
+}
+
 /* ── public modals ── */
 
 /**

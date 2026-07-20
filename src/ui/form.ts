@@ -862,6 +862,7 @@ export function createForm(props: FormProps): FormHandle {
       !firstViz &&
       formBody.isConnected &&
       typeof formBody.animate === "function" &&
+      document.documentElement.dataset.reduceMotion !== "on" &&
       !(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
     firstViz = false;
     if (!animate) {

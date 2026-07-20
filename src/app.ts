@@ -18,7 +18,7 @@ import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
-import { buildShell, applyTheme, applyDensity, closeHeaderMenu } from "./ui/shell";
+import { buildShell, applyTheme, applyDensity, applyReduceMotion, applyMap, closeHeaderMenu } from "./ui/shell";
 import { createForm } from "./ui/form";
 import type { FormHandle, FormRefs, TripType } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
@@ -31,6 +31,7 @@ import {
   showTripModal,
   showMultiTripModal,
   showTourModal,
+  showSettingsModal,
 } from "./ui/modals";
 import { generateBookingUrl } from "./util/booking";
 import { t, setLang, getLang, isLang } from "./i18n";
@@ -525,6 +526,8 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
   applyDensity(settings.density);
+  applyReduceMotion(settings.reduceMotion);
+  applyMap(settings.map);
   setLang(isLang(urlLang) ? urlLang : settings.lang);
   // Every station present in the dataset becomes searchable (the curated registry
   // only covers map coordinates for the major ones).
@@ -2163,6 +2166,34 @@ function shiftDay(delta: number): void {
   refreshInPlace();
 }
 
+/** Open the Settings dialog (performance / display options); each toggle applies live. */
+function openSettings(): void {
+  showSettingsModal({
+    reduceMotion: settings.reduceMotion,
+    map: settings.map,
+    compact: settings.density === "compact",
+    onReduceMotion: (v) => {
+      settings = { ...settings, reduceMotion: v };
+      store.saveSettings(settings);
+      applyReduceMotion(v);
+    },
+    onMap: (v) => {
+      settings = { ...settings, map: v };
+      store.saveSettings(settings);
+      applyMap(v);
+      // Turning the map ON needs the current view redrawn onto it; OFF just hides it
+      // (and ensureMap now short-circuits, so nothing loads Leaflet).
+      if (v) runSearch();
+    },
+    onCompact: (v) => {
+      const density = v ? "compact" : "comfortable";
+      settings = { ...settings, density };
+      store.saveSettings(settings);
+      applyDensity(density);
+    },
+  });
+}
+
 /** A modal listing the keyboard shortcuts (the "?" key or header button). */
 function showShortcutsHelp(): void {
   showInfoModal(t("keys_title"), [
@@ -2331,6 +2362,10 @@ function surpriseMe(): void {
 }
 
 function ensureMap(): Promise<RouteMap> {
+  // Map turned off (Settings → low-end mode): never import Leaflet or fetch tiles.
+  // Every show* helper catches this, so the whole map layer is skipped — the single
+  // biggest saving on weak devices and slow connections.
+  if (!settings.map) return Promise.reject(new Error("map disabled"));
   if (!mapPromise) {
     const host = refs.mapEl;
     mapPromise = import("./ui/map").then(
@@ -2536,6 +2571,7 @@ function buildLayout(root: HTMLElement): void {
     onShare: (onCopied) => void shareCurrentUrl(onCopied),
     onInstall: () => void promptInstall(),
     onShortcuts: showShortcutsHelp,
+    onSettings: openSettings,
     onOpenMobileForm: () => setMobileForm(true),
     onSelect: (id) => markSelected(id),
     onPeek: (id) => mapInstance?.peek(id),
@@ -2587,7 +2623,12 @@ function setMobileForm(open: boolean): void {
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
   // Morph the collapsed search bar into the full form (and back) on phones, via a
   // shared view-transition-name; instant everywhere it isn't supported.
-  if (mq("(max-width: 860px)") && !mq("(prefers-reduced-motion: reduce)") && typeof doc.startViewTransition === "function") {
+  if (
+    mq("(max-width: 860px)") &&
+    !mq("(prefers-reduced-motion: reduce)") &&
+    !settings.reduceMotion &&
+    typeof doc.startViewTransition === "function"
+  ) {
     doc.startViewTransition(apply);
   } else {
     apply();
