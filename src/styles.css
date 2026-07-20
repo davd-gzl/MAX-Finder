@@ -19,8 +19,11 @@
   --nearby2-soft: #f1ebfd;
   --btn: #0f7a52;
   --btn-ink: #ffffff;
+  --danger: #c62f2f; /* the "no" answer on a yes/no control */
   --radius: 16px;
   --radius-sm: 12px;
+  /* Fixed row height in the advanced panel: a label line + its gap + an .input. */
+  --adv-row: 4.3rem;
   --shadow: 0 1px 1px rgba(27, 38, 32, 0.03), 0 10px 28px -18px rgba(27, 38, 32, 0.35);
   /* Custom chevron for select inputs (theme-aware stroke colour). */
   --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -57,6 +60,7 @@
     --nearby2-soft: #1e1635;
     --btn: #3fbd86;
     --btn-ink: #0e1a13;
+    --danger: #f0736b;
     --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 30px -18px rgba(0, 0, 0, 0.6);
     --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   }
@@ -82,6 +86,7 @@
   --nearby2-soft: #1e1635;
   --btn: #3fbd86;
   --btn-ink: #0e1a13;
+  --danger: #f0736b;
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 30px -18px rgba(0, 0, 0, 0.6);
   --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
@@ -225,7 +230,10 @@ a {
   align-items: center;
   gap: 0.4rem;
 }
-.menu-btn {
+/* Desktop hides the overflow menu. Scoped through .header-nav so it outranks
+   `.icon-ctl { display: inline-flex }`, which is declared later at equal
+   specificity and was otherwise winning — leaving the burger on screen. */
+.header-nav > .menu-btn {
   display: none;
 }
 .header-ctls {
@@ -356,18 +364,25 @@ a {
   border-bottom-color: var(--text);
   font-weight: 620;
 }
-.mode-desc {
-  margin: -0.1rem 0 0.95rem;
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-.mode-desc:empty {
-  display: none;
-}
 .fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* Strictly three per row, everywhere. minmax(0, 1fr) — not plain 1fr — so a long
+     station name or <select> option can't blow its column out and scroll the page. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.85rem;
+}
+/* Three strict columns is a desktop rhythm: at phone widths it leaves ~105px per
+   field, which a station name can't use. Step down rather than let the fields
+   collapse — the column COUNT changes, the strict grid doesn't. */
+@media (max-width: 860px) {
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .field {
   display: flex;
@@ -430,22 +445,18 @@ a {
   font-size: 0.82rem;
   white-space: nowrap;
 }
-.field-check {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.45rem;
-  align-self: end;
-  padding-bottom: 0.55rem;
-  cursor: pointer;
-}
-.field-check input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.field-check .field-label {
-  cursor: pointer;
+/* A boolean rendered as a Yes/No segmented control (see .yesno below). The
+   checkbox itself carries the value and stays focusable, but is never drawn. */
+.yesno-state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .input {
   width: 100%;
@@ -542,16 +553,6 @@ a {
   inset-inline-end: -0.4em;
 }
 
-/* Connections + its "overnight stopover" option grouped as one cell. */
-.conn-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.conn-group .field-check {
-  align-self: start;
-  padding-bottom: 0;
-}
 /* A checkbox nested under another (e.g. "only night trains" under "night trains"):
    indented a little and with a subtler label, so it reads as a sub-option. */
 .field-sub {
@@ -561,14 +562,15 @@ a {
   color: var(--muted);
 }
 
-/* ---- tour min/max days ---- */
+/* ---- number fields grouped in the markup because they read as one setting (how
+   many cities and how long in each; the two distance caps). `display: contents`
+   dissolves the wrapper into its parent grid, so they land on the SAME columns as
+   every other field instead of being a full-width block with its own tracks — while
+   the wrapper still toggles all of them at once from JS. ---- */
 .stay-fields {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 0.6rem;
+  display: contents;
 }
 .stay-fields .field {
-  flex: 1;
   min-width: 0;
 }
 
@@ -578,7 +580,6 @@ a {
 }
 .daytrip-toggle {
   align-self: start;
-  padding-bottom: 0;
 }
 .daytrip-opts {
   display: flex;
@@ -592,43 +593,53 @@ a {
   flex: 0 1 auto;
   min-width: 0;
 }
-.daytrip-opts .field-check {
+.daytrip-opts .field-yesno {
   align-self: end;
-  padding-bottom: 0.55rem;
+}
+/* Duration surface: with the toggle hidden the group is no longer a sub-block, so it
+   dissolves into the field grid (like .stay-fields) and its options take ordinary
+   columns instead of nesting a second layout inside a full-width band. */
+.daytrip-bare,
+.daytrip-bare .daytrip-opts {
+  display: contents;
+}
+.daytrip-bare .daytrip-opts .field {
+  flex: initial;
 }
 
-/* ---- multi-city sub-mode toggle (plan a tour / custom legs) ---- */
-.multi-switch {
+/* ---- sub-mode toggles: multi-city (plan / legs) and return (dates / duration).
+   Same segmented pill and type as the main trip tabs, on slightly tighter padding. ---- */
+.multi-switch,
+.return-switch {
   grid-column: 1 / -1;
+  position: relative;
   display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  background: var(--surface-2, color-mix(in oklab, var(--text) 5%, var(--surface)));
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  gap: 0.2rem;
+  padding: 5px;
+  background: var(--chip);
+  border-radius: 14px;
 }
 .multi-tab {
   flex: 1 1 0;
+  position: relative;
+  z-index: 1;
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 0.45rem 0.7rem;
-  border-radius: 9px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
   cursor: pointer;
-  font-family: var(--font-mono);
+  /* Same type as .mode-tab: no font-family here either, so both fall back to the
+     button default rather than one of them switching to the mono face. */
   font-weight: 600;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 0.9rem;
+  transition: color 0.15s;
 }
 .multi-tab:hover {
   color: var(--text);
 }
 .multi-tab.active {
-  background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 @media (prefers-reduced-motion: reduce) {
   .multi-tab {
@@ -636,7 +647,50 @@ a {
   }
 }
 
+/* ---- boolean field: a Yes/No segmented control ----
+   Same pill as the toggles above, but the thumb answers back: green on yes, red on
+   no. The active label sits on the coloured pill, so it takes the button ink. */
+.yesno {
+  position: relative;
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 4px;
+  background: var(--chip);
+  border-radius: 12px;
+}
+.yesno .multi-tab {
+  min-width: 3.2rem;
+  padding: 0.35rem 0.6rem;
+}
+.yesno.is-yes > .mode-tab-thumb {
+  background: var(--accent);
+}
+.yesno.is-no > .mode-tab-thumb {
+  background: var(--danger);
+}
+.yesno.has-thumb .multi-tab.active {
+  color: var(--btn-ink);
+}
+.yesno .multi-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Dependency not met: the field keeps its place but reads as unavailable. The
+   pointer cue goes on the wrapper — a disabled <button> takes no pointer events. */
+.field-yesno.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.field-yesno.is-disabled .multi-tab {
+  pointer-events: none;
+}
+
 /* ---- tour cities chip input ---- */
+/* The chip box grows with the cities in it, so it spans the row rather than sitting
+   in one of the three columns. */
+.cities-field {
+  grid-column: 1 / -1;
+}
 .cities-wrap {
   display: flex;
   flex-direction: column;
@@ -722,8 +776,15 @@ a {
   border-color: var(--text);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
 }
+/* The advanced filters sit on their own slightly darker panel, so the block reads as
+   secondary to the main fields. --surface-2 is one step down from the form's
+   --surface; the segmented controls inside keep their --chip track, which stays
+   distinguishable against it in both themes. */
 .advanced {
   margin-top: 0.95rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem 0.85rem;
 }
 .advanced summary {
   cursor: pointer;
@@ -739,11 +800,40 @@ a {
 .advanced[open] summary::before {
   content: "− ";
 }
+/* Three per row, on rows of a fixed height so the panel keeps an even rhythm even
+   though selects, number inputs and the via field have slightly different natural
+   heights. minmax(0, 1fr) — not plain 1fr — so a long <select> option can't push a
+   column past its share and make the page scroll sideways. */
+.advanced-toggles,
 .advanced-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.75rem;
   margin-top: 0.7rem;
+  grid-auto-rows: var(--adv-row);
+  align-items: start;
+}
+/* Labels stay on one line: the panel is narrow at three columns, and a wrapping
+   label would break the fixed row height. The full text is on the title attribute. */
+.advanced .field-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Same step-down as .fields — declared here, after the 3-column rule above, because
+   a media query adds no specificity and source order decides. */
+@media (max-width: 860px) {
+  .advanced-toggles,
+  .advanced-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* "Only night trains" is a sub-option of "night trains", but side by side in the
+   toggle band its indent would just read as a column out of alignment. */
+.advanced-toggles .field-sub {
+  margin-left: 0;
 }
 .day-badge {
   font-size: 0.68rem;
@@ -1276,56 +1366,34 @@ a {
 }
 
 /* ---- day-trip result rows ---- */
-.daytrip-main {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.32rem;
-}
-.daytrip-top {
+/* A dated solution is ONE journey ticket holding both legs: the head names the
+   destination, then outbound and return stack inside the same body, separated only
+   by the journey-main gap and their ALLER/RETOUR titles. The stub's arrow opens the
+   trip; a single action row closes the card. */
+.daytrip-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
-.daytrip-top .chip-onsite {
-  margin-left: auto; /* push the headline "X on site" to the right edge */
+/* The headline figure sits opposite the destination name. */
+.daytrip-head .chip-onsite {
+  margin-inline-start: auto;
   flex: none;
 }
-.daytrip-legs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.9rem;
-  color: var(--muted);
-  font-size: 0.84rem;
+/* ALLER / RETOUR lead the head line, beside the direct/via chip; the duration still
+   pins to the far edge (the head is space-between, which a third child would break). */
+.daytrip-card .journey-head {
+  gap: 0.5rem;
 }
-.daytrip-leg {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
+.daytrip-card .journey-head .journey-total {
+  margin-inline-start: auto;
 }
-.daytrip-leg-label {
-  font-size: 0.72rem;
-  font-weight: 640;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.daytrip-day {
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-/* The trip's start date, shown on flexible-date round-trip rows (they span days). */
+/* The trip's start date — every row on a city's page is a different start day. */
 .daytrip-date {
   font-size: 0.8rem;
   font-weight: 640;
   color: var(--accent);
-}
-.daytrip-times {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
 }
 /* "+1d" marker after an overnight arrival time (a sleeper lands the next morning). */
 .day-offset {
@@ -2574,10 +2642,10 @@ select.input::-ms-expand {
   opacity: 0;
   pointer-events: none;
 }
-.mode-tabs.has-thumb .mode-tab-thumb {
+.has-thumb > .mode-tab-thumb {
   opacity: 1;
 }
-.mode-tabs.animate-thumb .mode-tab-thumb {
+.animate-thumb > .mode-tab-thumb {
   transition:
     transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2585,13 +2653,8 @@ select.input::-ms-expand {
     opacity 0.15s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .mode-tabs.animate-thumb .mode-tab-thumb {
+  .animate-thumb > .mode-tab-thumb {
     transition: opacity 0.15s;
-  }
-  /* The mobile results-drawer height transition (its snap/drag animation) is the
-     one piece of new motion left ungated — silence it too. */
-  .results-drawer {
-    transition: none;
   }
 }
 
@@ -2601,14 +2664,6 @@ select.input::-ms-expand {
   font-size: 0.66rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
-}
-.field-check .field-label {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 0.82rem;
-  letter-spacing: 0;
-  text-transform: none;
   color: var(--muted);
 }
 .input,
@@ -2664,8 +2719,10 @@ select.input::-ms-expand {
     drop-shadow(1px 0 0 var(--border)) drop-shadow(-1px 0 0 var(--border))
     drop-shadow(0 1px 0 var(--border)) drop-shadow(0 -1px 0 var(--border));
 }
+/* The map<->list hover sync marks whichever card carries the station. */
 .group-card:hover,
-.group-card.is-hover {
+.group-card.is-hover,
+.journey.is-hover {
   filter:
     drop-shadow(1px 0 0 var(--accent)) drop-shadow(-1px 0 0 var(--accent))
     drop-shadow(0 1px 0 var(--accent)) drop-shadow(0 -1px 0 var(--accent));
@@ -2888,8 +2945,19 @@ select.input::-ms-expand {
   flex-wrap: wrap;
   margin-bottom: 1.05rem;
 }
+/* The trip-type selector fills the bar, sharing the space evenly between its tabs;
+   the Ideas button keeps its own width at the far end. The thumb reads offsetLeft /
+   offsetWidth, so it follows whatever widths this produces, at any viewport. */
 .mode-bar .mode-tabs {
   margin-bottom: 0;
+  flex: 1;
+}
+/* No min-width override on purpose: a flex item's default `min-width: auto` stops a
+   tab shrinking below its label, so a cramped bar wraps (as the phone rules intend)
+   instead of overflowing. Clipping is not an option here — the shortcut badge is
+   positioned outside the button box. */
+.mode-bar .mode-tabs .mode-tab {
+  flex: 1 1 0;
 }
 .ideas-tab {
   border: 1px solid var(--border-strong);
@@ -3566,6 +3634,12 @@ select.input::-ms-expand {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  [data-mform="results"] .results-drawer {
+    transition: none;
+  }
+}
+
 @media (max-width: 860px) {
   .site-header {
     flex-wrap: nowrap;
@@ -3573,7 +3647,7 @@ select.input::-ms-expand {
   .brand-badge {
     display: none;
   }
-  .menu-btn {
+  .header-nav > .menu-btn {
     display: inline-flex;
   }
   .header-nav {
