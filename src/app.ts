@@ -7,17 +7,18 @@ import {
   reachableGroups,
   windowStats,
 } from "./core/destinations";
-import { filterTrains, isNightTrain } from "./core/search";
+import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawaysToAcrossWindow, getawayIdeas } from "./core/getaways";
+import { getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
-import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
+import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
-import { buildShell, applyTheme, closeHeaderMenu } from "./ui/shell";
+import { buildShell, applyTheme, applyDensity, closeHeaderMenu } from "./ui/shell";
 import { createForm } from "./ui/form";
 import type { FormHandle, FormRefs, TripType } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
@@ -82,15 +83,14 @@ let navStack: SearchQuery[] = [];
 let bestAllDays = true;
 
 let tripType: TripType = "simple";
-const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
+// Number keys 1..3 select these tabs; "r" toggles round trip (see onGlobalKey).
+const TRIP_TABS: readonly TripType[] = ["simple", "multi", "ideas"];
 
 function tripTypeForQuery(q: SearchQuery): TripType {
   if (q.mode === "tour") return "multi";
   if (q.mode === "best") return "ideas";
-  // A return date restores the "dates" surface; `rt` (round-trip getaways) restores
-  // the "duration" one — including legacy `?mode=from&rt=1` links, which used to open
-  // the Simple tab before the toggle moved here.
-  if (q.returnDate || q.roundTrip) return "return";
+  // Round trip is a toggle on the Trip tab now (not a tab), so a return date / rt flag
+  // restores the Trip tab with the toggle on rather than a separate Return tab.
   return "simple";
 }
 
@@ -201,6 +201,66 @@ function nearbyAlternatives(
     }
   }
   return { fromOrigin, toDest, bothEnds };
+}
+
+// How many nearby anchor substitutes to probe in a browse-mode radius search
+// (nearest-first), and how many extra places to surface. Kept modest so the section
+// stays scannable and the (linear-per-neighbour) scan stays quick.
+const NEARBY_ANCHOR_CAP = 12;
+const NEARBY_BROWSE_RESULTS = 30;
+
+/** One extra browse destination/origin unlocked by hopping to a nearby anchor. */
+interface NearbyBrowseTrip {
+  /** The newly-reachable "other" station (a destination for "from", an origin for "to"). */
+  station: string;
+  /** The nearby anchor substitute you'd hop to/from, and its distance from the anchor. */
+  via: string;
+  km: number;
+  /** The free-MAX direct leg between the nearby anchor and the other station. */
+  journey: Journey;
+}
+
+/**
+ * Browse-mode radius search. The anchor (your origin in "Where to?", your destination
+ * in "Where from?") is substituted for stations within `radiusKm`, surfacing extra
+ * places you could reach by paying a short hop to/from a neighbouring station — the
+ * browse twin of {@link nearbyAlternatives}. Direct free-MAX legs only,
+ * nearest-anchor-first, excluding places already listed.
+ */
+function nearbyBrowse(
+  anchor: string,
+  dir: "from" | "to",
+  date: string,
+  radiusKm: number,
+  opts: FilterOptions,
+  exclude: Set<string>,
+): NearbyBrowseTrip[] {
+  const near = deps.registry
+    .list()
+    .map((s) => ({ id: s.id, km: stationDistanceKm(anchor, s.id) }))
+    .filter((x) => x.id !== anchor && Number.isFinite(x.km) && x.km > 0 && x.km <= radiusKm)
+    .sort((a, b) => a.km - b.km)
+    .slice(0, NEARBY_ANCHOR_CAP);
+  // Keep the nearest-anchor option per newly-reachable station.
+  const best = new Map<string, NearbyBrowseTrip>();
+  for (const n of near) {
+    const groups =
+      dir === "from"
+        ? reachableDestinations(deps.trains, n.id, date, opts)
+        : reachableOrigins(deps.trains, n.id, date, opts);
+    for (const g of groups) {
+      const other = g.station;
+      if (other === anchor || exclude.has(other)) continue;
+      // Fastest direct leg between the neighbour and this station, as a one-leg journey.
+      const leg = [...g.trains].sort((a, b) => a.durationMin - b.durationMin)[0];
+      if (!leg) continue;
+      const prev = best.get(other);
+      if (!prev || n.km < prev.km) best.set(other, { station: other, via: n.id, km: n.km, journey: toJourney([leg]) });
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => a.km - b.km || a.journey.totalDurationMin - b.journey.totalDurationMin)
+    .slice(0, NEARBY_BROWSE_RESULTS);
 }
 
 /**
@@ -464,6 +524,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   settings = store.loadSettings();
   const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
+  applyDensity(settings.density);
   setLang(isLang(urlLang) ? urlLang : settings.lang);
   // Every station present in the dataset becomes searchable (the curated registry
   // only covers map coordinates for the major ones).
@@ -473,7 +534,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? queryFromUrl()
-    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
+    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
 
   // A genuine page reload restores the form from the URL but does NOT auto-run the
   // search — results wait for the Search button, matching how form edits are now
@@ -725,16 +786,15 @@ function syncFormFromQuery(): void {
   const planned =
     (query.cities && query.cities.length > 0) || Boolean(query.origin) || Boolean(query.destination);
   formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : planned ? "plan" : "legs");
-  formApi.setReturnMode(query.roundTrip ? "duration" : "dates");
   formApi.setActiveTab(tripType);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
   // Values set here are always resolved, so clear any stale invalid flag.
   for (const f of [refs.origin, refs.destination, refs.via]) f.classList.remove("is-invalid");
-  refs.departDate.setRange(tripType === "return");
+  // A single outbound date now; the return (when round-trip) is picked in the results.
   refs.departDate.setMargin(query.flexDays ?? 0);
-  refs.departDate.setDates(query.date, query.returnDate ?? "");
+  refs.departDate.setDate(query.date);
   refs.date.value = query.date;
   if (query.legs && query.legs.length > 0) {
     formApi.setLegs(
@@ -753,12 +813,15 @@ function syncFormFromQuery(): void {
   refs.maxDuration.value = query.maxDurationMin != null ? String(query.maxDurationMin) : "";
   refs.maxSpanDays.value = query.maxSpanDays != null ? String(query.maxSpanDays) : "";
   refs.radius.value = query.radiusKm != null ? String(query.radiusKm) : "";
+  refs.hidden.checked = Boolean(query.hidden);
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.onlyNight.checked = Boolean(query.onlyNight);
-  refs.roundTrip.checked = Boolean(query.roundTrip);
+  // The round-trip toggle is on for an explicit round trip OR a carried return date
+  // (a legacy `?rdate=` link, or a return picked from the results calendar).
+  refs.roundTrip.checked = Boolean(query.roundTrip || query.returnDate);
   refs.nights.value = query.flexNights ? "flex" : String(query.nights ?? 0);
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
@@ -796,27 +859,29 @@ function readQueryFromForm(): SearchQuery {
   const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
   const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
   const usesDestination = mode === "od" || mode === "to" || planMode;
-  // Round-trip getaways come from two surfaces: the Return tab's "duration" sub-mode
-  // (where the sub-mode itself is the opt-in — with a destination it sweeps start days
-  // for that city, without one it browses everywhere) and the Ideas tab's checkbox.
-  const byDuration = tripType === "return" && formApi.getReturnMode() === "duration";
-  const roundTrip = byDuration
-    ? mode === "from" || mode === "od"
-    : tripType === "ideas" && mode === "best" && refs.roundTrip.checked;
+  // Round trip is the toggle on the Trip tab (and Ideas). It applies to an exact route
+  // (od → outbound + a return picked from the results calendar), a browse from an
+  // origin (from → getaway list), and Ideas (best) — never to a "where from?" browse.
+  const roundTrip =
+    ((tripType === "simple" || tripType === "ideas") &&
+      refs.roundTrip.checked &&
+      (mode === "od" || mode === "from" || mode === "best")) ||
+    undefined;
+  // Only od carries a concrete return date (the second calendar in the results picks
+  // it). Keep a still-valid carried one, else propose outbound + 2 so the results have
+  // a return to show; from/ideas derive their return from the stay length instead.
+  const outDate = refs.date.value || query.date;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
     destination: usesDestination ? resolveStation(refs.destination.value) : undefined,
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
-    // On the Return tab's "dates" surface always carry a return date, defaulting to
-    // the proposed outbound+2 when the user hasn't picked one. It is what restores the
-    // tab on reload/Back, so it must survive a blank destination too (which derives
-    // "from", not "od") — the search itself ignores it outside od. The "duration"
-    // surface derives its return from the stay length instead, and is restored by `rt`.
     returnDate:
-      tripType === "return" && !byDuration
-        ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
+      roundTrip && mode === "od"
+        ? query.returnDate && query.returnDate >= outDate
+          ? query.returnDate
+          : proposedReturn(outDate)
         : undefined,
     legs: legsMode
       ? formApi
@@ -868,8 +933,16 @@ function readQueryFromForm(): SearchQuery {
       planMode && Number.isFinite(minLegDur) && minLegDur > 0 ? Math.floor(minLegDur) : undefined,
     maxSpanDays:
       mode === "od" && Number.isFinite(span) && span >= 1 ? Math.min(14, Math.floor(span)) : undefined,
+    // Search radius (km): exact trip, plus the browse modes ("Where to?" / "Where
+    // from?"), where it substitutes the anchor for a nearby station.
     radiusKm:
-      mode === "od" && Number.isFinite(rad) && rad >= 10 ? Math.min(300, Math.floor(rad)) : undefined,
+      (mode === "od" || mode === "from" || mode === "to") && Number.isFinite(rad) && rad >= 10
+        ? Math.min(300, Math.floor(rad))
+        : undefined,
+    // "Hidden train" (hidden-city ticketing) is a global preference (Advanced, on by
+    // default, present on every tab), so it's read regardless of mode; only the exact
+    // trip actually surfaces hidden trains, the other modes just carry the flag.
+    hidden: refs.hidden.checked || undefined,
     // Round-trip getaways (Where to? / Ideas): the toggle plus its stay options.
     roundTrip: roundTrip || undefined,
     nights: roundTrip && !flexNights && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
@@ -1122,10 +1195,10 @@ function renderSearch(): void {
   updateDocTitle();
   rootRef.dataset.detail = navStack.length ? "on" : "";
 
-  // Default the map to the bare France basemap; a mode that has something to plot
-  // overrides this with its own markers below. This keeps the map from sitting
-  // empty when a search can't run yet (e.g. no origin entered).
-  showBaseMap();
+  // NB: the map is drawn by exactly ONE call per render — the mode's own show()/
+  // route(), or showBaseMap() on an empty state (via showHint / a "nothing to plot"
+  // branch). Don't reset to the France basemap up front and then re-fit to markers:
+  // that was a visible zoom-out-then-in on every search (jarring on Surprise me).
 
   // Back to the previous list (instant — journeys are memoized).
   if (navStack.length) {
@@ -1147,11 +1220,9 @@ function renderSearch(): void {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
-  } else if (query.roundTrip) {
-    // Return tab, "by duration": both endpoints known, so list the start days that
-    // give the requested stay rather than a single outbound/return pair.
-    runOdGetaways(c);
   } else {
+    // Exact trip. When round-trip is on, runOdSearch shows the outbound + return
+    // availability calendars together and the return list (no separate by-duration).
     runOdSearch(c);
   }
   updateSearchBar();
@@ -1234,31 +1305,57 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   })();
 
   const total = groups.length + connecting.length;
+
+  // Radius (browse): extra places reachable by hopping to a nearby anchor station,
+  // excluding everywhere already listed. Computed on the selected day, and used both
+  // to fill an otherwise-empty result and as a supplement below the main list.
+  const already = new Set<string>([...directStations, ...connecting.map((tr) => tr.station)]);
+  const nearby = query.radiusKm
+    ? nearbyBrowse(anchor, dir, query.date, query.radiusKm, filterOpts(), already)
+    : [];
+
   if (total === 0) {
-    refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
-    showMap(anchor, []);
-    return;
-  }
-  // Sort applies to the direct destinations (the rich cards); "rec" keeps the
-  // most-served default. Via rows stay appended after, in their duration order.
-  const sortedGroups = applySort(groups, {
-    name: (g) => registry.label(g.station),
-    distanceKm: (g) => stationDistanceKm(anchor, g.station),
-    durationMin: (g) => g.minDurationMin,
-  });
-  refs.results.append(
-    render.listToolbarEl(
-      t(countKey, { n: total }),
-      query.sort ?? "rec",
-      sortOptions(["rec", "fastest", "closest", "name"]),
-      onSort,
-    ),
-  );
-  for (const g of sortedGroups)
+    // Suppress the empty message when nearby alternatives will fill the gap below.
+    if (nearby.length === 0) {
+      refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+      showMap(anchor, []);
+      return;
+    }
+  } else {
+    // Sort applies to the direct destinations (the rich cards); "rec" keeps the
+    // most-served default. Via rows stay appended after, in their duration order.
+    const sortedGroups = applySort(groups, {
+      name: (g) => registry.label(g.station),
+      distanceKm: (g) => stationDistanceKm(anchor, g.station),
+      durationMin: (g) => g.minDurationMin,
+    });
     refs.results.append(
-      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      render.listToolbarEl(
+        t(countKey, { n: total }),
+        query.sort ?? "rec",
+        sortOptions(["rec", "fastest", "closest", "name"]),
+        onSort,
+      ),
     );
-  for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+    for (const g of sortedGroups)
+      refs.results.append(
+        render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+      );
+    for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
+  }
+
+  // Nearby paid-hop alternatives: a station near your anchor reaches (or is reached
+  // by) somewhere your exact anchor doesn't. Each row opens that nearby leg's route.
+  if (query.radiusKm) {
+    const sec = el("section", { class: "nearby" }, [
+      el("h3", { text: t("nearby_title", { km: query.radiusKm }) }),
+      el("p", { class: "muted small", text: t(dir === "from" ? "nearby_browse_from" : "nearby_browse_to") }),
+    ]);
+    if (nearby.length === 0) sec.append(render.emptyEl(t("nearby_none")));
+    else for (const n of nearby) sec.append(render.nearbyTripRowEl(n.station, Math.round(n.km), n.journey, c));
+    refs.results.append(sec);
+  }
+
   // Tint map pins by how many changes each place takes: direct = green, each
   // extra connection pushes toward red (see RouteMap.reachColor).
   const mapInfo = new Map<string, MarkerInfo>();
@@ -1268,7 +1365,13 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
       title: registry.label(tr.station),
       connections: tr.journey.legs.length - 1,
     });
-  showMap(anchor, [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station)], mapInfo);
+  showMap(
+    anchor,
+    [...groups.map((g) => g.station), ...connecting.map((tr) => tr.station), ...nearby.map((n) => n.station)],
+    mapInfo,
+  );
+  // Draw the search-radius circle around the anchor and mark the nearby substitutes.
+  if (query.radiusKm) showRadius([{ id: anchor, km: query.radiusKm }], nearby.map((n) => n.via));
 }
 
 /**
@@ -1306,44 +1409,6 @@ function runGetaways(c: RenderCtx, origin: string): void {
   );
 }
 
-/**
- * Duration search, page 2: ONE city. A calendar of the start days that work, then
- * every dated solution below it. Reached from the list page, or straight away when
- * the form already names a destination.
- */
-function runOdGetaways(c: RenderCtx): void {
-  const { trains, registry } = deps;
-  const { origin, destination } = query;
-  if (!origin) return showHint(refs.origin);
-  if (!destination) return showHint(refs.destination);
-  refs.title.textContent = t("getaway_od_title", {
-    origin: registry.label(origin),
-    destination: registry.label(destination),
-    date: formatDate(query.date),
-  });
-  const dates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, getawayOpts());
-  if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
-    showMap(origin, [destination]);
-    return;
-  }
-  // The calendar is built from the sweep itself: a day is available exactly when it
-  // produced a trip, so it can never disagree with the list under it.
-  const startable = new Set(trips.map((trip) => trip.outbound.date));
-  refs.results.append(
-    render.calendarEl(
-      dates.map((date) => ({ date, available: startable.has(date), count: startable.has(date) ? 1 : 0 })),
-      c,
-      query.date,
-      { title: t("getaway_cal_title"), showCount: false },
-    ),
-    el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }),
-  );
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
-  showMap(origin, [destination]);
-}
-
 function runMultiCity(c: RenderCtx): void {
   const { trains, registry } = deps;
   const legs = (query.legs ?? []).filter((l) => l.from && l.to);
@@ -1356,51 +1421,145 @@ function runMultiCity(c: RenderCtx): void {
   const stations: string[] = [];
   const legSections: HTMLElement[] = [];
   const chosen: (Journey | null)[] = legs.map(() => null);
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+
+  // The legs render as an accordion: each leg's calendar + full train list collapse
+  // to just the chosen train once you pick one, so a long list doesn't push the next
+  // leg far down the page. Picking a train collapses its leg, opens the next, and
+  // scrolls to it; picking the LAST leg opens the whole-trip ticket modal. The head
+  // toggles a leg open/closed by hand. A leg with no seat stays open (nothing to
+  // collapse to) so its "no MAX seat" message is never hidden.
+  interface LegUI {
+    head: HTMLElement;
+    num: HTMLElement;
+    summary: HTMLElement;
+    calEl: HTMLElement | null;
+    cards: HTMLElement[];
+    chosenCard: HTMLElement | null;
+    collapsed: boolean;
+    empty: boolean;
+  }
+  const legUI: LegUI[] = [];
+  // Refresh a collapsed leg's one-line summary + its ✓/number badge from chosen[i].
+  const refreshSummary = (i: number): void => {
+    const ui = legUI[i];
+    if (!ui) return;
+    const j = chosen[i];
+    clear(ui.summary);
+    if (j) ui.summary.append(render.journeySummaryEl(j, c));
+    ui.num.textContent = ui.collapsed && j ? "✓" : String(i + 1);
+    ui.num.classList.toggle("is-done", ui.collapsed && Boolean(j));
+  };
+  const setCollapsed = (i: number, collapsed: boolean): void => {
+    const ui = legUI[i];
+    if (!ui || ui.empty) return; // a seatless leg stays open — nothing to collapse to
+    ui.collapsed = collapsed;
+    legSections[i]?.classList.toggle("mc-collapsed", collapsed);
+    ui.head.setAttribute("aria-expanded", String(!collapsed));
+    if (ui.calEl) ui.calEl.style.display = collapsed ? "none" : "";
+    for (const card of ui.cards) card.style.display = !collapsed || card === ui.chosenCard ? "" : "none";
+    refreshSummary(i);
+  };
+  const pickLeg = (i: number, card: HTMLElement, j: Journey): void => {
+    chosen[i] = j;
+    const ui = legUI[i];
+    if (ui) ui.chosenCard = card;
+    setCollapsed(i, true); // collapse this leg to its summary…
+    const next = legSections[i + 1];
+    if (next) {
+      // …open the next one and bring it into view, so the list never runs off-screen.
+      setCollapsed(i + 1, false);
+      next.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      // Last leg chosen → the whole itinerary is settled; open the trip ticket modal.
+      showMultiTripModal(
+        legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
+        c,
+      );
+    }
+  };
+  // Pick a leg's date straight from the results: update that leg in the query and
+  // MIRROR the date into just its form field (like refreshInPlace mirrors the main
+  // date), then re-render in place. Deliberately NOT syncFormFromQuery — a full
+  // re-sync would wipe staged, not-yet-searched edits (a toggled filter, a half-typed
+  // extra leg), the "my filter disappeared" bug refreshInPlace exists to avoid.
+  const setLegDate = (i: number, d: string): void => {
+    if (legs[i]?.date === d) return;
+    formApi.setLegDate(i, d);
+    query = { ...query, legs: legs.map((lg, k) => (k === i ? { ...lg, date: d } : lg)) };
+    refreshInPlace();
+  };
   legs.forEach((leg, i) => {
     const opts = { ...filterOpts(), maxConnections: query.maxConnections };
     const journeys = findJourneys(trains, leg.from, leg.to, leg.date, opts).sort(
       (a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin,
     );
     chosen[i] = journeys[0] ?? null;
-    const sec = el("section", { class: "mc-result" }, [
-      el("div", { class: "mc-result-head" }, [
-        el("span", { class: "mc-num", text: String(i + 1) }),
+    // The head is a button: collapsed it shows a ✓ + the picked train's summary;
+    // clicking it re-opens the leg to change the choice (the "go back" affordance).
+    const num = el("span", { class: "mc-num", text: String(i + 1) });
+    const summary = el("span", { class: "mc-pick-slot" });
+    const head = el(
+      "button",
+      {
+        class: "mc-result-head",
+        type: "button",
+        attrs: { "aria-expanded": "true", "aria-label": t("mc_toggle") },
+        on: { click: () => setCollapsed(i, !legUI[i]!.collapsed) },
+      },
+      [
+        num,
         el("span", { class: "mc-route" }, [
           el("bdi", { text: registry.label(leg.from) }),
           el("span", { class: "muted", text: " → " }),
           el("bdi", { text: registry.label(leg.to) }),
         ]),
         el("span", { class: "mc-date muted", text: formatDate(leg.date) }),
-      ]),
-    ]);
+        summary,
+        el("span", { class: "mc-chev", attrs: { "aria-hidden": "true" } }),
+      ],
+    );
+    const sec = el("section", { class: "mc-result" }, [head]);
+    // Which days this leg has a free MAX seat, shown right here in the results so you
+    // can see (and pick) an available date without opening the leg's own calendar —
+    // handy when you left the date blank. Clicking a day sets it and re-runs.
+    const legCal = availabilityCalendar(trains, leg.from, leg.to, windowDates, opts);
+    const legCtx: RenderCtx = { ...c, onSelectDay: (d) => setLegDate(i, d) };
+    const calEl = journeys.length ? render.calendarEl(legCal, legCtx, leg.date) : null;
+    if (calEl) sec.append(calEl);
+    const cards: HTMLElement[] = [];
     if (journeys.length === 0) sec.append(render.emptyEl(t("res_none")));
     else
-      for (const j of journeys)
-        sec.append(
-          render.journeyEl(j, c, {
-            onPick: (jj) => {
-              chosen[i] = jj;
-            },
-            onArrow: (jj) => {
-              chosen[i] = jj;
-              const nextSec = legSections[i + 1];
-              if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
-              // Carry every leg (with its chosen journey, or null when a leg has no
-              // seat) so the recap shows the trip honestly instead of hiding gaps.
-              else
-                showMultiTripModal(
-                  legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
-                  c,
-                );
-            },
-          }),
-        );
+      for (const j of journeys) {
+        // Clicking a card (body or arrow) picks that train: collapse this leg to its
+        // summary and step to the next one — see pickLeg.
+        const card: HTMLElement = render.journeyEl(j, c, {
+          selected: j === chosen[i],
+          onPick: () => pickLeg(i, card, j),
+          onArrow: () => pickLeg(i, card, j),
+        });
+        cards.push(card);
+        sec.append(card);
+      }
+    legUI[i] = {
+      head,
+      num,
+      summary,
+      calEl,
+      cards,
+      chosenCard: cards[0] ?? null,
+      collapsed: false,
+      empty: journeys.length === 0,
+    };
     legSections.push(sec);
     refs.results.append(sec);
     stations.push(leg.from);
     const next = legs[i + 1];
     if (!next || next.from !== leg.to) stations.push(leg.to);
   });
+  // Start as a stepper: the first leg open to pick, every later leg collapsed to its
+  // (fastest) default so the page stays short. Empty legs ignore this and stay open.
+  legs.forEach((_, i) => setCollapsed(i, i > 0));
   showRoute(stations);
 }
 
@@ -1417,6 +1576,7 @@ function runTourSearch(c: RenderCtx): void {
   const cities = query.cities ?? [];
   if (cities.length === 0) {
     refs.results.append(render.emptyEl(t("tour_hint")));
+    showBaseMap();
     return;
   }
   const lo = query.minDays ?? 1;
@@ -1447,6 +1607,7 @@ function runTourSearch(c: RenderCtx): void {
   }
   if (tours.length === 0) {
     refs.results.append(render.emptyEl(t("tour_none")), render.hintEl(t("tour_none_hint")));
+    showBaseMap();
     return;
   }
   for (const tour of tours) refs.results.append(render.tourEl(tour, c));
@@ -1518,6 +1679,7 @@ function runBestSearch(c: RenderCtx): void {
   }
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
+    showBaseMap();
     return;
   }
 
@@ -1537,7 +1699,7 @@ function runBestSearch(c: RenderCtx): void {
     render.listToolbarEl(
       t("res_destinations", { n: trips.length }),
       query.sort ?? "rec",
-      sortOptions(["rec", "trains", "days", "closest", "name"]),
+      sortOptions(["rec", "trains", "days", "closest", "fastest", "name"]),
       onSort,
     ),
   );
@@ -1622,6 +1784,10 @@ function runOdSearch(c: RenderCtx): void {
     return showHint(query.origin ? refs.destination : refs.origin);
   }
   odReturnDate = query.returnDate ?? null;
+  // A round trip is on when the toggle set the flag OR a return date rode in on a link
+  // (a legacy `?rdate=` deep link that predates the toggle). Either way, show the
+  // outbound + return calendars together and the return list.
+  const isRound = Boolean(query.roundTrip || query.returnDate);
   refs.title.textContent = t("res_od_title", {
     origin: registry.label(query.origin),
     destination: registry.label(query.destination),
@@ -1665,7 +1831,15 @@ function runOdSearch(c: RenderCtx): void {
       else if (lvl === 2) d.nearbyBoth = true;
     }
   }
-  refs.results.append(render.calendarEl(cal, c, query.date));
+  refs.results.append(
+    render.calendarEl(cal, c, query.date, query.roundTrip ? { title: t("rt_outbound") } : undefined),
+  );
+  // Round trip: a second availability strip for the RETURN, right under the outbound
+  // one, so both legs' free-seat days are visible together at a glance — no picking an
+  // outbound and scrolling to find out if a return exists. Filled by selectReturn
+  // below (which also drives the return train list further down).
+  const retCalHost = isRound ? el("div", { class: "ret-cal" }) : null;
+  if (retCalHost) refs.results.append(el("section", { class: "od-return-cal" }, [retCalHost]));
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   // A journey's day-span cap (e.g. "no trip longer than 2 days"): overnight
@@ -1680,13 +1854,30 @@ function runOdSearch(c: RenderCtx): void {
   const spanDays = query.maxSpanDays && query.maxSpanDays > 2 ? query.maxSpanDays : undefined;
   const journeyOpts = spanDays ? { ...connOpts, spanDays } : connOpts;
 
-  // Sort by total travel time, fastest first (then earliest departure as a
-  // tiebreak) so the best option is at the top of the list and the slowest last.
-  const raw = findJourneys(trains, query.origin, query.destination, query.date, journeyOpts);
+  // Flexible dates on a ONE-WAY exact trip: list trains across the ±N-day window, not
+  // just the chosen day, so the flexibility control actually surfaces nearby-day
+  // options. Each card then carries its own date (below). A round trip keeps a single
+  // outbound day — its return calendar already covers the second dimension, so it's
+  // left untouched (per the "don't remove round-trip flexibility" note).
+  const flex = isRound ? 0 : query.flexDays ?? 0;
+  const searchDates: string[] = [];
+  for (let i = -flex; i <= flex; i++) {
+    const d = addDays(query.date, i);
+    if (i === 0 || (d >= today && d <= lastBookable)) searchDates.push(d);
+  }
+  searchDates.sort();
+  // Sort by total travel time, fastest first (then earliest departure as a tiebreak);
+  // with flexible dates group by day first so the list reads chronologically.
+  const raw = searchDates.flatMap((d) => findJourneys(trains, query.origin!, query.destination!, d, journeyOpts));
   const journeys: Journey[] = raw
     .filter(passesVia)
     .filter(withinSpan)
-    .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
+    .sort(
+      (a, b) =>
+        (flex > 0 ? dayIndex(a.date) - dayIndex(b.date) : 0) ||
+        a.totalDurationMin - b.totalDurationMin ||
+        a.departMin - b.departMin,
+    );
   // The outbound chosen for the round trip — defaults to the fastest; clicking a
   // journey card picks it, so "come back?" pairs returns with the leg you want.
   let chosenOutbound: Journey | null = journeys[0] ?? null;
@@ -1716,11 +1907,13 @@ function runOdSearch(c: RenderCtx): void {
         refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
       }
     }
-    const ret = tripType === "return";
+    const ret = isRound;
     for (const j of journeys)
       refs.results.append(
         ret
-          ? render.journeyEl(j, c, {
+          ? // Round trip: picking an outbound selects it (so the return list below pairs
+            // with the leg you want) and jumps to the return calendar.
+            render.journeyEl(j, c, {
               selected: j === chosenOutbound,
               onPick: (jj) => {
                 chosenOutbound = jj;
@@ -1732,8 +1925,32 @@ function runOdSearch(c: RenderCtx): void {
                   ?.scrollIntoView({ behavior: "smooth", block: "start" });
               },
             })
-          : render.journeyEl(j, c),
+          : // One-way: selecting a journey leads nowhere, so a body click books it
+            // directly (deep link, or the step modal for a connecting trip). With
+            // flexible dates the list spans days, so date each card.
+            render.journeyEl(j, c, { bookOnClick: true, dateLabel: flex > 0 ? formatDate(j.date) : undefined }),
       );
+  }
+
+  // "Hidden train" (hidden-city ticketing): trains that call at your destination on
+  // the way to a stop past it. You book the longer ticket — same départ — and step
+  // off early. Only shown when the toggle is on; the départ is always your origin, so
+  // this never changes where you board, only how far the ticket runs.
+  if (query.hidden) {
+    const hidden = findHiddenTrains(trains, query.origin, query.destination, query.date, {
+      departAfter: query.departAfter,
+      departBefore: query.departBefore,
+      trainType: query.trainType,
+      excludeNight: query.excludeNight,
+    });
+    if (hidden.length > 0) {
+      const sec = el("section", { class: "hidden-trains" }, [
+        el("h3", { text: t("hidden_title") }),
+        el("p", { class: "muted small", text: t("hidden_hint") }),
+      ]);
+      for (const h of hidden) sec.append(render.hiddenTrainRowEl(h, c));
+      refs.results.append(sec);
+    }
   }
 
   // Nearby paid-connection alternatives (radius search): surface nearby stations
@@ -1776,11 +1993,11 @@ function runOdSearch(c: RenderCtx): void {
     refs.results.append(sec);
   }
 
-  // "Do you want to come back?": a return availability calendar (every bookable
-  // return day at a glance) plus a stay-N-nights quick pick. Picking a day lists
-  // that day's free-MAX returns and lets you open the whole round trip on one page.
-  // Only for a round trip (aller-retour) — a one-way search shows no return.
-  if (tripType === "return" && journeys.length > 0) {
+  // Round trip: the return availability calendar lives in the strip at the top (next
+  // to the outbound one — see retCalHost); the return TRAIN list sits down here, under
+  // the outbound trains. Picking a return day (top strip) fills this list and lets you
+  // open the whole round trip on one page.
+  if (isRound && journeys.length > 0 && retCalHost) {
     const origin = query.origin;
     const destination = query.destination;
     const proposed =
@@ -1794,7 +2011,6 @@ function runOdSearch(c: RenderCtx): void {
     // day from the outbound date onward — so all return options are visible at once.
     const retDates = dateRange(query.date, dayIndex(lastBookable) - dayIndex(query.date) + 1);
     const cal = availabilityCalendar(trains, destination, origin, retDates, returnOpts, withinSpan);
-    const retCal = el("div", { class: "ret-cal" });
     const retList = el("div", { class: "return-list" });
     let selectReturn: (retDate: string) => void = () => {};
     // The return calendar reuses the journey ctx but redirects day clicks to the
@@ -1816,24 +2032,27 @@ function runOdSearch(c: RenderCtx): void {
         retList.append(render.emptyEl(t("ret_none")));
         return;
       }
-      // Clicking a return opens the whole round trip (the chosen outbound + this
-      // return) on one page, ready to book both legs and save.
+      // Clicking anywhere on a return card opens the whole round trip (the chosen
+      // outbound + this return) on one page, ready to book both legs and save — not
+      // only the arrow on the right. onPick and the arrow both open the trip.
+      const openTrip = (rj: Journey): void =>
+        showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl });
       for (const j of back)
         retList.append(
           render.journeyEl(j, c, {
-            onPick: () => {},
-            onArrow: (rj) => showTripModal(chosenOutbound!, c, { inbound: rj, onShare: shareCurrentUrl }),
+            onPick: openTrip,
+            onArrow: openTrip,
           }),
         );
     };
     selectReturn = (retDate: string): void => {
       odReturnDate = retDate;
-      clear(retCal);
-      retCal.append(render.calendarEl(cal, retCtx, retDate, { title: t("ret_cal_title") }));
+      clear(retCalHost);
+      retCalHost.append(render.calendarEl(cal, retCtx, retDate, { title: t("rt_inbound") }));
       renderReturns(retDate);
     };
+    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]));
     selectReturn(proposed);
-    refs.results.append(el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retCal, retList]));
   }
 
   // Draw the most relevant journey as an ordered path (origin → via → destination),
@@ -1857,6 +2076,9 @@ function runOdSearch(c: RenderCtx): void {
 function showHint(input: HTMLInputElement): void {
   // Empty state: no nagging prompt — just a blank heading and a ready cursor.
   refs.title.textContent = "";
+  // Nothing to plot yet: rest the map on the bare France basemap. (renderSearch no
+  // longer does this unconditionally, to avoid a base→markers double-zoom.)
+  showBaseMap();
   // On phones, don't auto-focus the field: it pops the keyboard + the station
   // suggestion dropdown over the whole UI on entry. Let the user tap it first.
   if (!isTouch()) input.focus({ preventScroll: true });
@@ -1875,7 +2097,7 @@ function goBack(): void {
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
   navStack = [];
-  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
+  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
   syncFormFromQuery();
   applyAndRun();
   setMobileForm(true);
@@ -1906,11 +2128,12 @@ function switchMultiMode(mode: "plan" | "legs"): void {
   applyAndRun();
 }
 
-/** Switch the Return sub-surface (pick both days ↔ pick a stay length). */
-function switchReturnMode(mode: "dates" | "duration"): void {
+/** Toggle round trip (the "r" shortcut / the switch): flip the flag and re-run. */
+function toggleRoundTrip(): void {
   navStack = [];
-  formApi.setReturnMode(mode);
-  formApi.updateFieldVisibility("return");
+  refs.roundTrip.checked = !refs.roundTrip.checked;
+  refs.roundTrip.dispatchEvent(new Event("change", { bubbles: true }));
+  formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
   applyAndRun();
 }
@@ -1990,9 +2213,12 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (tgt && (/^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName) || tgt.isContentEditable)) return;
   if (document.querySelector("dialog[open]")) return; // not while a modal is up
 
-  if (/^[1-4]$/.test(e.key)) {
+  if (/^[1-3]$/.test(e.key)) {
     e.preventDefault();
     switchTab(TRIP_TABS[Number(e.key) - 1]!);
+  } else if (e.key === "r" && (tripType === "simple" || tripType === "ideas")) {
+    e.preventDefault();
+    toggleRoundTrip(); // flip round trip on the Trip / Ideas tab
   } else if (e.key === "/") {
     e.preventDefault();
     const f = deriveMode() === "to" ? refs.destination : refs.origin;
@@ -2267,7 +2493,6 @@ function buildLayout(root: HTMLElement): void {
     },
     onSwitchTab: switchTab,
     onMultiMode: switchMultiMode,
-    onReturnMode: switchReturnMode,
     onSubmit: runFromForm,
     onSurprise: surpriseMe,
     onNearest: addNearestCity,
@@ -2275,6 +2500,7 @@ function buildLayout(root: HTMLElement): void {
   const built = formApi;
   const shell = buildShell({
     theme: settings.theme,
+    density: settings.density,
     card: settings.card,
     updatedText: footerUpdatedText(),
     form: built.form,
@@ -2289,6 +2515,10 @@ function buildLayout(root: HTMLElement): void {
     },
     onThemeChange: (theme) => {
       settings = { ...settings, theme };
+      store.saveSettings(settings);
+    },
+    onDensityChange: (density) => {
+      settings = { ...settings, density };
       store.saveSettings(settings);
     },
     onCard: (card) => {

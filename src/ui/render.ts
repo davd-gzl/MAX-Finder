@@ -1,4 +1,5 @@
 import type { MaxTrain, Journey, SearchMode, CalendarDay, SortKey } from "../types";
+import type { HiddenTrain } from "../core/hidden";
 import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
@@ -6,6 +7,7 @@ import type { Tour } from "../core/tour";
 import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
+import { isNightTrain } from "../core/search";
 import { isAirportStation } from "../data/stations";
 import { formatDuration, dayIndex, addDays } from "../util/time";
 import { t } from "../i18n";
@@ -114,8 +116,35 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
     el("bdi", { text: formatDuration(train.durationMin) }),
     el("span", { class: "train-no", text: t("lbl_train", { no: train.trainNo }) }),
     ...(train.axe ? [el("span", { class: "train-axe", text: train.axe })] : []),
+    // A little 🌙 so a sleeper (leaves late / arrives past midnight) is obvious at a
+    // glance in the list, not only from the "+1d" time badge.
+    ...(isNightTrain(train)
+      ? [el("span", { class: "night-badge", text: "🌙", attrs: { title: t("field_night"), "aria-label": t("field_night") } })]
+      : []),
   ]);
   return el("div", { class: "train-row" }, [time, meta]);
+}
+
+/**
+ * A one-line summary of a chosen journey — its departure→arrival, total time, and a
+ * direct/via chip — used as the collapsed "you picked this" line in the multi-city
+ * stepper. Deliberately compact: it stands in for a whole journey card.
+ */
+export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
+  const first = j.legs[0];
+  const last = j.legs[j.legs.length - 1];
+  const via = j.legs.length > 1;
+  return el("span", { class: "mc-pick" }, [
+    el("span", { class: "mc-pick-time" }, [
+      el("strong", { text: first?.depart ?? "" }),
+      icon(I.arrow),
+      el("strong", { text: last?.arrive ?? "" }),
+    ]),
+    el("span", { class: "mc-pick-dur muted" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+    via
+      ? el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })
+      : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
+  ]);
 }
 
 /** External travel-guide link styled as a button (matches the Save button). */
@@ -216,10 +245,21 @@ export function journeyEl(
     group?: HTMLElement;
     /** Hide the "Show on map" action (e.g. inside a modal, where the map is hidden). */
     hideMap?: boolean;
+    /** Clicking the card body books the trip (deep link, or the step modal for a
+     * connecting one) instead of just highlighting it — used for the one-way list,
+     * where selecting a journey has no follow-up so the click may as well book. */
+    bookOnClick?: boolean;
+    /** A date chip in the card head — set when a flexible-date list mixes days, so
+     * each proposition says which day it's for. */
+    dateLabel?: string;
   } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
+  const book = (): void => {
+    if (connecting) ctx.onBookSteps(j);
+    else window.open(ctx.bookUrl(j.origin, j.destination, j.date, j.legs[0]?.depart), "_blank", "noopener,noreferrer");
+  };
 
   // A through-ticket can't be pinned to the exact free trains in a single SNCF
   // Connect search (the connection time isn't settable from a deep link, so it
@@ -269,7 +309,7 @@ export function journeyEl(
 
   const article = el("article", { class: "journey is-clickable" }, [
     el("div", { class: "journey-main" }, [
-      journeyBodyEl(j, ctx),
+      journeyBodyEl(j, ctx, undefined, opts.dateLabel),
       journeyActionsEl(j, ctx, { saveable, hideMap: opts.hideMap }),
     ]),
     el("div", { class: "journey-book" }, [bookBtn]),
@@ -288,6 +328,8 @@ export function journeyEl(
     if (opts.onPick) {
       select("is-selected");
       opts.onPick(j);
+    } else if (opts.bookOnClick) {
+      book();
     } else {
       select("is-active");
       ctx.onShowJourney(j);
@@ -444,7 +486,7 @@ export function reachTripRowEl(
  * leads the head line beside the chip. Split out of journeyEl so the getaway card
  * can stack two of them in ONE ticket.
  */
-function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string): HTMLElement {
+function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string, dateLabel?: string): HTMLElement {
   const legs = el("div", { class: "legs" });
   j.legs.forEach((leg, i) => {
     if (i > 0) {
@@ -484,6 +526,9 @@ function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string): HTMLElement 
         });
   const head = el("div", { class: "journey-head" }, [
     ...(label ? [el("h3", { class: "trip-leg-title", text: label })] : []),
+    // With flexible dates the list spans several days, so each card carries its own
+    // date (otherwise which day a proposition is for is lost). Leads the head.
+    ...(dateLabel ? [el("span", { class: "chip chip-date", text: dateLabel })] : []),
     tag,
     el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(j.totalDurationMin) })]),
   ]);
@@ -783,6 +828,64 @@ export function nearbyBothRowEl(
   return el("article", { class: "group-card", dataset: { station: fromId } }, [
     el("div", { class: "dest-row" }, [favStarEl({ origin: j.origin, destination: j.destination }, ctx), main]),
   ]);
+}
+
+/**
+ * A hidden-city ("hidden train") row: board at your origin, ride the free-MAX
+ * ticket booked to a stop *past* your destination, and step off at your
+ * destination. Shows your real origin → destination with the boarding and
+ * calling-at times, tags the over-shoot stop you ticket to, and its Book link
+ * deep-links the longer origin → beyond fare (the same départ).
+ */
+export function hiddenTrainRowEl(h: HiddenTrain, ctx: RenderCtx): HTMLElement {
+  const b = h.book;
+  const time = el("span", { class: "train-time" }, [
+    el("strong", { text: b.depart }),
+    icon(I.arrow),
+    el("strong", { text: h.alight }),
+    ...(h.alightMin >= 1440
+      ? [el("span", { class: "day-offset", text: t("lbl_dayoffset", { n: Math.floor(h.alightMin / 1440) }) })]
+      : []),
+  ]);
+  const route = el("div", { class: "leg-route" }, [
+    stationNameEl("", h.origin, ctx.label(h.origin)),
+    icon(I.arrow),
+    stationNameEl("", h.destination, ctx.label(h.destination)),
+  ]);
+  const meta = el("span", { class: "train-meta" }, [
+    icon(I.clock),
+    el("bdi", { text: formatDuration(h.durationMin) }),
+    el("span", { class: "train-no", text: t("lbl_train", { no: b.trainNo }) }),
+    ...(b.axe ? [el("span", { class: "train-axe", text: b.axe })] : []),
+  ]);
+  const head = el("div", { class: "journey-head" }, [
+    el("span", { class: "chip chip-hidden", text: t("hidden_chip") }),
+    el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(h.durationMin) })]),
+  ]);
+  // The ticket you actually buy runs origin → beyond; you alight early at your
+  // destination. Spell that out so the over-shoot is never a surprise.
+  const note = el("p", {
+    class: "hidden-note muted small",
+    text: t("hidden_row_note", { beyond: ctx.label(h.beyond), stop: ctx.label(h.destination) }),
+  });
+  const actions = el("div", { class: "actions" }, [
+    // Book the longer origin → beyond fare (the same départ time as your ride).
+    el(
+      "a",
+      {
+        class: "btn btn-book",
+        href: ctx.bookUrl(h.origin, h.beyond, b.date, b.depart),
+        attrs: { target: "_blank", rel: "noopener noreferrer" },
+      },
+      [
+        el("span", { text: t("hidden_book", { beyond: ctx.label(h.beyond) }) }),
+        icon(I.external),
+        el("span", { class: "sr-only", text: t("link_newtab") }),
+      ],
+    ),
+  ]);
+  const legs = el("div", { class: "legs" }, [el("div", { class: "leg" }, [route, el("div", { class: "train-row" }, [time, meta])])]);
+  return el("article", { class: "journey journey-hidden" }, [head, legs, note, actions]);
 }
 
 /**

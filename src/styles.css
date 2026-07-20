@@ -355,6 +355,9 @@ a {
   position: relative;
   top: 1px;
   border-bottom: 2px solid transparent;
+  /* Never break a label mid-word ("One-\nway") when the form column is narrow — the
+     row wraps between whole tabs instead. */
+  white-space: nowrap;
 }
 .mode-tab:hover {
   color: var(--text);
@@ -366,23 +369,14 @@ a {
 }
 .fields {
   display: grid;
-  /* Strictly three per row, everywhere. minmax(0, 1fr) — not plain 1fr — so a long
-     station name or <select> option can't blow its column out and scroll the page. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Column count follows the form's OWN width, not the viewport: the rail is only
+     ~340px on a medium desktop (two-column layout), where a fixed 3-track grid left
+     ~105px per field and clipped labels/the date ("Mon, J…"). auto-fit + a real min
+     wraps to 2 (then 1) tracks as the rail narrows, and a lone field (e.g. the date on
+     the simple tab) fills the row instead of sitting cramped in a third of it. ~8.5rem
+     still yields three tracks on a full-width desktop rail. */
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 0.85rem;
-}
-/* Three strict columns is a desktop rhythm: at phone widths it leaves ~105px per
-   field, which a station name can't use. Step down rather than let the fields
-   collapse — the column COUNT changes, the strict grid doesn't. */
-@media (max-width: 860px) {
-  .fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 520px) {
-  .fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 .field {
   display: flex;
@@ -445,9 +439,9 @@ a {
   font-size: 0.82rem;
   white-space: nowrap;
 }
-/* A boolean rendered as a Yes/No segmented control (see .yesno below). The
-   checkbox itself carries the value and stays focusable, but is never drawn. */
-.yesno-state {
+/* A boolean rendered as a toggle switch (see .switch below). The checkbox itself
+   carries the value but is never drawn or focusable. */
+.switch-state {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -573,6 +567,84 @@ a {
 .stay-fields .field {
   min-width: 0;
 }
+/* Min–max days-per-city as one control: two small number inputs joined by a dash. */
+.days-range {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.days-range .days-end {
+  text-align: center;
+  min-width: 0;
+}
+.days-range-sep {
+  flex: none;
+}
+
+/* ---- mode description + origin/destination swap row ---- */
+/* A one-line explanation of what the current tab does, right under the mode bar. */
+.mode-desc {
+  margin: 0.2rem 0 0.1rem;
+  line-height: 1.4;
+}
+.mode-desc:empty {
+  display: none;
+}
+/* Départ / arrivée on one row with a swap button between them. Each field flexes;
+   the button is fixed. They stack (and the button centres) on a narrow form. */
+.od-fields {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+}
+.od-fields > .field {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.swap-btn {
+  flex: none;
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.swap-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+/* "You can fill just one" hint, tucked under the départ/arrivée row. */
+.od-hint {
+  grid-column: 1 / -1;
+  margin: -0.2rem 0 0;
+  line-height: 1.35;
+}
+
+/* ---- search-scope band: radius (with hint) + hidden-train, promoted out of Advanced ---- */
+.scope-field {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: start;
+  gap: 0.55rem 1.2rem;
+}
+.field-radius {
+  min-width: 0;
+}
+.field-hint {
+  margin-top: 0.2rem;
+  line-height: 1.35;
+}
 
 /* ---- day trip (same-day round trips) toggle + options ---- */
 .daytrip-group {
@@ -593,7 +665,7 @@ a {
   flex: 0 1 auto;
   min-width: 0;
 }
-.daytrip-opts .field-yesno {
+.daytrip-opts .field-switch {
   align-self: end;
 }
 /* Duration surface: with the toggle hidden the group is no longer a sub-block, so it
@@ -647,41 +719,86 @@ a {
   }
 }
 
-/* ---- boolean field: a Yes/No segmented control ----
-   Same pill as the toggles above, but the thumb answers back: green on yes, red on
-   no. The active label sits on the coloured pill, so it takes the button ink. */
-.yesno {
+/* ---- boolean field: a toggle switch ----
+   One compact control instead of a Yes/No pill pair. State reads from the knob's
+   POSITION and a ✓/✕ glyph on it — not colour alone — so it's legible without the
+   accent. The green/red track tint is an enhancement layered on top of that. */
+.switch {
   position: relative;
   display: inline-flex;
-  gap: 0.2rem;
-  padding: 4px;
-  background: var(--chip);
-  border-radius: 12px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0;
+  cursor: pointer;
 }
-.yesno .multi-tab {
-  min-width: 3.2rem;
-  padding: 0.35rem 0.6rem;
+.switch-track {
+  position: relative;
+  display: inline-block;
+  width: 3rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  /* Off is a neutral grey, not red: a red "off" reads as an error/forbidden, and
+     red-off/green-on is the classic red-green colourblind trap. The knob's position
+     and its ✕/✓ glyph carry the state; colour is only a secondary cue. */
+  background: var(--border-strong);
+  border: 1px solid transparent;
+  transition: background 0.16s ease;
 }
-.yesno.is-yes > .mode-tab-thumb {
+.switch.is-on .switch-track {
   background: var(--accent);
 }
-.yesno.is-no > .mode-tab-thumb {
-  background: var(--danger);
+.switch-knob {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 3px;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: translateY(-50%);
+  transition: inset-inline-start 0.16s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
 }
-.yesno.has-thumb .multi-tab.active {
-  color: var(--btn-ink);
+/* Non-colour state cue: knob slides across, and its glyph flips ✕ → ✓. */
+.switch-knob::before {
+  content: "✕";
 }
-.yesno .multi-tab:focus-visible {
+.switch.is-on .switch-knob {
+  inset-inline-start: calc(100% - 1.2rem - 3px);
+  color: var(--accent);
+}
+.switch.is-on .switch-knob::before {
+  content: "✓";
+}
+.switch:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-knob {
+    transition: none;
+  }
 }
 /* Dependency not met: the field keeps its place but reads as unavailable. The
    pointer cue goes on the wrapper — a disabled <button> takes no pointer events. */
-.field-yesno.is-disabled {
+.field-switch {
+  gap: 0.35rem;
+}
+.field-switch.is-disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.field-yesno.is-disabled .multi-tab {
+.field-switch.is-disabled .switch {
   pointer-events: none;
 }
 
@@ -807,7 +924,9 @@ a {
 .advanced-toggles,
 .advanced-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Container-relative like .fields: the advanced panel sits in the same narrow rail,
+     so track count follows its own width rather than the viewport. */
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 0.55rem 0.75rem;
   margin-top: 0.7rem;
   grid-auto-rows: var(--adv-row);
@@ -821,14 +940,6 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* Same step-down as .fields — declared here, after the 3-column rule above, because
-   a media query adds no specificity and source order decides. */
-@media (max-width: 860px) {
-  .advanced-toggles,
-  .advanced-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 /* "Only night trains" is a sub-option of "night trains", but side by side in the
    toggle band its indent would just read as a column out of alignment. */
@@ -1356,6 +1467,51 @@ a {
 }
 .chip-soft {
   background: var(--surface-2);
+}
+/* Date chip leading a proposition's head when a flexible-date list mixes days. */
+.chip-date {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
+/* Hidden-city ("hidden train") accent — a dashed, distinct chip and card so it
+   reads as a clever workaround, visually apart from the normal journey list. */
+.chip-hidden {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+  border-style: dashed;
+  font-weight: 600;
+}
+.hidden-trains {
+  margin-top: 1rem;
+}
+.journey-hidden {
+  border-style: dashed;
+}
+.hidden-note {
+  margin: 0.1rem 0 0.4rem;
+}
+/* 🌙 sleeper marker in a train row's meta line. */
+.night-badge {
+  font-size: 0.95em;
+  line-height: 1;
+}
+/* Per-day alternative round trips (by-duration mode): an indented expander + the
+   shorter-stay options it reveals. */
+.gw-alts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: -0.2rem 0 0.4rem 0.6rem;
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--border);
+}
+.gw-more {
+  align-self: start;
+  font-size: 0.85rem;
 }
 .chip-onsite {
   background: var(--accent-soft);
@@ -3225,11 +3381,28 @@ select.input::-ms-expand {
   flex-direction: column;
   gap: 0.4rem;
 }
+/* The leg head is a full-width accordion toggle: it opens/closes the leg. */
 .mc-result-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   margin: 1rem 0 0.5rem;
+  padding: 0.35rem 0.4rem;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.mc-result-head:hover {
+  background: var(--surface-2);
+}
+.mc-result-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .mc-num {
   flex: none;
@@ -3244,15 +3417,78 @@ select.input::-ms-expand {
   font-weight: 700;
   font-size: 0.78rem;
 }
+/* A settled leg's badge turns into a filled ✓. */
+.mc-num.is-done {
+  background: var(--accent);
+  color: #fff;
+}
 .mc-route {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.02rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mc-date {
   margin-inline-start: auto;
   font-family: var(--font-mono);
   font-size: 0.76rem;
+}
+/* Chevron on the right; points down when open, right when collapsed. */
+.mc-chev {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: 0.35rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+.mc-result.mc-collapsed .mc-chev {
+  transform: rotate(-45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-chev {
+    transition: none;
+  }
+}
+/* The picked-train summary line: hidden while the leg is open, shown when collapsed
+   (where it replaces the date, pushed to the right). */
+.mc-pick-slot {
+  display: none;
+  margin-inline-start: auto;
+  min-width: 0;
+}
+.mc-result.mc-collapsed .mc-date {
+  display: none;
+}
+.mc-result.mc-collapsed .mc-pick-slot {
+  display: block;
+}
+.mc-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.mc-pick-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.mc-pick-time .icon {
+  color: var(--muted);
+}
+.mc-pick-dur {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
 }
 @media (max-width: 560px) {
   .mc-head {
@@ -3459,6 +3695,14 @@ select.input::-ms-expand {
     padding-bottom: 0;
     height: 100dvh;
     overflow: hidden;
+  }
+  /* Drilled into a route (detail view), the results become an ordinary scrolling
+     page — the map is hidden and the drawer goes static/auto-height. The app shell
+     must then release its one-viewport clamp, or the content past the fold is
+     clipped and unreachable ("stuck selecting a ticket, can't scroll the list"). */
+  #app[data-mform="results"][data-detail="on"] {
+    height: auto;
+    overflow: visible;
   }
   /* Shared element: the collapsed search bar and the full form morph into each
      other when toggling the mobile form (via document.startViewTransition). Only
@@ -3719,4 +3963,45 @@ select.input::-ms-expand {
     padding-left: 1.1rem;
     padding-right: 1.1rem;
   }
+}
+
+/* ---- compact results density ----
+   A power-user option (header toggle, persisted): tighten the ticket internals and
+   list rhythm so more trains fit per screen, without changing what's shown. */
+:root[data-density="compact"] .results {
+  gap: 0.28rem;
+}
+:root[data-density="compact"] .journey-main {
+  padding: 0.5rem 0.8rem;
+  gap: 0.4rem;
+}
+:root[data-density="compact"] .legs {
+  gap: 0.3rem;
+}
+:root[data-density="compact"] .journey-head {
+  margin-bottom: 0.1rem;
+}
+:root[data-density="compact"] .train-row {
+  font-size: 0.9rem;
+}
+:root[data-density="compact"] .journey-sub {
+  gap: 0.3rem;
+}
+:root[data-density="compact"] .journey-sub .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+:root[data-density="compact"] .journey-book {
+  width: 3rem;
+}
+:root[data-density="compact"] .dest-row {
+  min-height: 0;
+}
+:root[data-density="compact"] .dest-main > .dest-name,
+:root[data-density="compact"] .dest-main > .dest-meta {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+:root[data-density="compact"] .daytrip-card .journey-main {
+  gap: 0.3rem;
 }

@@ -233,6 +233,34 @@ export function getawaysToAcrossWindow(
 }
 
 /**
+ * EVERY round trip (out + back, both free MAX) from `origin` to `destination` that
+ * STARTS on `date`, best-first — not just the single best. Each distinct outbound is
+ * paired with its own best return, so the list varies by departure time (and thus by
+ * time on site): the first is the longest/best (what {@link bestGetawayTo} returns),
+ * the rest are earlier-home alternatives for when you don't want the longest one.
+ * Deduplicated on (outbound depart, return depart).
+ */
+export function getawaysForDay(
+  trains: MaxTrain[],
+  origin: string,
+  destination: string,
+  date: string,
+  opts: GetawayOptions = {},
+): Getaway[] {
+  const seen = new Set<string>();
+  const out: Getaway[] = [];
+  for (const j of findJourneys(trains, origin, destination, date, opts)) {
+    const g = bestGetawayTo(trains, origin, destination, date, opts, j);
+    if (!g) continue;
+    const key = `${g.outbound.date}/${g.outbound.departMin}>${g.back.date}/${g.back.departMin}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(g);
+  }
+  return out.sort(sortGetaways);
+}
+
+/**
  * Round-trip "ideas" for a whole month: the best there-and-back to every
  * destination reachable across `dates`. Built for scale — a per-station search on
  * every day is far too slow, so this pairs TWO multi-target sweeps per day: one

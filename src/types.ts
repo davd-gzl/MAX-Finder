@@ -77,6 +77,13 @@ export interface SearchQuery {
   onlyNight?: boolean;
   /** Force the journey to pass through this station ("exact trip" mode only). */
   via?: string;
+  /**
+   * "Hidden train" (hidden-city ticketing) toggle for "exact trip" mode. When set,
+   * also surface trains that call at your destination on the way to a stop *beyond*
+   * it — you book the longer ticket (same départ) and step off early. See
+   * {@link file://./core/hidden.ts}.
+   */
+  hidden?: boolean;
   /** Flexible dates: also search ±N days around `date` ("exact trip" mode). */
   flexDays?: number;
   /** Return date for a round trip ("aller-retour"): the day to travel back. */
