@@ -44,7 +44,7 @@ Query params:
 - `date`: `YYYY-MM-DD`
 - `conn`: `0` | `1` | `2` | `3` | `6` (max changes; 6 = unlimited; default 1)
 - `card`: `jeune` | `senior`
-- `after` / `before`: `HH:MM` departure window ; `maxdur`: minutes ; `type`: axis
+- `after` / `before`: `HH:MM` departure window ; `arrbefore`: `HH:MM` arrive-before cutoff ; `maxdur`: minutes ; `type`: axis
 - `via`: station id to route through (`mode=od`)
 - `flex`: `1` | `2` | `3` | `7` — also search ± N days around `date` (`mode=od/from/to/tour`)
 - `rdate`: `YYYY-MM-DD` return date for a round trip (`mode=od`)
@@ -52,7 +52,7 @@ Query params:
 - `rad`: search radius in km, 10–300, for nearby paid-connection alternatives (`mode=od`)
 - `night`: `1` to allow long overnight layovers at a hub ; `nonight`: `1` to exclude night trains ; `onlynight`: `1` to keep only night-train arrivals
 - `rg`: region label (`mode=best` or `tour`)
-- `rt`: `1` for round-trip getaways — day trips + N-night escapes (`mode=from` or `best`); with `nights` (1–3), `fn` (flexible nights), `stayh` (min hours on site, same-day), `late` (allow a late return)
+- `rt`: `1` for round-trip getaways — day trips + N-night escapes (`mode=from`, `od` or `best`); with `nights` (1–3), `fn` (flexible nights), `stayh` (min hours on site, same-day), `late` (allow a late return). With `mode=od` it lists the start days that give that stay for one destination; with `mode=from` it browses every destination
 - `cities`: `~`-separated station ids to visit — the tour planner (`mode=tour`)
 - `legs`: `~`-separated `from>to@YYYY-MM-DD` hops — an explicit multi-city itinerary (`mode=tour`)
 - `dmin` / `dmax`: min / max days per city (`mode=tour`; default 1 / 3)
