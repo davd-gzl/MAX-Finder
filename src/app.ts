@@ -1906,13 +1906,30 @@ function runOdSearch(c: RenderCtx): void {
   const spanDays = query.maxSpanDays && query.maxSpanDays > 2 ? query.maxSpanDays : undefined;
   const journeyOpts = spanDays ? { ...connOpts, spanDays } : connOpts;
 
-  // Sort by total travel time, fastest first (then earliest departure as a
-  // tiebreak) so the best option is at the top of the list and the slowest last.
-  const raw = findJourneys(trains, query.origin, query.destination, query.date, journeyOpts);
+  // Flexible dates on a ONE-WAY exact trip: list trains across the ±N-day window, not
+  // just the chosen day, so the flexibility control actually surfaces nearby-day
+  // options. Each card then carries its own date (below). A round trip keeps a single
+  // outbound day — its return calendar already covers the second dimension, so it's
+  // left untouched (per the "don't remove round-trip flexibility" note).
+  const flex = tripType === "return" ? 0 : query.flexDays ?? 0;
+  const searchDates: string[] = [];
+  for (let i = -flex; i <= flex; i++) {
+    const d = addDays(query.date, i);
+    if (i === 0 || (d >= today && d <= lastBookable)) searchDates.push(d);
+  }
+  searchDates.sort();
+  // Sort by total travel time, fastest first (then earliest departure as a tiebreak);
+  // with flexible dates group by day first so the list reads chronologically.
+  const raw = searchDates.flatMap((d) => findJourneys(trains, query.origin!, query.destination!, d, journeyOpts));
   const journeys: Journey[] = raw
     .filter(passesVia)
     .filter(withinSpan)
-    .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
+    .sort(
+      (a, b) =>
+        (flex > 0 ? dayIndex(a.date) - dayIndex(b.date) : 0) ||
+        a.totalDurationMin - b.totalDurationMin ||
+        a.departMin - b.departMin,
+    );
   // The outbound chosen for the round trip — defaults to the fastest; clicking a
   // journey card picks it, so "come back?" pairs returns with the leg you want.
   let chosenOutbound: Journey | null = journeys[0] ?? null;
@@ -1959,8 +1976,9 @@ function runOdSearch(c: RenderCtx): void {
               },
             })
           : // One-way: selecting a journey leads nowhere, so a body click books it
-            // directly (deep link, or the step modal for a connecting trip).
-            render.journeyEl(j, c, { bookOnClick: true }),
+            // directly (deep link, or the step modal for a connecting trip). With
+            // flexible dates the list spans days, so date each card.
+            render.journeyEl(j, c, { bookOnClick: true, dateLabel: flex > 0 ? formatDate(j.date) : undefined }),
       );
   }
 

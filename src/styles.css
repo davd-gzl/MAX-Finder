@@ -1468,6 +1468,14 @@ a {
 .chip-soft {
   background: var(--surface-2);
 }
+/* Date chip leading a proposition's head when a flexible-date list mixes days. */
+.chip-date {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
 /* Hidden-city ("hidden train") accent — a dashed, distinct chip and card so it
    reads as a clever workaround, visually apart from the normal journey list. */
 .chip-hidden {

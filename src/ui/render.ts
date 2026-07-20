@@ -249,6 +249,9 @@ export function journeyEl(
      * connecting one) instead of just highlighting it — used for the one-way list,
      * where selecting a journey has no follow-up so the click may as well book. */
     bookOnClick?: boolean;
+    /** A date chip in the card head — set when a flexible-date list mixes days, so
+     * each proposition says which day it's for. */
+    dateLabel?: string;
   } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
@@ -306,7 +309,7 @@ export function journeyEl(
 
   const article = el("article", { class: "journey is-clickable" }, [
     el("div", { class: "journey-main" }, [
-      journeyBodyEl(j, ctx),
+      journeyBodyEl(j, ctx, undefined, opts.dateLabel),
       journeyActionsEl(j, ctx, { saveable, hideMap: opts.hideMap }),
     ]),
     el("div", { class: "journey-book" }, [bookBtn]),
@@ -483,7 +486,7 @@ export function reachTripRowEl(
  * leads the head line beside the chip. Split out of journeyEl so the getaway card
  * can stack two of them in ONE ticket.
  */
-function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string): HTMLElement {
+function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string, dateLabel?: string): HTMLElement {
   const legs = el("div", { class: "legs" });
   j.legs.forEach((leg, i) => {
     if (i > 0) {
@@ -523,6 +526,9 @@ function journeyBodyEl(j: Journey, ctx: RenderCtx, label?: string): HTMLElement 
         });
   const head = el("div", { class: "journey-head" }, [
     ...(label ? [el("h3", { class: "trip-leg-title", text: label })] : []),
+    // With flexible dates the list spans several days, so each card carries its own
+    // date (otherwise which day a proposition is for is lost). Leads the head.
+    ...(dateLabel ? [el("span", { class: "chip chip-date", text: dateLabel })] : []),
     tag,
     el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(j.totalDurationMin) })]),
   ]);
