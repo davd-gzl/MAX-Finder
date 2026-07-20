@@ -125,6 +125,28 @@ export function trainRowEl(train: MaxTrain): HTMLElement {
   return el("div", { class: "train-row" }, [time, meta]);
 }
 
+/**
+ * A one-line summary of a chosen journey — its departure→arrival, total time, and a
+ * direct/via chip — used as the collapsed "you picked this" line in the multi-city
+ * stepper. Deliberately compact: it stands in for a whole journey card.
+ */
+export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
+  const first = j.legs[0];
+  const last = j.legs[j.legs.length - 1];
+  const via = j.legs.length > 1;
+  return el("span", { class: "mc-pick" }, [
+    el("span", { class: "mc-pick-time" }, [
+      el("strong", { text: first?.depart ?? "" }),
+      icon(I.arrow),
+      el("strong", { text: last?.arrive ?? "" }),
+    ]),
+    el("span", { class: "mc-pick-dur muted" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+    via
+      ? el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })
+      : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
+  ]);
+}
+
 /** External travel-guide link styled as a button (matches the Save button). */
 export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
   return el(
@@ -223,10 +245,18 @@ export function journeyEl(
     group?: HTMLElement;
     /** Hide the "Show on map" action (e.g. inside a modal, where the map is hidden). */
     hideMap?: boolean;
+    /** Clicking the card body books the trip (deep link, or the step modal for a
+     * connecting one) instead of just highlighting it — used for the one-way list,
+     * where selecting a journey has no follow-up so the click may as well book. */
+    bookOnClick?: boolean;
   } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
   const connecting = j.legs.length > 1;
+  const book = (): void => {
+    if (connecting) ctx.onBookSteps(j);
+    else window.open(ctx.bookUrl(j.origin, j.destination, j.date, j.legs[0]?.depart), "_blank", "noopener,noreferrer");
+  };
 
   // A through-ticket can't be pinned to the exact free trains in a single SNCF
   // Connect search (the connection time isn't settable from a deep link, so it
@@ -295,6 +325,8 @@ export function journeyEl(
     if (opts.onPick) {
       select("is-selected");
       opts.onPick(j);
+    } else if (opts.bookOnClick) {
+      book();
     } else {
       select("is-active");
       ctx.onShowJourney(j);

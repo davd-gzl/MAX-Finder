@@ -959,11 +959,9 @@ export function createForm(props: FormProps): FormHandle {
     // Region filters "Ideas" and focuses a tour plan ("visit Bretagne").
     regionField.style.display = ideas || plan ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
-    // Radius (nearby-station reach) applies to the single trip tabs; the hidden-train
-    // toggle is exact-trip only, so it rides the simple tab. Hide the whole band when
-    // neither applies.
+    // Radius (nearby-station reach) applies to the single trip tabs. (The hidden-train
+    // toggle lives in Advanced and shows on every tab, so it isn't gated here.)
     radiusField.style.display = single ? "" : "none";
-    hiddenField.style.display = simple ? "" : "none";
     scopeField.style.display = single ? "" : "none";
 
     // Round-trip getaways (day trips + N-night escapes) live on the Ideas tab, where
@@ -1053,8 +1051,11 @@ export function createForm(props: FormProps): FormHandle {
   ]);
   // "Hidden train" (hidden-city ticketing): also surface trains that call at your
   // destination on the way to a stop past it — book the longer ticket (same départ),
-  // step off early. Exact-trip only; applyFieldVisibility gates it.
+  // step off early. A global preference in Advanced (on by default, present on every
+  // tab); only the exact trip actually acts on it. `checked` so it defaults on even
+  // before a query syncs.
   const hidden = el("input", { type: "checkbox" }) as HTMLInputElement;
+  hidden.checked = true;
   const hiddenField = yesNoField(t("field_hidden"), hidden);
   const trainType = el("select", { class: "input" }, [
     optionEl("", t("field_anyType"), true),
@@ -1266,6 +1267,7 @@ export function createForm(props: FormProps): FormHandle {
     overnightField,
     nightField,
     onlyNightField,
+    hiddenField,
   ]);
 
   const advanced = el("details", { class: "advanced" }, [
@@ -1285,9 +1287,10 @@ export function createForm(props: FormProps): FormHandle {
       trainTypeField,
     ]),
   ]);
-  // Radius + hidden-train sit in their own band in the main form (not Advanced), so
-  // these "reach more free seats" options are visible without unfolding a panel.
-  const scopeField = el("div", { class: "field scope-field" }, [radiusField, hiddenField]);
+  // Radius sits in its own band in the main form (not Advanced), so this "reach more
+  // free seats" option is visible without unfolding a panel. (The hidden-train toggle
+  // lives in Advanced — it's a global preference that only the exact trip acts on.)
+  const scopeField = el("div", { class: "field scope-field" }, [radiusField]);
 
   const searchBtn = el("button", { class: "btn btn-primary", type: "submit", text: t("btn_search") });
   withShortcut(searchBtn, "G");

@@ -113,6 +113,8 @@ export const de: Dict = {
   radius_hint: "Erweitert die Suche auf nahe Bahnhöfe, um mehr freie Plätze zu finden.",
   act_swap: "Abfahrt und Ankunft tauschen",
   field_stay_range: "Tage pro Stadt",
+  mc_toggle: "Diese Etappe ein- oder ausklappen",
+  gw_more: "Andere Zeiten an dem Tag ({n})",
   res_none_hint: "Versuchen Sie mehr Umstiege, mehr Datumsflexibilität, Übernachtstopps oder weniger Filter.",
   tour_none_hint: "Versuchen Sie mehr Tage pro Stadt, eine Stadt zu entfernen oder mehr Umstiege zu erlauben.",
   res_destinations: "{n} Ziel(e)",

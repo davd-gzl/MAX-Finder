@@ -117,6 +117,8 @@ export const en: Dict = {
   radius_hint: "Widen the search to nearby stations to surface more free seats.",
   act_swap: "Swap départ and arrivée",
   field_stay_range: "Days per city",
+  mc_toggle: "Expand or collapse this leg",
+  gw_more: "Other times that day ({n})",
   res_none_hint: "Try more connections, wider date flexibility, overnight stopovers, or removing filters.",
   tour_none_hint: "Try widening the days per city, removing a city, or allowing more connections.",
   res_destinations: "{n} destination(s)",

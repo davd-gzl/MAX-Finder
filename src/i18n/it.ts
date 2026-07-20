@@ -113,6 +113,8 @@ export const it: Dict = {
   radius_hint: "Allarga la ricerca alle stazioni vicine per trovare più posti gratuiti.",
   act_swap: "Inverti partenza e arrivo",
   field_stay_range: "Giorni per città",
+  mc_toggle: "Espandi o comprimi questa tratta",
+  gw_more: "Altri orari quel giorno ({n})",
   res_none_hint: "Prova più cambi, maggiore flessibilità sulle date, soste notturne o rimuovi filtri.",
   tour_none_hint: "Prova ad ampliare i giorni per città, rimuovere una città o consentire più cambi.",
   res_destinations: "{n} destinazione/i",

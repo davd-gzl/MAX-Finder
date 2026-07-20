@@ -113,6 +113,8 @@ export const zh: Dict = {
   radius_hint: "将搜索扩展到邻近车站，以发现更多免费座位。",
   act_swap: "交换出发地和到达地",
   field_stay_range: "每座城市天数",
+  mc_toggle: "展开或收起此行程段",
+  gw_more: "当天其他班次（{n}）",
   res_none_hint: "试试增加换乘、放宽日期弹性、开启过夜中转，或减少筛选条件。",
   tour_none_hint: "试试放宽每城天数、减少一个城市，或允许更多换乘。",
   res_destinations: "{n} 个目的地",

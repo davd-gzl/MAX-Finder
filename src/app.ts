@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawaysToAcrossWindow, getawayIdeas } from "./core/getaways";
+import { getawaysToAcrossWindow, getawaysForDay, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
@@ -534,7 +534,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? queryFromUrl()
-    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
+    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
 
   // A genuine page reload restores the form from the URL but does NOT auto-run the
   // search — results wait for the Search button, matching how form edits are now
@@ -936,9 +936,10 @@ function readQueryFromForm(): SearchQuery {
       (mode === "od" || mode === "from" || mode === "to") && Number.isFinite(rad) && rad >= 10
         ? Math.min(300, Math.floor(rad))
         : undefined,
-    // "Hidden train" (hidden-city ticketing) is an exact-trip feature only — gate it
-    // to od so the flag never leaks into another mode's URL.
-    hidden: (mode === "od" && refs.hidden.checked) || undefined,
+    // "Hidden train" (hidden-city ticketing) is a global preference (Advanced, on by
+    // default, present on every tab), so it's read regardless of mode; only the exact
+    // trip actually surfaces hidden trains, the other modes just carry the flag.
+    hidden: refs.hidden.checked || undefined,
     // Round-trip getaways (Where to? / Ideas): the toggle plus its stay options.
     roundTrip: roundTrip || undefined,
     nights: roundTrip && !flexNights && nightsVal > 0 ? Math.min(3, nightsVal) : undefined,
@@ -1423,7 +1424,8 @@ function runOdGetaways(c: RenderCtx): void {
     date: formatDate(query.date),
   });
   const dates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, getawayOpts());
+  const gwOpts = getawayOpts();
+  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, gwOpts);
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, [destination]);
@@ -1441,7 +1443,33 @@ function runOdGetaways(c: RenderCtx): void {
     ),
     el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }),
   );
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  // Each day leads with its BEST (longest-stay) round trip — what most people want —
+  // but the same day usually also has earlier-home options. Offer them behind a small
+  // expander per row, so "sometimes I don't want the longest one" is one click away.
+  // findJourneys is memoized, so enumerating a day's options is cheap here.
+  for (const trip of trips) {
+    refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+    const alts = getawaysForDay(trains, origin, destination, trip.outbound.date, gwOpts)
+      .filter(
+        (g) => g.outbound.departMin !== trip.outbound.departMin || g.back.departMin !== trip.back.departMin,
+      )
+      .slice(0, 8);
+    if (alts.length === 0) continue;
+    const altBox = el("div", { class: "gw-alts" });
+    const moreBtn = el("button", {
+      class: "linklike gw-more",
+      type: "button",
+      text: t("gw_more", { n: alts.length }),
+      on: {
+        click: () => {
+          moreBtn.remove();
+          for (const a of alts) altBox.append(render.getawayRowEl(a, c, { showDate: false }));
+        },
+      },
+    });
+    altBox.append(moreBtn);
+    refs.results.append(altBox);
+  }
   showMap(origin, [destination]);
 }
 
@@ -1458,6 +1486,62 @@ function runMultiCity(c: RenderCtx): void {
   const legSections: HTMLElement[] = [];
   const chosen: (Journey | null)[] = legs.map(() => null);
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+
+  // The legs render as an accordion: each leg's calendar + full train list collapse
+  // to just the chosen train once you pick one, so a long list doesn't push the next
+  // leg far down the page. Picking a train collapses its leg, opens the next, and
+  // scrolls to it; picking the LAST leg opens the whole-trip ticket modal. The head
+  // toggles a leg open/closed by hand. A leg with no seat stays open (nothing to
+  // collapse to) so its "no MAX seat" message is never hidden.
+  interface LegUI {
+    head: HTMLElement;
+    num: HTMLElement;
+    summary: HTMLElement;
+    calEl: HTMLElement | null;
+    cards: HTMLElement[];
+    chosenCard: HTMLElement | null;
+    collapsed: boolean;
+    empty: boolean;
+  }
+  const legUI: LegUI[] = [];
+  // Refresh a collapsed leg's one-line summary + its ✓/number badge from chosen[i].
+  const refreshSummary = (i: number): void => {
+    const ui = legUI[i];
+    if (!ui) return;
+    const j = chosen[i];
+    clear(ui.summary);
+    if (j) ui.summary.append(render.journeySummaryEl(j, c));
+    ui.num.textContent = ui.collapsed && j ? "✓" : String(i + 1);
+    ui.num.classList.toggle("is-done", ui.collapsed && Boolean(j));
+  };
+  const setCollapsed = (i: number, collapsed: boolean): void => {
+    const ui = legUI[i];
+    if (!ui || ui.empty) return; // a seatless leg stays open — nothing to collapse to
+    ui.collapsed = collapsed;
+    legSections[i]?.classList.toggle("mc-collapsed", collapsed);
+    ui.head.setAttribute("aria-expanded", String(!collapsed));
+    if (ui.calEl) ui.calEl.style.display = collapsed ? "none" : "";
+    for (const card of ui.cards) card.style.display = !collapsed || card === ui.chosenCard ? "" : "none";
+    refreshSummary(i);
+  };
+  const pickLeg = (i: number, card: HTMLElement, j: Journey): void => {
+    chosen[i] = j;
+    const ui = legUI[i];
+    if (ui) ui.chosenCard = card;
+    setCollapsed(i, true); // collapse this leg to its summary…
+    const next = legSections[i + 1];
+    if (next) {
+      // …open the next one and bring it into view, so the list never runs off-screen.
+      setCollapsed(i + 1, false);
+      next.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      // Last leg chosen → the whole itinerary is settled; open the trip ticket modal.
+      showMultiTripModal(
+        legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
+        c,
+      );
+    }
+  };
   // Pick a leg's date straight from the results: update that leg in the query and
   // MIRROR the date into just its form field (like refreshInPlace mirrors the main
   // date), then re-render in place. Deliberately NOT syncFormFromQuery — a full
@@ -1475,51 +1559,71 @@ function runMultiCity(c: RenderCtx): void {
       (a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin,
     );
     chosen[i] = journeys[0] ?? null;
-    const sec = el("section", { class: "mc-result" }, [
-      el("div", { class: "mc-result-head" }, [
-        el("span", { class: "mc-num", text: String(i + 1) }),
+    // The head is a button: collapsed it shows a ✓ + the picked train's summary;
+    // clicking it re-opens the leg to change the choice (the "go back" affordance).
+    const num = el("span", { class: "mc-num", text: String(i + 1) });
+    const summary = el("span", { class: "mc-pick-slot" });
+    const head = el(
+      "button",
+      {
+        class: "mc-result-head",
+        type: "button",
+        attrs: { "aria-expanded": "true", "aria-label": t("mc_toggle") },
+        on: { click: () => setCollapsed(i, !legUI[i]!.collapsed) },
+      },
+      [
+        num,
         el("span", { class: "mc-route" }, [
           el("bdi", { text: registry.label(leg.from) }),
           el("span", { class: "muted", text: " → " }),
           el("bdi", { text: registry.label(leg.to) }),
         ]),
         el("span", { class: "mc-date muted", text: formatDate(leg.date) }),
-      ]),
-    ]);
+        summary,
+        el("span", { class: "mc-chev", attrs: { "aria-hidden": "true" } }),
+      ],
+    );
+    const sec = el("section", { class: "mc-result" }, [head]);
     // Which days this leg has a free MAX seat, shown right here in the results so you
     // can see (and pick) an available date without opening the leg's own calendar —
     // handy when you left the date blank. Clicking a day sets it and re-runs.
     const legCal = availabilityCalendar(trains, leg.from, leg.to, windowDates, opts);
     const legCtx: RenderCtx = { ...c, onSelectDay: (d) => setLegDate(i, d) };
-    sec.append(render.calendarEl(legCal, legCtx, leg.date));
+    const calEl = journeys.length ? render.calendarEl(legCal, legCtx, leg.date) : null;
+    if (calEl) sec.append(calEl);
+    const cards: HTMLElement[] = [];
     if (journeys.length === 0) sec.append(render.emptyEl(t("res_none")));
     else
-      for (const j of journeys)
-        sec.append(
-          render.journeyEl(j, c, {
-            onPick: (jj) => {
-              chosen[i] = jj;
-            },
-            onArrow: (jj) => {
-              chosen[i] = jj;
-              const nextSec = legSections[i + 1];
-              if (nextSec) nextSec.scrollIntoView({ behavior: "smooth", block: "start" });
-              // Carry every leg (with its chosen journey, or null when a leg has no
-              // seat) so the recap shows the trip honestly instead of hiding gaps.
-              else
-                showMultiTripModal(
-                  legs.map((lg, k) => ({ from: lg.from, to: lg.to, date: lg.date, journey: chosen[k] ?? null })),
-                  c,
-                );
-            },
-          }),
-        );
+      for (const j of journeys) {
+        // Clicking a card (body or arrow) picks that train: collapse this leg to its
+        // summary and step to the next one — see pickLeg.
+        const card: HTMLElement = render.journeyEl(j, c, {
+          selected: j === chosen[i],
+          onPick: () => pickLeg(i, card, j),
+          onArrow: () => pickLeg(i, card, j),
+        });
+        cards.push(card);
+        sec.append(card);
+      }
+    legUI[i] = {
+      head,
+      num,
+      summary,
+      calEl,
+      cards,
+      chosenCard: cards[0] ?? null,
+      collapsed: false,
+      empty: journeys.length === 0,
+    };
     legSections.push(sec);
     refs.results.append(sec);
     stations.push(leg.from);
     const next = legs[i + 1];
     if (!next || next.from !== leg.to) stations.push(leg.to);
   });
+  // Start as a stepper: the first leg open to pick, every later leg collapsed to its
+  // (fastest) default so the page stays short. Empty legs ignore this and stay open.
+  legs.forEach((_, i) => setCollapsed(i, i > 0));
   showRoute(stations);
 }
 
@@ -1854,7 +1958,9 @@ function runOdSearch(c: RenderCtx): void {
                   ?.scrollIntoView({ behavior: "smooth", block: "start" });
               },
             })
-          : render.journeyEl(j, c),
+          : // One-way: selecting a journey leads nowhere, so a body click books it
+            // directly (deep link, or the step modal for a connecting trip).
+            render.journeyEl(j, c, { bookOnClick: true }),
       );
   }
 
@@ -2024,7 +2130,7 @@ function goBack(): void {
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
   navStack = [];
-  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true };
+  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
   syncFormFromQuery();
   applyAndRun();
   setMobileForm(true);

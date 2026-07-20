@@ -738,7 +738,10 @@ a {
   width: 3rem;
   height: 1.6rem;
   border-radius: 999px;
-  background: var(--danger);
+  /* Off is a neutral grey, not red: a red "off" reads as an error/forbidden, and
+     red-off/green-on is the classic red-green colourblind trap. The knob's position
+     and its ✕/✓ glyph carry the state; colour is only a secondary cue. */
+  background: var(--border-strong);
   border: 1px solid transparent;
   transition: background 0.16s ease;
 }
@@ -759,7 +762,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--danger);
+  color: var(--muted);
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1;
@@ -1487,6 +1490,20 @@ a {
 .night-badge {
   font-size: 0.95em;
   line-height: 1;
+}
+/* Per-day alternative round trips (by-duration mode): an indented expander + the
+   shorter-stay options it reveals. */
+.gw-alts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: -0.2rem 0 0.4rem 0.6rem;
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--border);
+}
+.gw-more {
+  align-self: start;
+  font-size: 0.85rem;
 }
 .chip-onsite {
   background: var(--accent-soft);
@@ -3356,11 +3373,28 @@ select.input::-ms-expand {
   flex-direction: column;
   gap: 0.4rem;
 }
+/* The leg head is a full-width accordion toggle: it opens/closes the leg. */
 .mc-result-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   margin: 1rem 0 0.5rem;
+  padding: 0.35rem 0.4rem;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.mc-result-head:hover {
+  background: var(--surface-2);
+}
+.mc-result-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .mc-num {
   flex: none;
@@ -3375,15 +3409,78 @@ select.input::-ms-expand {
   font-weight: 700;
   font-size: 0.78rem;
 }
+/* A settled leg's badge turns into a filled ✓. */
+.mc-num.is-done {
+  background: var(--accent);
+  color: #fff;
+}
 .mc-route {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.02rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mc-date {
   margin-inline-start: auto;
   font-family: var(--font-mono);
   font-size: 0.76rem;
+}
+/* Chevron on the right; points down when open, right when collapsed. */
+.mc-chev {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: 0.35rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+.mc-result.mc-collapsed .mc-chev {
+  transform: rotate(-45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-chev {
+    transition: none;
+  }
+}
+/* The picked-train summary line: hidden while the leg is open, shown when collapsed
+   (where it replaces the date, pushed to the right). */
+.mc-pick-slot {
+  display: none;
+  margin-inline-start: auto;
+  min-width: 0;
+}
+.mc-result.mc-collapsed .mc-date {
+  display: none;
+}
+.mc-result.mc-collapsed .mc-pick-slot {
+  display: block;
+}
+.mc-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.mc-pick-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.mc-pick-time .icon {
+  color: var(--muted);
+}
+.mc-pick-dur {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
 }
 @media (max-width: 560px) {
   .mc-head {

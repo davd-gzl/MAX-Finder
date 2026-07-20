@@ -113,6 +113,8 @@ export const nl: Dict = {
   radius_hint: "Verbreedt de zoekopdracht naar nabijgelegen stations om meer gratis plaatsen te vinden.",
   act_swap: "Vertrek en aankomst omwisselen",
   field_stay_range: "Dagen per stad",
+  mc_toggle: "Dit traject uit- of invouwen",
+  gw_more: "Andere tijden die dag ({n})",
   res_none_hint: "Probeer meer overstappen, ruimere datumflexibiliteit, nachtoverstappen of minder filters.",
   tour_none_hint: "Probeer meer dagen per stad, een stad te verwijderen of meer overstappen toe te staan.",
   res_destinations: "{n} bestemming(en)",

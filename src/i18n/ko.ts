@@ -113,6 +113,8 @@ export const ko: Dict = {
   radius_hint: "검색을 인근 역까지 넓혀 더 많은 무료 좌석을 찾습니다.",
   act_swap: "출발지와 도착지 바꾸기",
   field_stay_range: "도시당 일수",
+  mc_toggle: "이 구간 펼치기/접기",
+  gw_more: "그날의 다른 시간대 ({n})",
   res_none_hint: "환승 횟수를 늘리거나 날짜 유연성을 넓히거나 야간 경유를 켜거나 필터를 줄여 보세요.",
   tour_none_hint: "도시당 일수를 늘리거나 도시를 줄이거나 환승을 더 허용해 보세요.",
   res_destinations: "목적지 {n}곳",
