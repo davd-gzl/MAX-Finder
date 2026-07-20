@@ -41,7 +41,6 @@ export interface LegValues {
 export interface FormRefs {
   modeTabs: HTMLElement;
   ideasBtn: HTMLElement;
-  modeDesc: HTMLElement;
   origin: HTMLInputElement;
   destination: HTMLInputElement;
   date: HTMLInputElement;
@@ -61,7 +60,6 @@ export interface FormRefs {
   radiusField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
-  connGroupField: HTMLElement;
   overnight: HTMLInputElement;
   night: HTMLInputElement;
   onlyNight: HTMLInputElement;
@@ -122,6 +120,7 @@ export interface FormProps {
   ) => Map<string, number>;
   onSwitchTab: (trip: TripType) => void;
   onMultiMode: (mode: "plan" | "legs") => void;
+  onReturnMode: (mode: "dates" | "duration") => void;
   onSubmit: () => void;
   onSurprise: () => void;
   onNearest: () => void;
@@ -139,6 +138,8 @@ export interface FormHandle {
   setActiveTab(trip: TripType): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
+  getReturnMode(): "dates" | "duration";
+  setReturnMode(mode: "dates" | "duration"): void;
   updateFieldVisibility(trip: TripType): void;
   refreshTourEndDate(): void;
   setSurpriseMsg(text: string): void;
@@ -167,7 +168,10 @@ function inputEl(type: string, list?: string): HTMLInputElement {
  * @returns the labelled field element.
  */
 function field(label: string, control: HTMLElement): HTMLElement {
-  return el("label", { class: "field" }, [el("span", { class: "field-label", text: label }), control]);
+  return el("label", { class: "field" }, [
+    el("span", { class: "field-label", text: label, attrs: { title: label } }),
+    control,
+  ]);
 }
 
 /**
@@ -226,13 +230,16 @@ export function createForm(props: FormProps): FormHandle {
   let tourCities: string[] = [];
   let legRows: LegCtl[] = [];
   let legsContainer: HTMLElement | null = null;
-  let thumbInit = false;
   let bodyAnim: Animation | null = null;
   let firstViz = true;
   // The Multi-city tab hosts two surfaces: "plan" (pick cities, auto-order + date
   // them, Surprise / Nearest) and "legs" (spell out each hop). Tracked here so the
   // controller can read which one is active and lay the fields out for it.
-  let multiMode: "plan" | "legs" = "plan";
+  let multiMode: "plan" | "legs" = "legs";
+  // The Return tab hosts two surfaces too: "dates" (pick an outbound and a return
+  // day) and "duration" (pick a start day and how long you want on site — the app
+  // finds the return for you).
+  let returnMode: "dates" | "duration" = "dates";
   let currentTrip: TripType = "simple";
 
   /** Availability search options taken from the current form inputs. */
@@ -694,17 +701,111 @@ export function createForm(props: FormProps): FormHandle {
     renderCityChips();
   }
 
-  /** Slide the white thumb under the active tab (or hide it when Ideas is active). */
-  function positionThumb(): void {
-    const active = modeTabs.querySelector<HTMLElement>(".mode-tab.active");
-    if (!active) {
-      modeTabs.classList.remove("has-thumb");
-      return;
+  /** Box observers keeping each segmented control's pill placed; dropped on destroy. */
+  const thumbObservers: ResizeObserver[] = [];
+
+  /**
+   * Give a segmented control the sliding pill the main trip tabs use: a thumb behind
+   * the buttons that moves to whichever is active. Returns the resync function to
+   * call when the active button changes. Measuring a hidden or detached control
+   * yields zeros, so the thumb stays hidden until it can be placed, and the
+   * transition is only armed once it has been.
+   *
+   * Visibility changes are watched rather than pushed: the form is display:none while
+   * a drill-down is open, so syncFormFromQuery on Back measures zeros and the pill
+   * would stay gone once the form came back. The same applies to the mobile form
+   * sheet and to plain resizes — too many callers to notify reliably, so observe the
+   * box instead.
+   */
+  function makeThumb(container: HTMLElement): () => void {
+    const thumbEl = el("span", { class: "mode-tab-thumb", attrs: { "aria-hidden": "true" } });
+    container.append(thumbEl);
+    let animated = false;
+    const sync = (): void => {
+      const active = container.querySelector<HTMLElement>("button.active");
+      if (!active?.offsetWidth) {
+        container.classList.remove("has-thumb");
+        return;
+      }
+      thumbEl.style.width = `${active.offsetWidth}px`;
+      thumbEl.style.height = `${active.offsetHeight}px`;
+      thumbEl.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+      container.classList.add("has-thumb");
+      if (animated) return;
+      animated = true;
+      requestAnimationFrame(() => container.classList.add("animate-thumb"));
+    };
+    // The thumb is absolutely positioned, so resizing it can't feed back into the
+    // container's box — no observer loop.
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(() => sync());
+      ro.observe(container);
+      thumbObservers.push(ro);
     }
-    thumb.style.width = `${active.offsetWidth}px`;
-    thumb.style.height = `${active.offsetHeight}px`;
-    thumb.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
-    modeTabs.classList.add("has-thumb");
+    return sync;
+  }
+
+  /** Resync of every yes/no control, replayed when `.checked` is set from outside. */
+  const yesNoSyncs: (() => void)[] = [];
+  function syncYesNoFields(): void {
+    for (const s of yesNoSyncs) s();
+  }
+
+  /**
+   * A boolean field as a Yes/No segmented control, built like the tab selectors: the
+   * pill slides between the two answers, green on "yes" and red on "no". The
+   * <input type="checkbox"> stays in the DOM as the value, so the controller keeps
+   * reading `.checked` and every existing `change` listener keeps firing.
+   */
+  function yesNoField(label: string, input: HTMLInputElement, extraClass = ""): HTMLElement {
+    // The checkbox is the value, never the control: the two buttons carry the
+    // semantics (a named group of aria-pressed answers), so it is taken out of the
+    // tab order and hidden from assistive tech rather than being announced twice.
+    input.classList.add("yesno-state");
+    input.tabIndex = -1;
+    input.setAttribute("aria-hidden", "true");
+    const answer = (text: string, on: boolean): HTMLElement =>
+      el("button", {
+        class: "multi-tab",
+        type: "button",
+        text,
+        attrs: { "aria-pressed": "false" },
+        on: {
+          click: () => {
+            if (input.checked === on) return;
+            input.checked = on;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            sync();
+          },
+        },
+      });
+    const yes = answer(t("opt_yes"), true) as HTMLButtonElement;
+    const no = answer(t("opt_no"), false) as HTMLButtonElement;
+    const group = el("div", { class: "yesno", attrs: { role: "group", "aria-label": label } }, [yes, no]);
+    const syncThumb = makeThumb(group);
+    const root = el("div", { class: `field field-yesno ${extraClass}`.trim() }, [
+      el("span", { class: "field-label", text: label, attrs: { title: label } }),
+      group,
+      input,
+    ]);
+    // A control whose dependency is off stays on screen but inert: set `.disabled`
+    // on the backing checkbox and the next resync greys the whole field out.
+    function sync(): void {
+      const on = input.checked;
+      yes.classList.toggle("active", on);
+      no.classList.toggle("active", !on);
+      yes.setAttribute("aria-pressed", String(on));
+      no.setAttribute("aria-pressed", String(!on));
+      group.classList.toggle("is-yes", on);
+      group.classList.toggle("is-no", !on);
+      yes.disabled = input.disabled;
+      no.disabled = input.disabled;
+      root.classList.toggle("is-disabled", input.disabled);
+      syncThumb();
+    }
+    yesNoSyncs.push(sync);
+    sync();
+    return root;
   }
 
   function setActiveTab(trip: TripType): void {
@@ -714,11 +815,7 @@ export function createForm(props: FormProps): FormHandle {
       btn.classList.toggle("active", active);
       btn.setAttribute("aria-pressed", String(active));
     }
-    positionThumb();
-    if (!thumbInit) {
-      thumbInit = true;
-      requestAnimationFrame(() => modeTabs.classList.add("animate-thumb"));
-    }
+    syncTabThumb();
   }
 
   /**
@@ -737,13 +834,28 @@ export function createForm(props: FormProps): FormHandle {
   function setMultiMode(mode: "plan" | "legs"): void {
     multiMode = mode;
     for (const [btn, m] of [
-      [planTabBtn, "plan"],
       [legsTabBtn, "legs"],
+      [planTabBtn, "plan"],
     ] as const) {
       const active = m === mode;
       btn.classList.toggle("active", active);
       btn.setAttribute("aria-pressed", String(active));
     }
+    syncMultiThumb();
+  }
+
+  /** Reflect the active Return sub-mode on its segmented toggle. */
+  function setReturnMode(mode: "dates" | "duration"): void {
+    returnMode = mode;
+    for (const [btn, m] of [
+      [retDatesBtn, "dates"],
+      [retDurationBtn, "duration"],
+    ] as const) {
+      const active = m === mode;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", String(active));
+    }
+    syncReturnThumb();
   }
 
   /**
@@ -790,6 +902,9 @@ export function createForm(props: FormProps): FormHandle {
     // The Multi tab's two surfaces: "plan" the tour (cities) vs edit "legs" by hand.
     const plan = multi && multiMode === "plan";
     const legs = multi && multiMode === "legs";
+    // The Return tab's two surfaces: "dates" (outbound → return day) vs "duration"
+    // (a start day + how long on site; the return day is derived).
+    const byDuration = ret && returnMode === "duration";
 
     // The departure and start date belong to every surface except the legs editor,
     // where each leg row carries its own origin and date.
@@ -799,13 +914,15 @@ export function createForm(props: FormProps): FormHandle {
     destinationField.style.display = single || plan ? "" : "none";
     destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
     origin.placeholder = single ? t("ph_anywhere") : "";
-    departDate.setRange(ret);
+    // Only the "dates" surface picks two days; a duration search picks a start day
+    // and lets the stay length decide the return.
+    departDate.setRange(ret && !byDuration);
 
     // Sub-mode toggle + its two panels.
     multiSwitch.style.display = multi ? "" : "none";
+    returnSwitch.style.display = ret ? "" : "none";
     legsBlock.style.display = legs ? "" : "none";
     citiesField.style.display = plan ? "" : "none";
-    tourCountField.style.display = plan ? "" : "none";
     stayField.style.display = plan ? "" : "none";
     maxKmField.style.display = plan ? "" : "none";
     maxLegDurationField.style.display = plan ? "" : "none";
@@ -814,7 +931,7 @@ export function createForm(props: FormProps): FormHandle {
     refreshTourEndDate();
 
     viaField.style.display = single ? "" : "none";
-    onlyNightField.style.display = night.checked ? "" : "none";
+    syncNightOpts();
     // Surprise randomizes a city/route; it means nothing in the manual legs editor.
     surpriseBtn.style.display = legs ? "none" : "";
 
@@ -826,11 +943,17 @@ export function createForm(props: FormProps): FormHandle {
     maxSpanDaysField.style.display = single ? "" : "none";
     radiusField.style.display = single ? "" : "none";
 
-    // Round-trip getaways (day trips + N-night escapes): the "Where to?" browse on
-    // the Simple tab (origin only) and the Ideas tab. readQueryFromForm re-gates it
-    // to those modes, so it's inert on an od (both endpoints) or tour search.
-    roundTripField.style.display = simple || ideas ? "" : "none";
+    // Round-trip getaways (day trips + N-night escapes) live on the Ideas tab, where
+    // an opt-in checkbox turns the ideas list into escapes, and on the Return tab's
+    // "duration" surface, where the sub-mode IS the opt-in (so the checkbox is hidden).
+    roundTripField.style.display = ideas || byDuration ? "" : "none";
     syncRoundTripOpts();
+    // A hidden control measures as zero, so the pills can only be placed once their
+    // control is on screen — reposition them after the display flags above. This is
+    // also where a query-driven `.checked` (set without a `change` event) lands.
+    syncMultiThumb();
+    syncReturnThumb();
+    syncYesNoFields();
   }
 
   const stationList = el("datalist", { id: "station-list" });
@@ -848,8 +971,7 @@ export function createForm(props: FormProps): FormHandle {
     withShortcut(btn, String(i + 1));
     modeTabs.append(btn);
   });
-  const thumb = el("span", { class: "mode-tab-thumb", attrs: { "aria-hidden": "true" } });
-  modeTabs.append(thumb);
+  const syncTabThumb = makeThumb(modeTabs);
   const ideasBtn = el("button", {
     class: "mode-tab ideas-tab",
     type: "button",
@@ -859,7 +981,6 @@ export function createForm(props: FormProps): FormHandle {
   });
   withShortcut(ideasBtn, "4");
   const modeBar = el("div", { class: "mode-bar" }, [modeTabs, ideasBtn]);
-  const modeDesc = el("p", { class: "mode-desc" });
 
   const origin = inputEl("text", "station-list");
   const destination = inputEl("text", "station-list");
@@ -912,30 +1033,22 @@ export function createForm(props: FormProps): FormHandle {
     optionEl("6", t("conn_max"), false),
   ]) as HTMLSelectElement;
   const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const overnightField = el("label", { class: "field field-check" }, [
-    overnight,
-    el("span", { class: "field-label", text: t("field_overnight") }),
-  ]);
+  const overnightField = yesNoField(t("field_overnight"), overnight);
   const night = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const nightField = el("label", { class: "field field-check" }, [
-    night,
-    el("span", { class: "field-label", text: t("field_night") }),
-  ]);
+  const nightField = yesNoField(t("field_night"), night);
   const onlyNight = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const onlyNightField = el("label", { class: "field field-check field-sub" }, [
-    onlyNight,
-    el("span", { class: "field-label", text: t("night_only") }),
-  ]);
+  const onlyNightField = yesNoField(t("night_only"), onlyNight, "field-sub");
   const syncNightOpts = (): void => {
-    onlyNightField.style.display = night.checked ? "" : "none";
+    // "Only night trains" narrows the night-train option, so it has no meaning while
+    // night trains are excluded. It stays in place — the panel's row rhythm shouldn't
+    // shift under the pointer — but goes inert, and loses any answer it held.
+    onlyNight.disabled = !night.checked;
     if (!night.checked) onlyNight.checked = false;
+    syncYesNoFields(); // the lines above bypass `change`
   };
   night.addEventListener("change", syncNightOpts);
   const roundTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const roundTripToggle = el("label", { class: "field field-check daytrip-toggle" }, [
-    roundTrip,
-    el("span", { class: "field-label", text: t("field_roundtrip") }),
-  ]);
+  const roundTripToggle = yesNoField(t("field_roundtrip"), roundTrip, "daytrip-toggle");
   const nights = el("select", { class: "input" }, [
     optionEl("0", t("nights_sameday"), true),
     optionEl("1", t("nights_n", { n: 1 }), false),
@@ -951,14 +1064,18 @@ export function createForm(props: FormProps): FormHandle {
   stayHours.setAttribute("aria-label", t("field_daytrip_hours"));
   const stayHoursField = field(t("field_daytrip_hours"), stayHours);
   const lateReturn = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const lateReturnField = el("label", { class: "field field-check" }, [
-    lateReturn,
-    el("span", { class: "field-label", text: t("field_late_return") }),
-  ]);
+  const lateReturnField = yesNoField(t("field_late_return"), lateReturn);
   const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
   const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
   const syncRoundTripOpts = (): void => {
-    roundTripOpts.style.display = roundTrip.checked ? "" : "none";
+    // On the Return tab's duration surface the checkbox would be a second, redundant
+    // switch for a choice the sub-mode already made — hide it and force the options on.
+    const forced = currentTrip === "return" && returnMode === "duration";
+    roundTripToggle.style.display = forced ? "none" : "";
+    // Without the toggle above them the options are no longer a sub-group: drop the
+    // indent and let them sit on the same grid as every other field.
+    roundTripField.classList.toggle("daytrip-bare", forced);
+    roundTripOpts.style.display = forced || roundTrip.checked ? "" : "none";
     stayHoursField.style.display = nights.value === "0" ? "" : "none";
   };
   roundTrip.addEventListener("change", syncRoundTripOpts);
@@ -1024,6 +1141,7 @@ export function createForm(props: FormProps): FormHandle {
     t("field_cities"),
     el("div", { class: "cities-wrap" }, [citiesBox, el("div", { class: "cities-actions" }, [clearCitiesBtn])]),
   );
+  citiesField.classList.add("cities-field");
   const minDays = inputEl("number");
   minDays.min = "1";
   minDays.max = "14";
@@ -1034,16 +1152,19 @@ export function createForm(props: FormProps): FormHandle {
   maxDays.max = "14";
   maxDays.value = "3";
   maxDays.setAttribute("aria-label", t("field_stay_max"));
-  const stayField = el("div", { class: "stay-fields" }, [
-    field(t("field_stay_min"), minDays),
-    field(t("field_stay_max"), maxDays),
-  ]);
   const tourCount = inputEl("number");
   tourCount.min = "1";
   tourCount.max = String(props.maxTourFill);
   tourCount.placeholder = "1";
   tourCount.setAttribute("aria-label", t("field_tour_count"));
   const tourCountField = field(t("field_tour_count"), tourCount);
+  // The planner's three numbers read as one setting ("how many cities, how long in
+  // each"), so they share a row instead of scattering across the auto-fit grid.
+  const stayField = el("div", { class: "stay-fields" }, [
+    tourCountField,
+    field(t("field_stay_min"), minDays),
+    field(t("field_stay_max"), maxDays),
+  ]);
   const maxKm = inputEl("number");
   maxKm.step = "50";
   maxKm.placeholder = "1000";
@@ -1072,8 +1193,9 @@ export function createForm(props: FormProps): FormHandle {
   const maxDurationField = field(t("field_maxDuration"), maxDuration);
   const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
   const trainTypeField = field(t("field_trainType"), trainType);
-  const connGroupField = el("div", { class: "conn-group" }, [
-    field(t("field_connections"), maxConnections),
+  // The yes/no answers lead the panel as their own band; everything below is a
+  // value to fill in, laid out three per row.
+  const advancedToggles = el("div", { class: "advanced-toggles" }, [
     overnightField,
     nightField,
     onlyNightField,
@@ -1081,8 +1203,9 @@ export function createForm(props: FormProps): FormHandle {
 
   const advanced = el("details", { class: "advanced" }, [
     el("summary", { text: t("field_advanced") }),
+    advancedToggles,
     el("div", { class: "advanced-grid" }, [
-      connGroupField,
+      field(t("field_connections"), maxConnections),
       viaField,
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
@@ -1140,30 +1263,59 @@ export function createForm(props: FormProps): FormHandle {
     el("p", { class: "muted small", text: t("how_note") }),
   ]);
 
-  // Multi-city sub-mode toggle: "Plan a tour" (cities) vs "Custom legs" (hand-typed
-  // hops). Shown only on the Multi tab; switching re-lays the form via the controller.
-  const planTabBtn = el("button", {
+  // Multi-city sub-mode toggle: "Custom legs" (hand-typed hops) leads, then "Plan a
+  // tour" (cities). Shown only on the Multi tab; switching re-lays the form via the
+  // controller.
+  const legsTabBtn = el("button", {
     class: "multi-tab active",
     type: "button",
-    text: t("multi_plan"),
+    text: t("multi_legs"),
     attrs: { "aria-pressed": "true" },
-    on: { click: () => props.onMultiMode("plan") },
+    on: { click: () => props.onMultiMode("legs") },
   });
-  const legsTabBtn = el("button", {
+  const planTabBtn = el("button", {
     class: "multi-tab",
     type: "button",
-    text: t("multi_legs"),
+    text: t("multi_plan"),
     attrs: { "aria-pressed": "false" },
-    on: { click: () => props.onMultiMode("legs") },
+    on: { click: () => props.onMultiMode("plan") },
   });
   const multiSwitch = el(
     "div",
     { class: "multi-switch", attrs: { role: "group", "aria-label": t("tab_multi") } },
-    [planTabBtn, legsTabBtn],
+    [legsTabBtn, planTabBtn],
   );
+  const syncMultiThumb = makeThumb(multiSwitch);
+
+  // Return sub-mode toggle: pick both days yourself, or say how long you want on
+  // site and let the app find the return. Shown only on the Return tab.
+  const retDatesBtn = el("button", {
+    class: "multi-tab active",
+    type: "button",
+    text: t("ret_dates"),
+    attrs: { "aria-pressed": "true" },
+    on: { click: () => props.onReturnMode("dates") },
+  });
+  const retDurationBtn = el("button", {
+    class: "multi-tab",
+    type: "button",
+    text: t("ret_duration"),
+    attrs: { "aria-pressed": "false" },
+    on: { click: () => props.onReturnMode("duration") },
+  });
+  const returnSwitch = el(
+    "div",
+    { class: "return-switch", attrs: { role: "group", "aria-label": t("tab_return") } },
+    [retDatesBtn, retDurationBtn],
+  );
+  const syncReturnThumb = makeThumb(returnSwitch);
 
   const fields = el("div", { class: "fields" }, [
     multiSwitch,
+    returnSwitch,
+    // The cities to visit are what a tour plan is ABOUT, so they lead the form (and
+    // the tab order) on that surface; every other tab hides the field entirely.
+    citiesField,
     originField,
     destinationField,
     dateField,
@@ -1171,11 +1323,9 @@ export function createForm(props: FormProps): FormHandle {
     roundTripField,
     regionField,
     legsBlock,
-    citiesField,
     stayField,
-    tourCountField,
   ]);
-  const formBody = el("div", { class: "form-body" }, [modeBar, modeDesc, fields, advanced]);
+  const formBody = el("div", { class: "form-body" }, [modeBar, fields, advanced]);
   const form = el("form", { class: "search-form" }, [
     formBody,
     el("div", { class: "form-stub" }, [
@@ -1194,7 +1344,6 @@ export function createForm(props: FormProps): FormHandle {
   const refs: FormRefs = {
     modeTabs,
     ideasBtn,
-    modeDesc,
     origin,
     destination,
     date,
@@ -1214,7 +1363,6 @@ export function createForm(props: FormProps): FormHandle {
     radiusField,
     trainType,
     maxConnections,
-    connGroupField,
     overnight,
     night,
     onlyNight,
@@ -1269,6 +1417,8 @@ export function createForm(props: FormProps): FormHandle {
     setActiveTab,
     getMultiMode: () => multiMode,
     setMultiMode,
+    getReturnMode: () => returnMode,
+    setReturnMode,
     updateFieldVisibility,
     refreshTourEndDate,
     setSurpriseMsg: (text) => {
@@ -1277,6 +1427,7 @@ export function createForm(props: FormProps): FormHandle {
     destroy: () => {
       departDate.destroy();
       for (const l of legRows) l.dateCtl.destroy();
+      for (const ro of thumbObservers) ro.disconnect();
     },
   };
 }

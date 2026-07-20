@@ -9,7 +9,7 @@ import {
 } from "./core/destinations";
 import { filterTrains, isNightTrain } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawaysAcrossWindow, getawayIdeas } from "./core/getaways";
+import { getawaysToAcrossWindow, getawayIdeas } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
@@ -87,7 +87,10 @@ const TRIP_TABS: readonly TripType[] = ["simple", "return", "multi", "ideas"];
 function tripTypeForQuery(q: SearchQuery): TripType {
   if (q.mode === "tour") return "multi";
   if (q.mode === "best") return "ideas";
-  if (q.mode === "od" && q.returnDate) return "return";
+  // A return date restores the "dates" surface; `rt` (round-trip getaways) restores
+  // the "duration" one — including legacy `?mode=from&rt=1` links, which used to open
+  // the Simple tab before the toggle moved here.
+  if (q.returnDate || q.roundTrip) return "return";
   return "simple";
 }
 
@@ -715,11 +718,11 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
   tripType = tripTypeForQuery(query);
-  // On the Multi tab, explicit legs restore the "legs" editor; a city list (or
-  // neither) restores the "plan" surface — matching how the URL was serialized.
-  formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : "plan");
+  // On the Multi tab, a city list restores the "plan" surface; explicit legs — or
+  // neither, the default — restore the "legs" editor.
+  formApi.setMultiMode(query.cities && query.cities.length > 0 ? "plan" : "legs");
+  formApi.setReturnMode(query.roundTrip ? "duration" : "dates");
   formApi.setActiveTab(tripType);
-  refs.modeDesc.textContent = t(`desc_${tripType}` as const);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";
   refs.destination.value = query.destination ? deps.registry.label(query.destination) : "";
   refs.via.value = query.via ? deps.registry.label(query.via) : "";
@@ -756,7 +759,10 @@ function syncFormFromQuery(): void {
   refs.stayHours.value = query.stayMinHours != null ? String(query.stayMinHours) : "";
   refs.lateReturn.checked = Boolean(query.lateReturn);
   refs.region.value = query.region ?? "";
-  formApi.setTourCities(query.cities ?? []);
+  // Cities only travel in the URL from the tour-plan surface, so a query built on
+  // another tab carries none — restoring "no cities" from it would wipe the chips on
+  // a plain Back. Sync them on the Multi tab only (legs get the same treatment above).
+  if (tripType === "multi") formApi.setTourCities(query.cities ?? []);
   refs.cities.value = "";
   refs.minDays.value = String(query.minDays ?? 1);
   refs.maxDays.value = String(query.maxDays ?? 3);
@@ -786,25 +792,26 @@ function readQueryFromForm(): SearchQuery {
   const legsMode = mode === "tour" && formApi.getMultiMode() === "legs";
   const planMode = mode === "tour" && formApi.getMultiMode() === "plan";
   const usesDestination = mode === "od" || mode === "to" || planMode;
-  // Round-trip getaways apply to the "Where to?" browse (from) and Ideas (best) —
-  // and only on the tabs where the toggle is actually shown, so a checkbox state left
-  // over from the Simple tab can't turn a Return-tab origin-only browse into getaways.
-  const roundTrip =
-    (tripType === "simple" || tripType === "ideas") &&
-    (mode === "from" || mode === "best") &&
-    refs.roundTrip.checked;
+  // Round-trip getaways come from two surfaces: the Return tab's "duration" sub-mode
+  // (where the sub-mode itself is the opt-in — with a destination it sweeps start days
+  // for that city, without one it browses everywhere) and the Ideas tab's checkbox.
+  const byDuration = tripType === "return" && formApi.getReturnMode() === "duration";
+  const roundTrip = byDuration
+    ? mode === "from" || mode === "od"
+    : tripType === "ideas" && mode === "best" && refs.roundTrip.checked;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
     destination: usesDestination ? resolveStation(refs.destination.value) : undefined,
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
-    // On the Return tab always carry a return date, defaulting to the proposed
-    // outbound+2 when the user hasn't picked one — otherwise a return search with no
-    // picked return serializes as a plain `mode=od` and a reload/Back silently drops
-    // back to the Simple tab (tripTypeForQuery needs `returnDate` to restore Return).
+    // On the Return tab's "dates" surface always carry a return date, defaulting to
+    // the proposed outbound+2 when the user hasn't picked one. It is what restores the
+    // tab on reload/Back, so it must survive a blank destination too (which derives
+    // "from", not "od") — the search itself ignores it outside od. The "duration"
+    // surface derives its return from the stay length instead, and is restored by `rt`.
     returnDate:
-      tripType === "return" && mode === "od"
+      tripType === "return" && !byDuration
         ? refs.departDate.getReturn() || proposedReturn(refs.date.value || query.date)
         : undefined,
     legs: legsMode
@@ -1136,6 +1143,10 @@ function renderSearch(): void {
     runBestSearch(c);
   } else if (query.mode === "tour") {
     runTourSearch(c);
+  } else if (query.roundTrip) {
+    // Return tab, "by duration": both endpoints known, so list the start days that
+    // give the requested stay rather than a single outbound/return pair.
+    runOdGetaways(c);
   } else {
     runOdSearch(c);
   }
@@ -1257,10 +1268,10 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
 }
 
 /**
- * "Round trip" view (a toggle on "Where to?"): every city you can reach AND get
- * home from on free MAX — a same-day day trip (leave morning, back evening) or an
- * N-night getaway. Ranked by nights, then time on site / least travel, so the best
- * escapes float to the top.
+ * Duration search, page 1: WHICH CITIES you can do a round trip to at all. One row
+ * per place, no times — comparing destinations comes first, picking a day second.
+ * The sweep covers the whole bookable window (not just date ± flex) so each row can
+ * say how often the place works; the arrow opens its own page for the day detail.
  */
 function runGetaways(c: RenderCtx, origin: string): void {
   const { trains, registry } = deps;
@@ -1268,31 +1279,65 @@ function runGetaways(c: RenderCtx, origin: string): void {
     station: registry.label(origin),
     date: formatDate(query.date),
   });
-  // The Date field + "date flexibility" stepper drive this view (no calendar —
-  // it added little here and confused the day-trip vs round-trip framing).
-  // Flexible dates: search every day in the ±N window and keep the best round trip
-  // per destination (more nights, then more time on site / less travel) — so you
-  // can do a round trip "around these days", not only on the exact one.
-  const flex = query.flexDays ?? 0;
-  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  const dates: string[] = [];
-  for (let i = -flex; i <= flex; i++) {
-    const d = addDays(query.date, i);
-    if (i === 0 || (d >= today && d <= lastBookable)) dates.push(d);
-  }
-  const { trips } = getawaysAcrossWindow(trains, origin, dates, getawayOpts());
+  const { trips, datesByDest } = getawayIdeas(trains, origin, dateRange(today, BOOKING_WINDOW_DAYS), getawayOpts());
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
     return;
   }
+  // "This day" honours the date field and its flexibility stepper; "this month" is
+  // the whole window — the same pair the browse lists show for trains.
+  const flex = query.flexDays ?? 0;
+  const focus = (d: string): boolean => Math.abs(dayIndex(d) - dayIndex(query.date)) <= flex;
   refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }));
-  // With flexible dates the trips fall on different start days, so each row shows its date.
-  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: flex > 0 }));
+  for (const trip of trips) {
+    const days = datesByDest.get(trip.destination) ?? [];
+    refs.results.append(
+      render.getawayCityRowEl(trip, c, { days: days.filter(focus).length, windowDays: days.length }),
+    );
+  }
   showMap(
     origin,
     trips.map((trip) => trip.destination),
   );
+}
+
+/**
+ * Duration search, page 2: ONE city. A calendar of the start days that work, then
+ * every dated solution below it. Reached from the list page, or straight away when
+ * the form already names a destination.
+ */
+function runOdGetaways(c: RenderCtx): void {
+  const { trains, registry } = deps;
+  const { origin, destination } = query;
+  if (!origin) return showHint(refs.origin);
+  if (!destination) return showHint(refs.destination);
+  refs.title.textContent = t("getaway_od_title", {
+    origin: registry.label(origin),
+    destination: registry.label(destination),
+    date: formatDate(query.date),
+  });
+  const dates = dateRange(today, BOOKING_WINDOW_DAYS);
+  const trips = getawaysToAcrossWindow(trains, origin, destination, dates, getawayOpts());
+  if (trips.length === 0) {
+    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
+    showMap(origin, [destination]);
+    return;
+  }
+  // The calendar is built from the sweep itself: a day is available exactly when it
+  // produced a trip, so it can never disagree with the list under it.
+  const startable = new Set(trips.map((trip) => trip.outbound.date));
+  refs.results.append(
+    render.calendarEl(
+      dates.map((date) => ({ date, available: startable.has(date), count: startable.has(date) ? 1 : 0 })),
+      c,
+      query.date,
+      { title: t("getaway_cal_title"), showCount: false },
+    ),
+    el("p", { class: "muted count", text: t("getaway_count", { n: trips.length }) }),
+  );
+  for (const trip of trips) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  showMap(origin, [destination]);
 }
 
 function runMultiCity(c: RenderCtx): void {
@@ -1839,7 +1884,6 @@ function switchTab(next: TripType): void {
   tripType = next;
   if (next === "ideas") bestAllDays = true;
   formApi.setActiveTab(tripType);
-  refs.modeDesc.textContent = t(`desc_${tripType}` as const);
   formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
   applyAndRun();
@@ -1854,6 +1898,15 @@ function switchMultiMode(mode: "plan" | "legs"): void {
   navStack = [];
   formApi.setMultiMode(mode);
   formApi.updateFieldVisibility("multi");
+  query = readQueryFromForm();
+  applyAndRun();
+}
+
+/** Switch the Return sub-surface (pick both days ↔ pick a stay length). */
+function switchReturnMode(mode: "dates" | "duration"): void {
+  navStack = [];
+  formApi.setReturnMode(mode);
+  formApi.updateFieldVisibility("return");
   query = readQueryFromForm();
   applyAndRun();
 }
@@ -2210,6 +2263,7 @@ function buildLayout(root: HTMLElement): void {
     },
     onSwitchTab: switchTab,
     onMultiMode: switchMultiMode,
+    onReturnMode: switchReturnMode,
     onSubmit: runFromForm,
     onSurprise: surpriseMe,
     onNearest: addNearestCity,
