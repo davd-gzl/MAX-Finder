@@ -107,6 +107,28 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("keeps the Return tab when the destination is cleared", () => {
+    // Regression: the return date was gated on mode === "od", but a blank destination
+    // derives mode "from" — so a Return-tab search dropped rdate from the URL and a
+    // reload silently fell back to the Simple tab, losing the picked return.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    const dest = root.querySelectorAll<HTMLInputElement>('.search-form .fields input[list="station-list"]')[1];
+    expect(dest).toBeTruthy();
+    dest!.value = "";
+    dest!.dispatchEvent(new Event("input", { bubbles: true }));
+    dest!.dispatchEvent(new Event("change", { bubbles: true }));
+    (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+
+    const url = location.search;
+    expect(new URLSearchParams(url).get("rdate")).toBe("2026-06-27");
+    // What the URL actually restores: reloading it must land back on the Return tab.
+    const reloaded = setup(url);
+    expect(reloaded.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+  });
+
   it("drills into a connecting destination and back again", () => {
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`);
     const cards = Array.from(root.querySelectorAll(".group-card"));
@@ -230,10 +252,12 @@ describe("app (jsdom smoke)", () => {
     // searched edit — the "my filter disappeared" bug.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
     const nightBox = () => {
-      const label = Array.from(root.querySelectorAll("label.field-check")).find((l) =>
+      // Booleans render as a Yes/No segmented control; the checkbox behind it is
+      // still the value, so the staged-edit assertions below read it directly.
+      const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((l) =>
         (l.textContent ?? "").trim().startsWith("Night trains"),
       );
-      return label?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
+      return wrap?.querySelector<HTMLInputElement>("input[type=checkbox]") ?? null;
     };
     // Stage: tick "Night trains" (do NOT run the search).
     const night = nightBox();
@@ -286,21 +310,22 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".mc-result").length).toBe(1);
   });
 
-  it("Multi-city defaults to the tour planner and toggles to custom legs", () => {
+  it("Multi-city defaults to custom legs and toggles to the tour planner", () => {
     const root = setup("");
     (root.querySelector('[data-trip="multi"]') as HTMLElement).click();
-    // The sub-mode toggle offers both surfaces.
+    // The sub-mode toggle offers both surfaces, custom legs leading.
     const subTabs = Array.from(root.querySelectorAll<HTMLElement>(".multi-switch .multi-tab"));
     expect(subTabs.length).toBe(2);
+    expect(subTabs[0]!.getAttribute("aria-pressed")).toBe("true");
     const citiesField = root.querySelector(".cities-wrap")?.closest(".field") as HTMLElement;
     const legsBlock = root.querySelector(".mc-block") as HTMLElement;
-    // Plan is the default: cities chip input shown, legs editor hidden.
-    expect(citiesField.style.display).not.toBe("none");
-    expect(legsBlock.style.display).toBe("none");
-    // Switch to custom legs: the editor appears and the cities input is hidden.
-    subTabs[1]!.click();
+    // Legs is the default: the hop editor is shown, the cities chip input hidden.
     expect(legsBlock.style.display).not.toBe("none");
     expect(citiesField.style.display).toBe("none");
+    // Switch to the planner: the cities input appears and the editor is hidden.
+    subTabs[1]!.click();
+    expect(citiesField.style.display).not.toBe("none");
+    expect(legsBlock.style.display).toBe("none");
   });
 
   it("renders a legacy cities tour link as a planned tour (not the legs editor)", () => {
@@ -380,17 +405,68 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("to")).toBeNull();
   });
 
-  it("mounts the round-trip getaway toggle and runs a getaway search", () => {
+  it("hosts round-trip getaways on the Return tab's duration surface, not on Simple", () => {
     const root = setup("");
-    // The toggle is mounted (and visible) on the Simple tab — the review found it
-    // built but never added to the DOM.
-    const toggle = root.querySelector<HTMLElement>(".daytrip-toggle");
-    expect(toggle).not.toBeNull();
-    expect((toggle!.closest(".daytrip-group") as HTMLElement).style.display).not.toBe("none");
-    // A round-trip "where to?" deep-link runs the getaway view, not the plain browse.
-    const gaRoot = setup(
-      `?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`,
+    // Simple is a one-way search now — the round-trip group is built but not shown.
+    expect((root.querySelector(".daytrip-group") as HTMLElement).style.display).toBe("none");
+    (root.querySelector('[data-trip="return"]') as HTMLElement).click();
+    const subTabs = Array.from(root.querySelectorAll<HTMLElement>(".return-switch .multi-tab"));
+    expect(subTabs.length).toBe(2);
+    // "By duration" reveals the stay options and drops the now-redundant checkbox
+    // (the sub-mode itself is the opt-in).
+    subTabs[1]!.click();
+    expect((root.querySelector(".daytrip-group") as HTMLElement).style.display).not.toBe("none");
+    expect((root.querySelector(".daytrip-toggle") as HTMLElement).style.display).toBe("none");
+  });
+
+  it("drives a boolean field through its Yes/No control", () => {
+    const root = setup("");
+    const wrap = Array.from(root.querySelectorAll(".field-yesno")).find((f) =>
+      (f.textContent ?? "").trim().startsWith("Night trains"),
+    ) as HTMLElement;
+    expect(wrap).toBeTruthy();
+    const box = wrap.querySelector<HTMLInputElement>("input[type=checkbox]")!;
+    const [yes, no] = Array.from(wrap.querySelectorAll<HTMLElement>(".yesno .multi-tab"));
+    // Night trains default to included, so the control starts on "yes".
+    expect(box.checked).toBe(true);
+    expect(wrap.querySelector(".yesno")!.classList.contains("is-yes")).toBe(true);
+    // Answering "no" flips the value and fires change — which is what hides the
+    // nested "only night trains" sub-field.
+    no!.click();
+    expect(box.checked).toBe(false);
+    expect(wrap.querySelector(".yesno")!.classList.contains("is-no")).toBe(true);
+    expect(no!.getAttribute("aria-pressed")).toBe("true");
+    // Clicking the answer already selected must not toggle back.
+    no!.click();
+    expect(box.checked).toBe(false);
+    yes!.click();
+    expect(box.checked).toBe(true);
+  });
+
+  it("lists cities, not times, on the duration search's first page", () => {
+    // `?mode=from&rt=1` used to open the Simple tab; the getaway surface moved to the
+    // Return tab. Page 1 compares PLACES — one row per city, no per-leg times.
+    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`);
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
+    expect(root.querySelector(".daytrip-card")).toBeNull();
+  });
+
+  it("opens a city's own page with a calendar and its dated solutions", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=1`,
     );
-    expect(gaRoot.querySelectorAll(".daytrip-card").length).toBeGreaterThan(0);
+    expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("return");
+    const solutions = root.querySelectorAll(".daytrip-card").length;
+    if (solutions === 0) {
+      // No round trip in the sample window: the empty state, never the exact-trip view.
+      expect(root.querySelector(".empty")).not.toBeNull();
+      return;
+    }
+    // A calendar of workable start days leads the page, and it agrees with the list:
+    // one available cell per solution below it.
+    const grid = root.querySelector(".cal-grid");
+    expect(grid).not.toBeNull();
+    expect(grid!.querySelectorAll(".cal-cell.ok").length).toBe(solutions);
   });
 });

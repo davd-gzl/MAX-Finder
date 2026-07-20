@@ -240,9 +240,10 @@ await scenario(
   `${BASE}?mode=tour&from=${enc(P)}&cities=${enc(L)}&date=${DATE}&dmin=1&dmax=3`,
   async (page) => {
     assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
-    // The Multi tab is on its 'plan' sub-mode (the tour planner), not 'legs'.
+    // The Multi tab is on its 'plan' sub-mode (the tour planner), not the leading
+    // 'legs' one — so it's the SECOND button in the switch that must be pressed.
     const planPressed = await page
-      .$eval(".multi-switch .multi-tab", (el) => el.getAttribute("aria-pressed"))
+      .$eval(".multi-switch .multi-tab:nth-of-type(2)", (el) => el.getAttribute("aria-pressed"))
       .catch(() => null);
     assert(planPressed === "true", "the tour-plan sub-mode is not active");
     // The planner ran: no explicit-leg sections, and a real result (a tour card or a
@@ -270,16 +271,32 @@ await scenario(
   },
 );
 
-// 11. Mobile layout smoke: below 860px the form collapses to a floating search bar
-//     and the map's zoom gestures are enabled (the +/- control is hidden there).
+// 11. Mobile layout: below 860px, searching swaps the full form sheet for the
+//     full-bleed map + results drawer behind a floating search bar. Asserts on what
+//     is *displayed*, not on presence — every one of these nodes also exists at
+//     1366px (they are only display:none'd), so counting them proves nothing.
 await scenario(
-  "mobile: floating search bar renders at 390px",
-  BASE,
+  "mobile: searching at 390px swaps the form sheet for the results drawer",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    assert((await $count(page, ".msearch-bar")) === 1, "no mobile search bar");
-    assert((await $count(page, ".search-form")) === 1, "search form missing on mobile");
-    // The trip tabs still exist (inside the form sheet), so mode switching works.
-    assert((await $count(page, ".mode-tab")) >= 4, "trip tabs missing on mobile");
+    const shown = (sel) =>
+      page.$eval(sel, (el) => el.getBoundingClientRect().height > 0).catch(() => false);
+    assert(await shown(".search-form"), "the form sheet should be open on a mobile deep link");
+    assert(!(await shown(".msearch-bar")), "the collapsed bar should be hidden while the form is open");
+    await page.click(".search-form .form-actions button.btn-primary");
+    await sleep(900); // the form→bar view transition runs 0.34s
+    const mform = await page.$eval("#app", (el) => el.dataset.mform);
+    assert(mform === "results", `#app[data-mform] should be "results", got "${mform}"`);
+    assert(await shown(".msearch-bar"), "no floating search bar after searching on mobile");
+    assert(await shown(".results-drawer"), "the results drawer is not displayed");
+    assert(!(await shown(".search-form")), "the form sheet should be collapsed after searching");
+    // The results view is locked to 100dvh: neither axis may scroll the page.
+    const over = await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth - window.innerWidth,
+      y: document.documentElement.scrollHeight - window.innerHeight,
+    }));
+    assert(over.x <= 2, `page scrolls horizontally at 390px (${over.x}px)`);
+    assert(over.y <= 2, `results view scrolls vertically at 390px (${over.y}px)`);
   },
   { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
 );
