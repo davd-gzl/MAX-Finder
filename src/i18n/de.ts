@@ -241,8 +241,6 @@ export const de: Dict = {
   ret_cal_title: "Verfügbarkeit der Rückfahrten",
   ret_view_round: "Hin- und Rückfahrt ansehen",
 
-  getaway_cal_title: "Hin- und Rückfahrten pro Tag",
-
   flex_days: "Tage",
   cal_legend_count: "Zahl = Züge an dem Tag",
 

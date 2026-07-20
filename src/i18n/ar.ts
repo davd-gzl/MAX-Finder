@@ -240,8 +240,6 @@ export const ar: Dict = {
   ret_cal_title: "توفّر رحلات العودة",
   ret_view_round: "عرض الذهاب والإياب",
 
-  getaway_cal_title: "رحلات الذهاب والإياب حسب اليوم",
-
   flex_days: "أيام",
   cal_legend_count: "الرقم = القطارات في ذلك اليوم",
 

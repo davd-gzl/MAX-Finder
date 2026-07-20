@@ -240,8 +240,6 @@ export const ja: Dict = {
   ret_cal_title: "復路の空き状況",
   ret_view_round: "往復を見る",
 
-  getaway_cal_title: "日付別の往復",
-
   flex_days: "日",
   cal_legend_count: "数字 = その日の列車数",
 

@@ -240,8 +240,6 @@ export const nl: Dict = {
   ret_cal_title: "Beschikbaarheid terugreis",
   ret_view_round: "Retour bekijken",
 
-  getaway_cal_title: "Retours per dag",
-
   flex_days: "dagen",
   cal_legend_count: "getal = treinen die dag",
 

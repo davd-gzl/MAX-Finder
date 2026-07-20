@@ -251,8 +251,6 @@ export const fr = {
   ret_cal_title: "Disponibilité des retours",
   ret_view_round: "Voir l'aller-retour",
 
-  getaway_cal_title: "Aller-retours par jour",
-
   flex_days: "jours",
   cal_legend_count: "le nombre = trains ce jour",
 

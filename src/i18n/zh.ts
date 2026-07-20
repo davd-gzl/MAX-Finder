@@ -240,8 +240,6 @@ export const zh: Dict = {
   ret_cal_title: "返程可订日期",
   ret_view_round: "查看往返",
 
-  getaway_cal_title: "每日往返",
-
   flex_days: "天",
   cal_legend_count: "数字 = 当天列车数",
 

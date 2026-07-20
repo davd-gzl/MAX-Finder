@@ -253,8 +253,6 @@ export const en: Dict = {
   ret_cal_title: "Return availability",
   ret_view_round: "See round trip",
 
-  getaway_cal_title: "Round trips by day",
-
   flex_days: "days",
   cal_legend_count: "number = trains that day",
 
