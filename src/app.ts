@@ -718,9 +718,13 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
   tripType = tripTypeForQuery(query);
-  // On the Multi tab, a city list restores the "plan" surface; explicit legs — or
-  // neither, the default — restore the "legs" editor.
-  formApi.setMultiMode(query.cities && query.cities.length > 0 ? "plan" : "legs");
+  // On the Multi tab, restore the surface the URL was serialized from: explicit legs
+  // only ever come from the legs editor, while cities / a start / a finish only travel
+  // from the planner (readQueryFromForm drops each on the other surface). A tour query
+  // carrying none of them — an empty legs editor — stays on the default, legs.
+  const planned =
+    (query.cities && query.cities.length > 0) || Boolean(query.origin) || Boolean(query.destination);
+  formApi.setMultiMode(query.legs && query.legs.length > 0 ? "legs" : planned ? "plan" : "legs");
   formApi.setReturnMode(query.roundTrip ? "duration" : "dates");
   formApi.setActiveTab(tripType);
   refs.origin.value = query.origin ? deps.registry.label(query.origin) : "";

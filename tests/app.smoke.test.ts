@@ -338,8 +338,9 @@ describe("app (jsdom smoke)", () => {
     );
     expect(root.querySelector(".tour")).not.toBeNull();
     expect(root.querySelector(".mc-result")).toBeNull();
-    // The Multi tab is restored on its "plan" sub-mode.
-    const planTab = root.querySelector<HTMLElement>(".multi-switch .multi-tab");
+    // The Multi tab is restored on its "plan" sub-mode — the SECOND button in the
+    // switch, since custom legs now lead it.
+    const planTab = root.querySelectorAll<HTMLElement>(".multi-switch .multi-tab")[1];
     expect(planTab?.getAttribute("aria-pressed")).toBe("true");
   });
 
