@@ -223,6 +223,25 @@ export class RouteMap {
     return m;
   }
 
+  /**
+   * fitBounds that keeps markers in the VISIBLE map area. On mobile the floating search
+   * bar covers the top and the opaque results drawer covers the bottom of the full-bleed
+   * map, so reserve both as pixel padding (the drawer's live height tracks its detent);
+   * on desktop a uniform geographic pad. Without this, markers land under the sheet.
+   */
+  private fitPadded(bounds: L.LatLngBounds): void {
+    const map = this.map;
+    if (!map) return;
+    const mobile = typeof matchMedia === "function" && matchMedia("(max-width: 860px)").matches;
+    if (!mobile) {
+      map.fitBounds(bounds.pad(0.15));
+      return;
+    }
+    const drawer = document.querySelector<HTMLElement>(".results-drawer");
+    const bottom = Math.round((drawer?.clientHeight ?? window.innerHeight * 0.3) + 12);
+    map.fitBounds(bounds, { paddingTopLeft: [24, 76], paddingBottomRight: [24, bottom] });
+  }
+
   /** Render a hub station linked to each of `others`. Unknown coords are skipped. */
   show(hub: string, others: string[]): void {
     const e = this.ensure();
@@ -253,7 +272,7 @@ export class RouteMap {
     }
 
     map.invalidateSize();
-    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.12));
+    if (pts.length > 1) this.fitPadded(L.latLngBounds(pts));
     else if (pts.length === 1) map.setView(pts[0]!, 8);
   }
 
@@ -290,7 +309,7 @@ export class RouteMap {
 
     const pts = known.map((s) => s.c);
     map.invalidateSize();
-    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.18));
+    if (pts.length > 1) this.fitPadded(L.latLngBounds(pts));
     else if (pts.length === 1) map.setView(pts[0]!, 8);
   }
 
@@ -323,6 +342,6 @@ export class RouteMap {
       this.marker(id, c, "via").addTo(layer);
     }
     map.invalidateSize();
-    if (bounds) map.fitBounds(bounds.pad(0.1));
+    if (bounds) this.fitPadded(bounds);
   }
 }

@@ -1065,9 +1065,24 @@ function applyAndRun(): void {
  * the scroll position. Used for cheap updates like changing the calendar day,
  * where a full teardown + spinner + scroll-to-top is jarring.
  */
-function refreshInPlace(): void {
+/** The scroll container the results actually live in: the drawer's own scroller on
+ *  mobile (the window does NOT scroll there), else the window. */
+function resultsScroller(): HTMLElement | null {
+  const drawer = document.querySelector<HTMLElement>(".drawer-scroll");
+  return drawer && drawer.scrollHeight > drawer.clientHeight + 1 ? drawer : null;
+}
+
+/** Bring the updated results into view after a filter change, so a tap that re-renders
+ *  the list below the fold visibly does something (mobile "nothing happened" fix). */
+function revealResults(): void {
+  const target = refs.results.querySelector<HTMLElement>(".count") ?? refs.results.firstElementChild;
+  if (target instanceof HTMLElement) target.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function refreshInPlace(reveal = false): void {
   store.updateUrl(query);
-  const scrollY = window.scrollY;
+  const scroller = resultsScroller();
+  const scrollY = scroller ? scroller.scrollTop : window.scrollY;
   // A calendar-day pick is usually what triggers an in-place refresh. If a day cell had
   // keyboard focus, the teardown below destroys it and focus falls to <body>; note it so
   // we can put focus back on the equivalent (selected) cell after the re-render.
@@ -1085,7 +1100,15 @@ function refreshInPlace(): void {
   formApi.refreshTourEndDate();
   clear(refs.results);
   renderSearch();
-  window.scrollTo({ top: scrollY });
+  if (reveal) {
+    // A discovery filter (a day / window-chip tap) re-rendered the list below the fold —
+    // scroll it into view rather than restoring the old position, so the tap is visible.
+    revealResults();
+  } else if (scroller) {
+    scroller.scrollTop = scrollY;
+  } else {
+    window.scrollTo({ top: scrollY });
+  }
   if (restoreCalFocus) refs.results.querySelector<HTMLElement>(".cal-cell.sel")?.focus({ preventScroll: true });
 }
 
@@ -1546,7 +1569,7 @@ function presetChipsEl(): HTMLElement {
           if (discoveryWin === p) return;
           discoveryWin = p;
           getawayDay = null; // a new window starts un-narrowed
-          refreshInPlace();
+          refreshInPlace(true);
         },
       },
     });
@@ -1590,7 +1613,7 @@ function runGetaways(c: RenderCtx, origin: string): void {
     ...c,
     onSelectDay: (d) => {
       getawayDay = getawayDay === d ? null : d;
-      refreshInPlace();
+      refreshInPlace(true);
     },
   };
   refs.results.append(

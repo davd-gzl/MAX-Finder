@@ -1813,24 +1813,47 @@ a {
   .cal-grid {
     grid-template-columns: repeat(7, 1fr);
   }
-  /* On phones the destination name keeps priority; the meta chips yield space and
-     cap so long station names ("Valenciennes", "St Pierre Des Corps") stop
-     truncating to "Valenci…". */
-  .dest-name {
-    flex: 2 1 auto;
+  /* On phones NOTHING truncates (product rule). The destination name takes the first
+     line and WRAPS in full if long ("St Pierre Des Corps"); the arrow keeps its place
+     beside it; the meta chips drop to their own line below and wrap, each showing its
+     full text. The card just grows taller — a name is never cut to "Valenci…". */
+  .dest-main {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
   }
-  .chip-via {
-    max-width: 9ch;
+  .dest-name {
+    flex: 1 1 auto;
+    order: 1;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .dest-main > .chev {
+    order: 2;
   }
   .dest-meta {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
     min-width: 0;
-    flex: 0 1 auto;
   }
-  .dest-meta .stat-chip {
-    max-width: 11ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
+  .dest-meta .stat-chip,
+  .dest-meta .chip,
+  .dest-meta .chip-onsite,
+  .dest-meta .chip-via {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  /* Airport names keep their ✈ badge but the inner text wraps instead of ellipsizing. */
+  .dest-name.stn-airport {
+    white-space: normal;
+  }
+  .dest-name .stn-text {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 }
 .cal-cell {
