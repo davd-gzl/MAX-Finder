@@ -1,5 +1,5 @@
 import type { MaxTrain, Journey } from "../types";
-import { bestJourney, reachableJourneys, type ConnectionOptions } from "./connections";
+import { bestJourney, reachableJourneys, reachableInto, type ConnectionOptions } from "./connections";
 
 export interface BestTrip {
   destination: string;
@@ -94,13 +94,16 @@ export function reachableBest(
   opts: ConnectionOptions,
   dir: "from" | "to",
 ): ReachTrip[] {
+  // ONE multi-target sweep from (or into) the anchor — the fastest journey to every
+  // reachable station in a single pass — instead of a per-candidate graph search. On a
+  // busy hub that is the difference between tens of milliseconds and tens of seconds.
+  const reached =
+    dir === "from" ? reachableJourneys(trains, anchor, date, opts) : reachableInto(trains, anchor, date, opts);
+  const allow = new Set(candidates);
   const out: ReachTrip[] = [];
-  for (const station of candidates) {
-    if (station === anchor) continue;
-    const origin = dir === "from" ? anchor : station;
-    const destination = dir === "from" ? station : anchor;
-    const journey = bestJourney(trains, origin, destination, date, opts);
-    if (journey) out.push({ station, journey });
+  for (const [station, journey] of reached) {
+    if (station === anchor || !allow.has(station)) continue;
+    out.push({ station, journey });
   }
   return out.sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
 }

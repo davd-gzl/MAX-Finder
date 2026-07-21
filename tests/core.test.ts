@@ -7,7 +7,7 @@ import { reachableDestinations, reachableOrigins } from "../src/core/destination
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
-import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
+import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
 import { getaways, getawayIdeas, getawaysAcrossWindow, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
@@ -317,6 +317,39 @@ describe("bestTripsAcrossWindow (ideas, all days)", () => {
     expect(chalon!.journey.legs).toHaveLength(1); // the direct hop, not the via-Lyon detour
     expect(chalon!.journey.totalDurationMin).toBe(60);
     expect(chalon!.days).toBe(2); // still counted as reachable on both days
+  });
+});
+
+describe("reachableBest (one-pass browse reachability)", () => {
+  // The browse "via" list used to run a per-candidate graph search (O(stations) DFS
+  // calls — seconds on a busy hub). It now does ONE multi-target sweep per direction.
+  // These lock in that the sweep returns exactly what the per-candidate search did.
+  const date = "2026-06-25";
+  const opts = { maxConnections: 1 };
+  const cands = stationsOnDate(trains, date);
+
+  it("matches per-candidate bestJourney for dir=from", () => {
+    const got = new Map(
+      reachableBest(trains, "PARIS (intramuros)", date, cands, opts, "from").map((r) => [r.station, r.journey.totalDurationMin]),
+    );
+    for (const s of cands) {
+      if (s === "PARIS (intramuros)") continue;
+      const bj = bestJourney(trains, "PARIS (intramuros)", s, date, opts);
+      if (bj) expect(got.get(s)).toBe(bj.totalDurationMin);
+      else expect(got.has(s)).toBe(false);
+    }
+  });
+
+  it("matches per-candidate bestJourney for dir=to (reverse sweep)", () => {
+    const got = new Map(
+      reachableBest(trains, "PARIS (intramuros)", date, cands, opts, "to").map((r) => [r.station, r.journey.totalDurationMin]),
+    );
+    for (const s of cands) {
+      if (s === "PARIS (intramuros)") continue;
+      const bj = bestJourney(trains, s, "PARIS (intramuros)", date, opts);
+      if (bj) expect(got.get(s)).toBe(bj.totalDurationMin);
+      else expect(got.has(s)).toBe(false);
+    }
   });
 });
 
