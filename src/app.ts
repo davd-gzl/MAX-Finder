@@ -1288,7 +1288,43 @@ async function shareCurrentUrl(onCopied: () => void): Promise<void> {
   }
 }
 
+// Bumped on every render, so an in-flight chunked list (see appendInChunks) stops
+// building cards the moment a newer search/render replaces it.
+let renderGen = 0;
+
+/**
+ * Append a long list to `container` in small batches across animation frames, so
+ * building hundreds of cards never blocks a single frame: the first batch paints at
+ * once, the rest fill in over the following frames. Self-cancels when a newer render
+ * bumps renderGen. (Under the jsdom test shim rAF runs synchronously, so the whole
+ * list still renders within the call.)
+ */
+function appendInChunks<T>(
+  container: HTMLElement,
+  items: T[],
+  build: (item: T, i: number) => Node,
+  first = 18,
+  batch = 18,
+): void {
+  const gen = renderGen;
+  let i = 0;
+  const put = (count: number): void => {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(i + count, items.length);
+    for (; i < end; i++) frag.append(build(items[i]!, i));
+    container.append(frag);
+  };
+  put(first);
+  const step = (): void => {
+    if (gen !== renderGen || i >= items.length) return;
+    put(batch);
+    requestAnimationFrame(step);
+  };
+  if (i < items.length) requestAnimationFrame(step);
+}
+
 function renderSearch(): void {
+  renderGen++;
   const c = ctx();
   updateDocTitle();
   rootRef.dataset.detail = navStack.length ? "on" : "";
@@ -1448,10 +1484,9 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
         onSort,
       ),
     );
-    for (const g of sortedGroups)
-      refs.results.append(
-        render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
-      );
+    appendInChunks(refs.results, sortedGroups, (g) =>
+      render.groupCardEl(g, dir, anchor, c, dayCount.get(g.station) ?? 0, stats.get(g.station), flex),
+    );
     for (const tr of connecting) refs.results.append(render.reachTripRowEl(tr.station, tr.journey, c));
   }
 
@@ -1593,17 +1628,15 @@ function runGetaways(c: RenderCtx, origin: string): void {
       ]),
     );
   }
-  for (const trip of shown) {
+  appendInChunks(refs.results, shown, (trip) => {
     const days = datesByDest.get(trip.destination) ?? [];
     // The headline metric that VARIES between places: hours on site (day trip) or
     // nights away (round trip) — the mode's defining figure, front and centre.
     const metric = isDay
       ? t("daytrip_cal_hours", { h: Math.round((trip.onSiteMin ?? 0) / 60) })
       : t("getaway_nights", { n: trip.nights });
-    refs.results.append(
-      render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric }),
-    );
-  }
+    return render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric });
+  });
   showMap(
     origin,
     shown.map((trip) => trip.destination),
@@ -1914,8 +1947,7 @@ function runBestSearch(c: RenderCtx): void {
       onSort,
     ),
   );
-  for (const tr of sorted)
-    refs.results.append(render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
+  appendInChunks(refs.results, sorted, (tr) => render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
   showMap(query.origin, sorted.map((tr) => tr.destination));
 }
 
