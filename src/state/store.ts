@@ -75,6 +75,16 @@ export function saveSettings(s: Settings): void {
   writeLS(KEY.settings, s);
 }
 
+/** Whether the user has ever saved settings — used to detect a genuine first visit
+ *  (so auto-tuning for a low-end device never overrides an explicit later choice). */
+export function hasStoredSettings(): boolean {
+  try {
+    return localStorage.getItem(KEY.settings) != null;
+  } catch {
+    return false;
+  }
+}
+
 // --- favorites & watched routes ---------------------------------------------
 
 function sameRoute(a: RoutePair, b: RoutePair): boolean {

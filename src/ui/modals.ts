@@ -4,6 +4,7 @@ import type { RenderCtx } from "./render";
 import { el } from "./dom";
 import * as render from "./render";
 import { t } from "../i18n";
+import { APP_VERSION, APP_BUILD } from "../config";
 
 /* ── internal helpers ── */
 
@@ -107,6 +108,10 @@ export function showSettingsModal(opts: {
       el("p", { class: "modal-text muted small", text: t("set_perf") }),
       body,
       el("div", { class: "set-preset-row" }, [preset, el("span", { class: "muted small", text: t("set_lowend_hint") })]),
+      el("p", {
+        class: "muted small set-version",
+        text: `MAX Finder v${APP_VERSION}${APP_BUILD ? ` · ${APP_BUILD}` : ""}`,
+      }),
       el("div", { class: "modal-actions" }, [closeButton(dialog, "primary")]),
     ]),
   );

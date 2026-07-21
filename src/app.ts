@@ -501,6 +501,27 @@ function addNearestCity(): void {
   growTour("nearest", tourAddCount());
 }
 
+/**
+ * Best-effort guess that this is a weak device or a metered/slow connection, so a
+ * first-time visitor gets the light experience (no map, no motion) by default. Only
+ * consulted when the user has never saved settings — an explicit choice always wins.
+ */
+function isLowEndDevice(): boolean {
+  const nav = navigator as Navigator & {
+    deviceMemory?: number;
+    connection?: { saveData?: boolean; effectiveType?: string };
+  };
+  // Data Saver on, or a 2G/slow-2G connection: treat as low-end regardless of CPU.
+  const conn = nav.connection;
+  if (conn?.saveData === true) return true;
+  if (conn?.effectiveType === "slow-2g" || conn?.effectiveType === "2g") return true;
+  // ≤2 GB RAM or ≤2 logical cores: the map + tiles + animations are the first thing
+  // to jank on these. Both are coarse, privacy-friendly hints (undefined on Safari).
+  if (typeof nav.deviceMemory === "number" && nav.deviceMemory <= 2) return true;
+  if (typeof nav.hardwareConcurrency === "number" && nav.hardwareConcurrency <= 2) return true;
+  return false;
+}
+
 async function promptInstall(): Promise<void> {
   // Use the browser's native prompt when it offered one (Chromium/Android).
   if (installPrompt) {
@@ -523,6 +544,13 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   deps = { trains: dataset.trains, meta: dataset.meta, registry };
   rootRef = root;
   settings = store.loadSettings();
+  // First visit on an apparently weak device / slow connection: default to the light
+  // experience (map off + reduced motion). Persisted so it survives reloads but can be
+  // freely overridden in Settings — and never re-applied once the user has chosen.
+  if (!store.hasStoredSettings() && isLowEndDevice()) {
+    settings = { ...settings, map: false, reduceMotion: true };
+    store.saveSettings(settings);
+  }
   const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
   applyDensity(settings.density);
@@ -2087,6 +2115,11 @@ function showHint(input: HTMLInputElement): void {
   // Nothing to plot yet: rest the map on the bare France basemap. (renderSearch no
   // longer does this unconditionally, to avoid a base→markers double-zoom.)
   showBaseMap();
+  // On mobile the results view is a full-bleed map + drawer; with nothing to search
+  // (a link like ?mode=from with no origin, or a cleared field) it would sit there
+  // empty — a confusing "why am I here?" page. Send the phone back to the search form
+  // instead, which is the real entry point.
+  setMobileForm(true);
   // On phones, don't auto-focus the field: it pops the keyboard + the station
   // suggestion dropdown over the whole UI on entry. Let the user tap it first.
   if (!isTouch()) input.focus({ preventScroll: true });
@@ -2540,7 +2573,6 @@ function buildLayout(root: HTMLElement): void {
   const built = formApi;
   const shell = buildShell({
     theme: settings.theme,
-    density: settings.density,
     card: settings.card,
     updatedText: footerUpdatedText(),
     form: built.form,
@@ -2555,10 +2587,6 @@ function buildLayout(root: HTMLElement): void {
     },
     onThemeChange: (theme) => {
       settings = { ...settings, theme };
-      store.saveSettings(settings);
-    },
-    onDensityChange: (density) => {
-      settings = { ...settings, density };
       store.saveSettings(settings);
     },
     onCard: (card) => {

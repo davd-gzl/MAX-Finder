@@ -67,6 +67,35 @@ const T = "TOULOUSE MATABIAU";
 const L = "LYON (intramuros)";
 const enc = encodeURIComponent;
 
+// The round-trip scenario needs a REAL outbound journey on the chosen day: the return
+// availability calendar only renders once the outbound produced at least one journey.
+// Free-MAX availability is spotty day-to-day in the committed snapshot (some dates have
+// no Paris→Lyon at all), so a blind now+5d would land on an empty day and flake. Pick,
+// instead, the first snapshot date that actually has a Paris→Lyon MAX outbound — and its
+// next day for the return — so the scenario is deterministic against whatever snapshot
+// is committed. Falls back to the plain now+5d dates if the data can't be read.
+function pickRoundTripDates() {
+  try {
+    const raw = JSON.parse(readFileSync(join(DIST, "data", "tgvmax.json"), "utf-8"));
+    const trains = Array.isArray(raw) ? raw : raw.trains || [];
+    const today = new Date().toISOString().slice(0, 10);
+    const days = [
+      ...new Set(
+        trains
+          .filter((t) => t.origine === P && t.destination === L && t.od_happy_card === "OUI" && t.date >= today)
+          .map((t) => t.date),
+      ),
+    ].sort();
+    if (!days.length) return [DATE, DATE2];
+    const out = days[0];
+    const next = new Date(`${out}T00:00:00Z`).getTime() + 86_400_000;
+    return [out, new Date(next).toISOString().slice(0, 10)];
+  } catch {
+    return [DATE, DATE2];
+  }
+}
+const [RT_DATE, RT_DATE2] = pickRoundTripDates();
+
 // --- tiny assertion harness -------------------------------------------------
 const results = [];
 class Fail extends Error {}
@@ -259,7 +288,7 @@ await scenario(
 //     toggle on the Trip tab, not a separate tab.
 await scenario(
   "deep-link: od + rdate opens the Trip tab with round trip on",
-  `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${DATE}&rdate=${DATE2}`,
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${RT_DATE}&rdate=${RT_DATE2}`,
   async (page) => {
     assert((await activeTrip(page)) === "simple", "active tab should be 'simple' (Trip)");
     const roundOn = await page

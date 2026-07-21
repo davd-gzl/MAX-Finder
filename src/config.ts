@@ -64,3 +64,10 @@ export const GITHUB_ISSUES_URL = `${GITHUB_URL}/issues/new`;
 /** Official SNCF pages describing the MAX JEUNE / MAX SENIOR subscriptions. */
 export const MAX_JEUNE_URL = "https://www.sncf-connect.com/catalogue/description/max-jeune";
 export const MAX_SENIOR_URL = "https://www.sncf-connect.com/catalogue/description/max-senior";
+
+/** App version + build date, injected from package.json at build time (see vite.config).
+ *  Falls back to "dev" when the defines aren't present (e.g. a raw ts-node run). */
+declare const __APP_VERSION__: string;
+declare const __APP_BUILD__: string;
+export const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+export const APP_BUILD = typeof __APP_BUILD__ === "string" ? __APP_BUILD__ : "";

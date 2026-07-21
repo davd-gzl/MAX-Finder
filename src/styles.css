@@ -4047,6 +4047,28 @@ select.input::-ms-expand {
   scroll-behavior: auto !important;
 }
 
+/* The card outlines are drawn with a stack of four drop-shadow() filters so the 1px
+   edge hugs each card's rounded corners. That's four filter passes per card — the
+   costliest paint on a results screen full of cards. Under reduce-motion, swap them
+   for a single box-shadow ring: same 1px rounded edge, one cheap paint, no GPU
+   filter. Colour tracks selection/hover just as the filter version did. */
+:root[data-reduce-motion="on"] .search-form,
+:root[data-reduce-motion="on"] .group-card,
+:root[data-reduce-motion="on"] .journey,
+:root[data-reduce-motion="on"] [data-station].is-selected {
+  filter: none !important;
+  box-shadow: 0 0 0 1px var(--border);
+}
+:root[data-reduce-motion="on"] .group-card:hover,
+:root[data-reduce-motion="on"] .group-card.is-hover,
+:root[data-reduce-motion="on"] .journey.is-hover,
+:root[data-reduce-motion="on"] .journey.is-clickable:hover,
+:root[data-reduce-motion="on"] .journey.is-active,
+:root[data-reduce-motion="on"] .journey.is-selected,
+:root[data-reduce-motion="on"] [data-station].is-selected {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 /* Map off: no Leaflet at all (ensureMap short-circuits). Results go full-width. */
 :root[data-map="off"] .side-col {
   display: none;
