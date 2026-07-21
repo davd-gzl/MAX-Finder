@@ -1,6 +1,6 @@
 import type { SearchMode } from "../types";
 import type { ConnectionOptions } from "../core/connections";
-import { el, clear, optionEl, isTouch } from "./dom";
+import { el, clear, optionEl } from "./dom";
 import { t, getLang } from "../i18n";
 import { addDays, dayIndex } from "../util/time";
 
@@ -433,9 +433,20 @@ export function createForm(props: FormProps): FormHandle {
     const place = (): void => {
       const r = trigger.getBoundingClientRect();
       const w = pop.offsetWidth;
+      const h = pop.offsetHeight;
       let left = r.left;
       if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - w);
-      pop.style.top = `${Math.round(r.bottom + 6)}px`;
+      // The popover is position:fixed, so it can't scroll into view. If it would spill
+      // off the bottom (a low trigger on a phone, where its last week rows + legend
+      // were unreachable), flip it above the trigger when there's more room there,
+      // else clamp it to the viewport bottom.
+      let top = r.bottom + 6;
+      if (top + h > window.innerHeight - 8) {
+        const above = r.top - 6 - h;
+        top = above >= 8 || r.top > window.innerHeight - r.bottom ? Math.max(8, above) : top;
+        if (top + h > window.innerHeight - 8) top = Math.max(8, window.innerHeight - 8 - h);
+      }
+      pop.style.top = `${Math.round(top)}px`;
       pop.style.left = `${Math.round(left)}px`;
     };
     function close(): void {
@@ -851,6 +862,7 @@ export function createForm(props: FormProps): FormHandle {
       !firstViz &&
       formBody.isConnected &&
       typeof formBody.animate === "function" &&
+      document.documentElement.dataset.reduceMotion !== "on" &&
       !(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
     firstViz = false;
     if (!animate) {
@@ -996,12 +1008,10 @@ export function createForm(props: FormProps): FormHandle {
   for (const input of [origin, destination]) {
     input.addEventListener("change", () => syncRoundTripOpts());
   }
-  origin.addEventListener("change", () => {
-    if (!isTouch() || props.mode() !== "od") return;
-    if (props.resolveStation(origin.value) && !destination.value.trim()) {
-      destination.focus();
-    }
-  });
+  // (Removed: auto-advancing focus from origin to destination on touch. It fired on
+  // every blur and re-popped the on-screen keyboard the moment you finished the origin
+  // — even when you were tapping the date or Search — the classic "keyboard springs
+  // back up" annoyance. Desktop already advances with Tab/Enter.)
   const departDate = makeDateField(t("field_date"));
   const date = departDate.input;
   const dateField = departDate.root;

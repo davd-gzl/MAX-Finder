@@ -4005,3 +4005,132 @@ select.input::-ms-expand {
 :root[data-density="compact"] .daytrip-card .journey-main {
   gap: 0.3rem;
 }
+
+/* ---- mobile / touch fixes ---- */
+/* In the mobile drilled-in detail view the map is hidden, so its "Map" action would
+   be a dead no-op — drop it there. */
+@media (max-width: 860px) {
+  [data-mform="results"][data-detail="on"] .journey-sub .btn-map {
+    display: none;
+  }
+}
+/* Comfortable touch targets: the tiny "×" removers (multi-city leg, tour city chip)
+   are ~27px — grow their HIT area to ~44px on coarse pointers without changing the
+   glyph size. */
+@media (pointer: coarse) {
+  .mc-remove,
+  .chip-x {
+    position: relative;
+  }
+  .mc-remove::after,
+  .chip-x::after {
+    content: "";
+    position: absolute;
+    inset: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ---- performance / display settings ---- */
+/* Reduce motion: near-instant animations & transitions (cheaper on weak GPUs; also a
+   motion-sensitivity option). View-transitions are skipped in JS when this is on. */
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* Map off: no Leaflet at all (ensureMap short-circuits). Results go full-width. */
+:root[data-map="off"] .side-col {
+  display: none;
+}
+:root[data-map="off"] .layout {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 861px) {
+  :root[data-map="off"] .main-col {
+    max-width: 760px;
+    margin-inline: auto;
+  }
+}
+/* On a phone the results view is normally a drawer over a full-bleed map; with the map
+   off it becomes an ordinary scrolling page (mirrors the drilled-in detail layout). */
+@media (max-width: 860px) {
+  :root[data-map="off"] #app[data-mform="results"] {
+    height: auto;
+    overflow: visible;
+  }
+  :root[data-map="off"] [data-mform="results"] .layout {
+    height: auto;
+    overflow: visible;
+  }
+  :root[data-map="off"] [data-mform="results"] .map-section {
+    display: none;
+  }
+  :root[data-map="off"] [data-mform="results"] .msearch-bar {
+    position: static;
+    margin: 0 0 0.5rem;
+    border-radius: var(--radius);
+  }
+  :root[data-map="off"] [data-mform="results"] .results-drawer {
+    position: static;
+    height: auto !important;
+    flex: none;
+    border-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+    transition: none;
+    overflow: visible;
+  }
+  :root[data-map="off"] [data-mform="results"] .drawer-scroll {
+    overflow: visible;
+  }
+  :root[data-map="off"] [data-mform="results"] .drawer-handle {
+    display: none;
+  }
+}
+
+/* ---- settings modal ---- */
+.settings-modal .modal-body {
+  min-width: min(94vw, 26rem);
+}
+.set-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.6rem 0 0.4rem;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+}
+.set-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.set-row-label {
+  font-weight: 600;
+}
+.set-row-hint {
+  line-height: 1.35;
+}
+.set-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}

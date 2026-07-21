@@ -32,6 +32,7 @@ export interface ShellProps {
   onShare: (onCopied: () => void) => void;
   onInstall: () => void;
   onShortcuts: () => void;
+  onSettings: () => void;
   onOpenMobileForm: () => void;
   onSelect: (id: string) => void;
   onPeek: (id: string | null) => void;
@@ -60,6 +61,15 @@ export function applyTheme(theme: Theme): void {
 /** Reflect the results density on the document root, where the stylesheet keys off it. */
 export function applyDensity(density: Density): void {
   document.documentElement.dataset.density = density;
+}
+
+/** Reflect the low-end / motion preferences on the root, where the stylesheet + the
+ *  view-transition and map guards key off them. */
+export function applyReduceMotion(on: boolean): void {
+  document.documentElement.dataset.reduceMotion = on ? "on" : "";
+}
+export function applyMap(on: boolean): void {
+  document.documentElement.dataset.map = on ? "on" : "off";
 }
 
 /** Close the header overflow menu if it is open, restoring the toggle button. */
@@ -126,19 +136,24 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
     startY = e.clientY;
     startH = drawer.getBoundingClientRect().height;
     drawer.style.transition = "none";
+    // Try to capture, but the drag no longer DEPENDS on it: the move/up listeners are
+    // on window, so the gesture keeps working even where setPointerCapture is refused.
     try {
       handle.setPointerCapture(e.pointerId);
     } catch {
-      startH = drawer.getBoundingClientRect().height;
+      /* window listeners below still track the drag */
     }
   });
-  handle.addEventListener("pointermove", (e) => {
+  // Move/up on WINDOW, not the handle: once the finger slides off the thin grip the
+  // events target whatever is underneath, so a handle-bound listener would miss them
+  // and the sheet would freeze mid-drag. Guarded by `dragging` so it's inert otherwise.
+  const onMove = (e: PointerEvent): void => {
     if (!dragging) return;
     if (Math.abs(e.clientY - startY) > 6) moved = true;
     const s = sizes();
     const h = Math.max(s.peek, Math.min(s.full, startH + (startY - e.clientY)));
     drawer.style.height = `${h}px`;
-  });
+  };
   const finish = (): void => {
     if (!dragging) return;
     dragging = false;
@@ -151,13 +166,15 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
     }
     snap(best);
   };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", () => {
+  const onCancel = (): void => {
     finish();
     // No click follows a cancelled gesture, so the click handler can't clear
     // `moved` — reset it here or the next genuine tap on the handle is swallowed.
     moved = false;
-  });
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", finish);
+  window.addEventListener("pointercancel", onCancel);
   handle.addEventListener("click", () => {
     if (moved) {
       moved = false;
@@ -185,6 +202,9 @@ function setupDrawer(drawer: HTMLElement, handle: HTMLElement, mapSection: HTMLE
   return () => {
     mq.removeEventListener("change", sync);
     window.removeEventListener("resize", sync);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", onCancel);
   };
 }
 
@@ -249,6 +269,17 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
     props.onDensityChange(currentDensity);
   });
 
+  // Settings (performance / display options for low-end devices).
+  const SETTINGS_SVG =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  const settingsBtn = el("button", {
+    class: "ctl icon-ctl settings-btn",
+    type: "button",
+    attrs: { "aria-label": t("act_settings"), title: t("act_settings") },
+    html: SETTINGS_SVG,
+    on: { click: () => props.onSettings() },
+  });
+
   const cardSel = el("select", { class: "ctl", attrs: { "aria-label": t("field_card") } }, [
     optionEl("jeune", t("card_jeune"), props.card === "jeune"),
     optionEl("senior", t("card_senior"), props.card === "senior"),
@@ -289,7 +320,7 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
 
   const headerCtls = el("div", { class: "header-ctls" }, [
     el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, settingsBtn, themeBtn, shareBtn, installBtn]),
   ]);
   const menuBtn = el("button", {
     class: "ctl icon-ctl menu-btn",
