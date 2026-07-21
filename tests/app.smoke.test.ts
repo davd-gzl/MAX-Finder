@@ -120,7 +120,8 @@ describe("app (jsdom smoke)", () => {
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
     );
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    expect(root.querySelector<HTMLInputElement>(".daytrip-toggle input[type=checkbox]")!.checked).toBe(true);
+    // A legacy rdate later than the outbound resolves to the Round-trip segment.
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
     // origin is [0], destination is [1] within the départ/arrivée row.
     const dest = root.querySelectorAll<HTMLInputElement>('.od-fields input[list="station-list"]')[1];
     expect(dest).toBeTruthy();
@@ -130,11 +131,12 @@ describe("app (jsdom smoke)", () => {
     (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
 
     const url = location.search;
-    expect(new URLSearchParams(url).get("rt")).toBe("1");
-    // Reloading it must land back on the Trip tab with round trip still on.
+    // The shape is now serialized as rt=round (rt=day for a day trip); it survives.
+    expect(new URLSearchParams(url).get("rt")).toBe("round");
+    // Reloading it must land back on the Trip tab with the Round-trip segment lit.
     const reloaded = setup(url);
     expect(reloaded.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    expect(reloaded.querySelector<HTMLInputElement>(".daytrip-toggle input[type=checkbox]")!.checked).toBe(true);
+    expect(reloaded.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
   });
 
   it("drills into a connecting destination and back again", () => {
@@ -415,15 +417,22 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("to")).toBeNull();
   });
 
-  it("reveals the round-trip getaway options on the Trip tab when browsing (no destination)", () => {
+  it("switches trip shape via the segmented control beside the date", () => {
     const root = setup("");
-    // The round-trip toggle is on the Trip tab; its getaway stay options are hidden
-    // until round trip is on AND there's no fixed destination (discovering).
-    expect((root.querySelector(".daytrip-group") as HTMLElement).style.display).not.toBe("none");
-    expect((root.querySelector(".daytrip-opts") as HTMLElement).style.display).toBe("none");
-    (root.querySelector(".daytrip-toggle .switch") as HTMLElement).click();
-    // No destination filled → discovering → the stay options appear.
-    expect((root.querySelector(".daytrip-opts") as HTMLElement).style.display).not.toBe("none");
+    const seg = root.querySelector(".trip-shape");
+    expect(seg).toBeTruthy();
+    // It lives inside the date row (requirement 1), not in the Advanced panel.
+    expect(seg!.closest(".date-row")).toBeTruthy();
+    expect(seg!.closest(".advanced")).toBeNull();
+    const btns = Array.from(seg!.querySelectorAll("button"));
+    expect(btns.length).toBe(3);
+    // One-way is the baseline; a single click on Day trip switches (no settings trip).
+    expect(seg!.querySelector("button.active")?.textContent).toContain("One-way");
+    (btns.find((b) => b.textContent?.includes("Day trip")) as HTMLElement).click();
+    expect(seg!.querySelector("button.active")?.textContent).toContain("Day trip");
+    expect(
+      (btns.find((b) => b.textContent?.includes("Day trip")) as HTMLElement).getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   it("drives a boolean field through its toggle switch", () => {
@@ -456,6 +465,12 @@ describe("app (jsdom smoke)", () => {
     // The page compares PLACES: one row per city, no per-leg times.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`);
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
+    // Discovery defaults to "this weekend"; widen it to the month to compare all places.
+    const monthChip = Array.from(root.querySelectorAll(".win-chip")).find((b) =>
+      b.textContent?.includes("This month"),
+    ) as HTMLElement;
+    expect(monthChip).toBeTruthy();
+    monthChip.click();
     expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
     expect(root.querySelector(".daytrip-card")).toBeNull();
   });
@@ -469,5 +484,48 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".od-return-cal .cal-grid")).not.toBeNull();
     expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
     expect(root.querySelector(".od-return")).not.toBeNull();
+    // Both legs render as the multi-city accordion stepper (two ✓-collapsible legs).
+    expect(root.querySelectorAll(".mc-result").length).toBe(2);
+  });
+
+  it("shows a DAY-TRIP as a distinct mode with hours-on-site, not nights", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
+    );
+    // The Day-trip segment is lit and the outbound calendar's metric is hours on site.
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Day trip");
+    const legend = Array.from(root.querySelectorAll(".calendar .cal-legend"))
+      .map((n) => n.textContent ?? "")
+      .join(" ");
+    expect(legend).toContain("hours on site");
+    expect(legend).not.toContain("nights away");
+    // Two accordion legs; the glossary line defines both terms under the calendar.
+    expect(root.querySelectorAll(".mc-result").length).toBe(2);
+    expect(root.querySelector(".glossary")).not.toBeNull();
+  });
+
+  it("collapses the outbound leg to a ✓ summary when a train is picked (accordion)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
+    const card = leg1.querySelector(".mc-leg-body .journey") as HTMLElement;
+    expect(card).toBeTruthy();
+    card.click(); // pick the outbound → leg collapses, its number becomes ✓
+    expect(leg1.classList.contains("mc-collapsed")).toBe(true);
+    expect(leg1.querySelector(".mc-num")?.textContent).toBe("✓");
+  });
+
+  it("persists the picked return date to the URL (rt=round + rdate)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    const retCell = root.querySelector(".od-return-cal .cal-cell.ok") as HTMLElement | null;
+    if (retCell) {
+      retCell.click();
+      const p = new URLSearchParams(location.search);
+      expect(p.get("rt")).toBe("round");
+      expect(p.get("rdate")).toBeTruthy();
+    }
   });
 });

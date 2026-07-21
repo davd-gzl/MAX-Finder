@@ -12,6 +12,9 @@ import { isAirportStation } from "../data/stations";
 import { formatDuration, dayIndex, addDays } from "../util/time";
 import { t } from "../i18n";
 
+// Monotonic id source for wiring aria-labelledby (a calendar's <h3> to its grid).
+let uidSeq = 0;
+
 export interface RenderCtx {
   label: (id: string) => string;
   formatDate: (iso: string) => string;
@@ -575,6 +578,7 @@ export function getawayCityRowEl(
   trip: Getaway,
   ctx: RenderCtx,
   stat: { days: number; windowDays: number },
+  opts: { metric?: string } = {},
 ): HTMLElement {
   const origin = trip.outbound.origin;
   const route: RoutePair = { origin, destination: trip.destination };
@@ -584,12 +588,15 @@ export function getawayCityRowEl(
     {
       class: "dest-main",
       type: "button",
-      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${summary}` },
+      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${opts.metric ?? summary}` },
       on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
     },
     [
       stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+        // The mode's headline metric (hours on site / nights away) leads, so places
+        // compare on what the mode is about; the days/window chip follows.
+        ...(opts.metric ? [el("span", { class: "chip chip-onsite", text: opts.metric })] : []),
         el("span", {
           class: "stat-chip",
           text: summary,
@@ -905,10 +912,15 @@ export function calendarEl(
   const showCount = opts?.showCount !== false;
   // What the per-cell number means (trains on a route, or destinations per day).
   const countLegend = opts?.countLegend ?? t("cal_legend_count");
-  const grid = el("div", { class: "cal-grid" });
+  const headingId = `cal-h-${++uidSeq}`;
+  // role=grid + aria-labelledby ties the day cells to their heading so the widget
+  // announces as a labelled date grid (mirrors the form's dp-grid, which is a single
+  // Tab stop with roving arrow focus rather than ~30 individual Tab stops).
+  const grid = el("div", { class: "cal-grid", attrs: { role: "grid", "aria-labelledby": headingId } });
   // Arrow-key navigation: move focus between day cells (←/→ a day, ↑/↓ a row,
   // Home/End to the ends). The grid is a linear sequence of days, so the row size
-  // is read live from the layout (10 columns on desktop, 7 on phones).
+  // is read live from the layout (10 columns on desktop, 7 on phones). Focus roves
+  // via tabindex so only the current cell is in the Tab order.
   grid.addEventListener("keydown", (e) => {
     const keys = ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End"];
     if (!keys.includes(e.key)) return;
@@ -929,7 +941,11 @@ export function calendarEl(
       : e.key === "ArrowUp" ? i - cols
       : e.key === "Home" ? 0
       : cells.length - 1;
-    cells[Math.max(0, Math.min(cells.length - 1, target))]?.focus();
+    const dest = cells[Math.max(0, Math.min(cells.length - 1, target))];
+    if (!dest) return;
+    for (const cell of cells) cell.setAttribute("tabindex", "-1");
+    dest.setAttribute("tabindex", "0");
+    dest.focus();
   });
   const first = days[0]?.date ?? "";
   const leading = first ? (new Date(`${first}T00:00:00`).getDay() + 6) % 7 : 0;
@@ -962,7 +978,12 @@ export function calendarEl(
         type: "button",
         title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
         attrs: {
-          "aria-label": `${ctx.formatDate(d.date)} — ${status}`,
+          // The per-cell metric (hours on site / nights / destinations) is the point of
+          // the strip, so it must be IN the accessible name — the visual count badge is
+          // aria-hidden, so an AT user would otherwise hear only "available" on every cell.
+          "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
+          role: "gridcell",
+          tabindex: "-1",
           ...(sel ? { "aria-current": "date" } : {}),
         },
         on: { click: () => ctx.onSelectDay(d.date) },
@@ -977,6 +998,11 @@ export function calendarEl(
     );
     grid.append(cell);
   }
+  // One Tab stop with roving focus inside (arrows): only the entry cell is tabbable —
+  // the selected day, else the first available, else the first cell.
+  (grid.querySelector<HTMLElement>(".cal-cell.sel") ??
+    grid.querySelector<HTMLElement>(".cal-cell.ok") ??
+    grid.querySelector<HTMLElement>(".cal-cell"))?.setAttribute("tabindex", "0");
   const legend = [
     t("cal_legend"),
     ...(showCount ? [countLegend] : []),
@@ -988,7 +1014,7 @@ export function calendarEl(
   for (let i = 0; i < 7; i++)
     dowHead.append(el("span", { class: "cal-dow-c", text: refMonday ? ctx.formatWeekday(addDays(refMonday, i)) : "" }));
   return el("section", { class: "calendar" }, [
-    el("h3", { text: opts?.title ?? t("cal_title") }),
+    el("h3", { text: opts?.title ?? t("cal_title"), attrs: { id: headingId } }),
     dowHead,
     grid,
     el("p", { class: "cal-legend muted", text: legend }),

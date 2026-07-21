@@ -283,21 +283,24 @@ await scenario(
   },
 );
 
-// 10. od + rdate deep-link opens the Trip tab with round trip on — the outbound and
-//     return availability calendars shown together (two strips). Round trip is now a
-//     toggle on the Trip tab, not a separate tab.
+// 10. Legacy od + rdate deep-link opens the Trip tab with the ROUND-TRIP segment on —
+//     the trip-shape control (One-way / Day trip / Round trip) sits by the date, and a
+//     later return date resolves to the Round trip segment. Both legs render as a
+//     two-step accordion (outbound possible-days calendar + return-day calendar).
 await scenario(
-  "deep-link: od + rdate opens the Trip tab with round trip on",
+  "deep-link: od + rdate opens the Trip tab with the Round-trip segment on",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${RT_DATE}&rdate=${RT_DATE2}`,
   async (page) => {
     assert((await activeTrip(page)) === "simple", "active tab should be 'simple' (Trip)");
+    // The 3-segment control's third button (Round trip) must read as pressed.
     const roundOn = await page
-      .$eval(".daytrip-toggle input[type=checkbox]", (el) => el.checked)
+      .$eval(".trip-shape .seg-btn:nth-of-type(3)", (el) => el.getAttribute("aria-pressed") === "true")
       .catch(() => false);
-    assert(roundOn, "round-trip toggle should be on");
-    // Two availability strips together (outbound + return).
+    assert(roundOn, "Round-trip segment should be pressed");
+    // Two-leg accordion (Aller / Retour), each a collapsible .mc-result section.
+    assert((await $count(page, ".mc-result")) === 2, "expected a two-leg accordion (outbound + return)");
+    // Both legs' availability calendars are visible together (outbound + return strips).
     assert((await $count(page, ".cal-grid")) >= 2, "expected two calendar strips (outbound + return)");
-    assert((await $count(page, ".od-return-cal")) === 1, "return calendar strip missing");
   },
 );
 

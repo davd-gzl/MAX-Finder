@@ -646,37 +646,132 @@ a {
   line-height: 1.35;
 }
 
-/* ---- day trip (same-day round trips) toggle + options ---- */
-.daytrip-group {
+/* ---- date row: the date field + the trip-shape segmented control side by side ----
+   The One-way / Day trip / Round trip switch sits immediately beside the date so
+   changing the shape is one click right where you pick the day (never in Advanced). */
+.date-row {
   grid-column: 1 / -1;
-}
-.daytrip-toggle {
-  align-self: start;
-}
-.daytrip-opts {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   gap: 0.6rem 0.9rem;
-  margin-top: 0.55rem;
-  padding-left: 1.6rem; /* line up under the toggle's label */
 }
-.daytrip-opts .field {
-  flex: 0 1 auto;
+.date-row > .field {
+  flex: 1 1 12rem;
   min-width: 0;
 }
-.daytrip-opts .field-switch {
+.trip-shape {
+  position: relative;
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 5px;
+  background: var(--chip);
+  border-radius: 14px;
   align-self: end;
 }
-/* Duration surface: with the toggle hidden the group is no longer a sub-block, so it
-   dissolves into the field grid (like .stay-fields) and its options take ordinary
-   columns instead of nesting a second layout inside a full-width band. */
-.daytrip-bare,
-.daytrip-bare .daytrip-opts {
-  display: contents;
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
 }
-.daytrip-bare .daytrip-opts .field {
-  flex: initial;
+.seg-btn:hover {
+  color: var(--text);
+}
+.seg-btn.active {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.trip-shape .kbd-hint {
+  align-self: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-btn {
+    transition: none;
+  }
+}
+/* On phones the three localized labels (e.g. FR "Aller-retour dans la journée") are far
+   wider than the viewport, clipping the Round-trip segment and scrolling the page
+   sideways. Let the control fill the row and its segments share it + wrap their text so
+   it never exceeds the form card width. */
+@media (max-width: 520px) {
+  .trip-shape {
+    display: flex;
+    width: 100%;
+    gap: 0.15rem;
+  }
+  .seg-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+    padding: 0.45rem 0.4rem;
+    line-height: 1.15;
+  }
+  .trip-shape .kbd-hint {
+    display: none;
+  }
+}
+
+/* ---- discovery window presets (this weekend / next 7 days / this month) ---- */
+.win-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.win-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.win-chip:hover {
+  color: var(--text);
+}
+.win-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ---- glossary line (Round trip vs Day trip) under the possible-days calendar ---- */
+.glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.5rem 0 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--border);
+  background: var(--chip);
+  border-radius: 0 8px 8px 0;
+}
+.glossary-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* ---- trip accordion: the outbound/return legs' collapsible bodies ---- */
+.mc-leg-body {
+  display: flex;
+  flex-direction: column;
+  /* Match the multi-city legs (.mc-result), which space their children by this gap;
+     without it the reused accordion body reads visibly tighter than the stepper. */
+  gap: 0.4rem;
+}
+.daytrip-best {
+  margin: 0.2rem 0 0.4rem;
+  font-weight: 600;
 }
 
 /* ---- sub-mode toggles: multi-city (plan / legs) and return (dates / duration).
@@ -886,6 +981,8 @@ a {
 .mode-tab:focus-visible,
 .btn:focus-visible,
 .cal-cell:focus-visible,
+.seg-btn:focus-visible,
+.win-chip:focus-visible,
 .iconbtn:focus-visible,
 .fav-open:focus-visible,
 .ctl:focus-visible {
@@ -1784,11 +1881,14 @@ a {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   font-weight: 680;
 }
-/* Reachable only via a station within the search radius (radius search). */
+/* Reachable only via a station within the search radius (radius search). The dashed
+   (near) / dotted (near-both) border adds a non-colour signal so a colourblind user can
+   still tell a direct-route day from a radius-substituted one — the .ok cells stay solid. */
 .cal-cell.near {
   background: var(--nearby-soft);
   color: var(--nearby);
   border-color: color-mix(in srgb, var(--nearby) 40%, var(--border));
+  border-style: dashed;
   font-weight: 680;
 }
 /* Reachable only by substituting BOTH endpoints with nearby stations. */
@@ -1796,6 +1896,7 @@ a {
   background: var(--nearby2-soft);
   color: var(--nearby2);
   border-color: color-mix(in srgb, var(--nearby2) 40%, var(--border));
+  border-style: dotted;
   font-weight: 680;
 }
 .cal-cell.sel {
@@ -2376,35 +2477,20 @@ a {
   font-weight: 650;
   margin-bottom: 0.5rem;
 }
-.return-date-field {
-  max-width: 14rem;
-  margin-bottom: 0.6rem;
-}
-/* Stay-N-nights quick pick above the return calendar. */
-.ret-quick {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-bottom: 0.6rem;
-}
-.ret-quick .field-label {
-  margin-right: 0.15rem;
-}
-.ret-quick-btn {
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
-}
 .ret-cal {
   margin-bottom: 0.4rem;
+}
+/* The return-day calendar inside the round-trip accordion leg: compact spacing so the
+   whole leg fits the mobile bottom-sheet without pushing the return list off-screen. */
+.od-return-cal {
+  margin-top: 0.4rem;
+}
+.od-return-cal .calendar {
+  margin-top: 0.2rem;
 }
 .ret-summary {
   margin: 0.2rem 0 0.1rem;
   font-weight: 560;
-}
-.ret-actions {
-  display: flex;
-  margin-bottom: 0.2rem;
 }
 .return-list {
   display: flex;

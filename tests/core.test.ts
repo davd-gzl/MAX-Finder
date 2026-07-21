@@ -8,7 +8,7 @@ import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
-import { getaways, getawayIdeas, getawaysAcrossWindow } from "../src/core/getaways";
+import { getaways, getawayIdeas, getawaysAcrossWindow, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -825,6 +825,23 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
   it("respects the minimum time on site", () => {
     const trips = getaways(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
     expect(trips.map((t) => t.destination)).toEqual(["ARRAS"]); // Reims' 2 h window is now too short
+  });
+
+  it("dayTripCalendar: green only when a real same-day there-and-back exists, count = hours on site", () => {
+    // ARRAS has a same-day round trip (12 h on site); DOUAI has a one-way but no
+    // feasible same-day return, so its day must NOT be green.
+    const arras = dayTripCalendar(data, "PARIS (intramuros)", "ARRAS", ["2026-07-01"], { maxConnections: 0, minOnSiteMin: 60 });
+    expect(arras[0]!.available).toBe(true);
+    expect(arras[0]!.count).toBe(12); // 10:00 → 22:00 = 12 h on site
+    const douai = dayTripCalendar(data, "PARIS (intramuros)", "DOUAI", ["2026-07-01"], { maxConnections: 0 });
+    expect(douai[0]!.available).toBe(false); // one-way seat, but no same-day return
+    expect(douai[0]!.count).toBe(0);
+  });
+
+  it("roundTripCalendar: green with the best nights count when a multi-day round trip exists", () => {
+    const cal = roundTripCalendar(stay, "PARIS (intramuros)", "ROUEN", ["2026-07-01"], { maxConnections: 0 });
+    expect(cal[0]!.available).toBe(true);
+    expect(cal[0]!.count).toBe(2); // flexibleNights keeps the LONGEST feasible stay (return on 07-03 = 2 nights)
   });
 
   it("excludes a past-midnight return unless lateReturn is set", () => {
