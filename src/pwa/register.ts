@@ -18,7 +18,7 @@ import { isNativePlatform } from "../native/capacitor";
  *   import { registerServiceWorker } from "./pwa/register";
  *   registerServiceWorker();
  */
-export function registerServiceWorker(): void {
+export function registerServiceWorker(onUpdateReady?: () => void): void {
   if (!import.meta.env.PROD) return;
   // Inside the Capacitor native shell the app is served from the bundle, not a
   // web origin — a service worker would only add a stale-cache layer over local
@@ -26,18 +26,19 @@ export function registerServiceWorker(): void {
   if (isNativePlatform()) return;
   if (!("serviceWorker" in navigator)) return;
 
-  // When a NEW service worker replaces an existing one, reload once so the page
-  // swaps to the freshly deployed assets. This is the recovery path for a client
-  // pinned to a stale shell/bundle (the "white page" failure mode): the new SW
-  // skipWaiting()s, claims the client, controllerchange fires, we reload.
-  // Guard on a pre-existing controller so a brand-new visit (initial claim, no
-  // stale state) doesn't reload gratuitously.
+  // A NEW service worker has taken over (it skipWaiting()s on install, so
+  // controllerchange fires as soon as the freshly deployed build is ready). Rather
+  // than reload out from under the user, hand off to `onUpdateReady` so the app can
+  // show a "new version — reload" postcard; the user reloads on their own terms.
+  // Fall back to an immediate reload if no handler was given. Guard on a pre-existing
+  // controller so a brand-new visit (initial claim, no stale state) doesn't fire.
   const hadController = Boolean(navigator.serviceWorker.controller);
-  let reloading = false;
+  let announced = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!hadController || reloading) return;
-    reloading = true;
-    window.location.reload();
+    if (!hadController || announced) return;
+    announced = true;
+    if (onUpdateReady) onUpdateReady();
+    else window.location.reload();
   });
 
   window.addEventListener("load", () => {

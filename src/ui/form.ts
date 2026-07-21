@@ -939,8 +939,9 @@ export function createForm(props: FormProps): FormHandle {
 
     viaField.style.display = single ? "" : "none";
     syncNightOpts();
-    // Surprise randomizes a city/route; it means nothing in the manual legs editor.
-    surpriseBtn.style.display = legs ? "none" : "";
+    // Surprise randomizes a city/route — including a random next stop in the manual
+    // legs editor, so it stays available there too.
+    surpriseBtn.style.display = "";
 
     // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";

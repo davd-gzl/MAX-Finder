@@ -31,6 +31,7 @@ const KEY = {
   favorites: "mj.favorites",
   watched: "mj.watched",
   trips: "mj.trips",
+  lowEndPrompted: "mj.lowEndPrompted",
 } as const;
 
 function readLS<T>(key: string, fallback: T, valid?: (v: unknown) => boolean): T {
@@ -83,6 +84,21 @@ export function hasStoredSettings(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Whether the low-end-device suggestion has already been shown — it appears at most
+ *  once, ever, so a returning visitor is never nagged again (accepted or dismissed). */
+export function wasLowEndPrompted(): boolean {
+  try {
+    return localStorage.getItem(KEY.lowEndPrompted) != null;
+  } catch {
+    return false;
+  }
+}
+
+/** Record that the one-time low-end suggestion has been shown. */
+export function markLowEndPrompted(): void {
+  writeLS(KEY.lowEndPrompted, 1);
 }
 
 // --- favorites & watched routes ---------------------------------------------

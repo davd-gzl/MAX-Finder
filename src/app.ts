@@ -19,6 +19,7 @@ import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
 import { buildShell, applyTheme, applyDensity, applyReduceMotion, applyMap, closeHeaderMenu } from "./ui/shell";
+import { showPostcard } from "./ui/toast";
 import { createForm } from "./ui/form";
 import type { FormHandle, FormRefs, TripType, TripShape } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
@@ -542,6 +543,30 @@ function isLowEndDevice(): boolean {
   return false;
 }
 
+/**
+ * On an apparently weak device / slow connection, offer the light experience — but
+ * only as a one-time, dismissible suggestion, never a silent override, and never more
+ * than once ever (whether accepted or dismissed). Skipped entirely once the user has
+ * saved any settings of their own.
+ */
+function maybeSuggestLowEnd(): void {
+  if (store.hasStoredSettings() || store.wasLowEndPrompted() || !isLowEndDevice()) return;
+  store.markLowEndPrompted();
+  showPostcard({
+    title: t("lowend_prompt_title"),
+    message: t("lowend_prompt_msg"),
+    actionLabel: t("lowend_prompt_enable"),
+    onAction: () => {
+      settings = { ...settings, reduceMotion: true, map: false, density: "compact" };
+      store.saveSettings(settings);
+      applyReduceMotion(true);
+      applyMap(false);
+      applyDensity("compact");
+      runSearch();
+    },
+  });
+}
+
 async function promptInstall(): Promise<void> {
   // Use the browser's native prompt when it offered one (Chromium/Android).
   if (installPrompt) {
@@ -564,13 +589,6 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   deps = { trains: dataset.trains, meta: dataset.meta, registry };
   rootRef = root;
   settings = store.loadSettings();
-  // First visit on an apparently weak device / slow connection: default to the light
-  // experience (map off + reduced motion). Persisted so it survives reloads but can be
-  // freely overridden in Settings — and never re-applied once the user has chosen.
-  if (!store.hasStoredSettings() && isLowEndDevice()) {
-    settings = { ...settings, map: false, reduceMotion: true };
-    store.saveSettings(settings);
-  }
   const urlLang = new URLSearchParams(location.search).get("lang");
   applyTheme(settings.theme);
   applyDensity(settings.density);
@@ -594,6 +612,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   // from elsewhere — still shows results immediately, so shared links keep working.
   rebuild(!(store.urlHasQuery() && isPageReload()));
   checkWatchedRoutes();
+  maybeSuggestLowEnd();
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -2615,6 +2634,18 @@ function openSettings(): void {
       store.saveSettings(settings);
       applyDensity(density);
     },
+    // Master "Low-end mode": flip all three savers together. ON = the light experience
+    // (no motion, no map, compact); OFF = the full experience (motion, map, comfortable).
+    onLowEnd: (v) => {
+      const density = v ? "compact" : "comfortable";
+      settings = { ...settings, reduceMotion: v, map: !v, density };
+      store.saveSettings(settings);
+      applyReduceMotion(v);
+      applyMap(!v);
+      applyDensity(density);
+      // Turning the map back on needs the current view redrawn onto it.
+      if (!v) runSearch();
+    },
   });
 }
 
@@ -2741,8 +2772,8 @@ function surpriseMe(): void {
   setSurpriseMsg(""); // clear any prior "nothing to add" notice
 
   if (query.mode === "tour") {
-    // The legs editor has no city to randomize — Surprise only drives the planner.
-    if (formApi.getMultiMode() === "legs") return;
+    // Custom legs: fill (or extend) the itinerary with a random reachable next stop.
+    if (formApi.getMultiMode() === "legs") return surpriseLeg();
     // Tour: fill the departure if empty, then add cities (the "Cities to add" count,
     // default 1) — each a random hop that keeps the WHOLE tour feasible. So "find me
     // 5 cities" is one click with the count set to 5.
@@ -2788,6 +2819,69 @@ function surpriseMe(): void {
   syncFormFromQuery();
   applyAndRun();
   setMobileForm(false);
+}
+
+/**
+ * "Surprise me" inside the custom-legs editor: fill the last leg's empty destination
+ * — or, if every leg is already complete, append one more hop — with a random place
+ * that has a direct free-MAX train from the current endpoint on that leg's date, never
+ * a city already on the itinerary. Populates the form (staged); the user still hits
+ * Search, like every other legs edit.
+ */
+function surpriseLeg(): void {
+  const raw = formApi.getLegValues(); // [{ from, to, date }] as label strings
+  if (raw.length === 0) return;
+  const resolved = raw.map((l) => ({
+    from: resolveStation(l.from),
+    to: resolveStation(l.to),
+    date: l.date || query.date,
+  }));
+  // Never repeat a stop already on the itinerary.
+  const visited = new Set<string>();
+  for (const l of resolved) {
+    if (l.from) visited.add(l.from);
+    if (l.to) visited.add(l.to);
+  }
+  const legs = raw.map((l) => ({ ...l }));
+  const lastIdx = resolved.length - 1;
+  // The "frontier" is the first leg with an origin but no destination yet — that's the
+  // hop Surprise should complete. If every started leg is complete, append a fresh hop
+  // from the itinerary's endpoint. If the editor is empty, bootstrap a random origin so
+  // Surprise can build a whole trip from nothing.
+  const frontier = resolved.findIndex((l) => l.from && !l.to);
+  let originId: string | undefined;
+  let date: string;
+  let target: number; // index in `legs` to write the destination into
+  if (frontier >= 0) {
+    originId = resolved[frontier]!.from;
+    date = resolved[frontier]!.date;
+    target = frontier;
+  } else if (resolved[lastIdx]!.to || resolved[lastIdx]!.from) {
+    originId = resolved[lastIdx]!.to ?? resolved[lastIdx]!.from;
+    date = resolved[lastIdx]!.date;
+    legs.push({ from: deps.registry.label(originId!), to: "", date });
+    target = legs.length - 1;
+  } else {
+    const origins = [...new Set(deps.trains.filter((tr) => tr.available).map((tr) => tr.origin))];
+    originId = origins.length ? origins[Math.floor(Math.random() * origins.length)] : undefined;
+    date = query.date;
+    target = 0;
+    if (originId) legs[0] = { from: deps.registry.label(originId), to: "", date: legs[0]!.date || date };
+  }
+  if (!originId) {
+    setSurpriseMsg(t("surprise_none"));
+    return;
+  }
+  const reachable = filterTrains(deps.trains, { ...filterOpts(), origin: originId, date });
+  const pool = [...new Set(reachable.map((tr) => tr.destination))].filter((d) => !visited.has(d) && d !== originId);
+  const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
+  if (!pick) {
+    setSurpriseMsg(t("surprise_none"));
+    return;
+  }
+  setSurpriseMsg("");
+  legs[target] = { ...legs[target]!, to: deps.registry.label(pick) };
+  formApi.setLegs(legs);
 }
 
 function ensureMap(): Promise<RouteMap> {

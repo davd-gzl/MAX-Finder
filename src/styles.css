@@ -4242,3 +4242,75 @@ select.input::-ms-expand {
   flex-wrap: wrap;
   margin-top: 0.6rem;
 }
+
+/* ---- postcard: a small dismissible bottom nudge (low-end hint, app update) ---- */
+.postcard {
+  position: fixed;
+  left: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: min(30rem, calc(100vw - 1.5rem));
+  padding: 0.8rem 0.9rem 0.8rem 1rem;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  animation: postcard-in 0.22s ease;
+}
+@keyframes postcard-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.6rem);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.postcard-text {
+  min-width: 0;
+  flex: 1;
+}
+.postcard-title {
+  font-weight: 600;
+  margin: 0;
+}
+.postcard-msg {
+  margin: 0.15rem 0 0;
+  line-height: 1.35;
+}
+.postcard-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.postcard-act {
+  white-space: nowrap;
+}
+.postcard-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.4rem;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.postcard-x:hover {
+  background: color-mix(in oklab, var(--fg) 8%, transparent);
+}
+@media (max-width: 520px) {
+  .postcard {
+    flex-wrap: wrap;
+  }
+  .postcard-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
