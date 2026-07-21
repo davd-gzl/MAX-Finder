@@ -6,6 +6,10 @@ import { addDays, dayIndex } from "../util/time";
 
 export type TripType = "simple" | "multi" | "ideas";
 
+/** The date-adjacent segmented control: a plain one-way, a same-day day trip, or a
+ * multi-day round trip. Mirrors `SearchQuery.tripShape` ("oneway" = undefined). */
+export type TripShape = "oneway" | "daytrip" | "roundtrip";
+
 /** The date-picker control returned by makeDateField. */
 export interface DateFieldCtl {
   root: HTMLElement;
@@ -13,6 +17,8 @@ export interface DateFieldCtl {
   getMargin(): number;
   setMargin(n: number): void;
   setRange(on: boolean): void;
+  /** Show/hide the ±flex-days stepper (hidden in day-trip / round-trip mode). */
+  setFlexVisible(on: boolean): void;
   setDate(date: string): void;
   setDates(out: string, ret: string): void;
   getReturn(): string;
@@ -66,13 +72,8 @@ export interface FormRefs {
   night: HTMLInputElement;
   onlyNight: HTMLInputElement;
   onlyNightField: HTMLElement;
-  roundTrip: HTMLInputElement;
-  nights: HTMLSelectElement;
-  stayHours: HTMLInputElement;
-  stayHoursField: HTMLElement;
-  lateReturn: HTMLInputElement;
-  roundTripField: HTMLElement;
-  roundTripOpts: HTMLElement;
+  /** The trip-shape segmented control (One-way / Day trip / Round trip). */
+  tripShapeField: HTMLElement;
   via: HTMLInputElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
@@ -122,6 +123,8 @@ export interface FormProps {
   ) => Map<string, number>;
   onSwitchTab: (trip: TripType) => void;
   onMultiMode: (mode: "plan" | "legs") => void;
+  /** Trip-shape segment clicked (One-way / Day trip / Round trip): re-run in place. */
+  onTripShape: (shape: TripShape) => void;
   onSubmit: () => void;
   onSurprise: () => void;
   onNearest: () => void;
@@ -139,6 +142,10 @@ export interface FormHandle {
   /** Set one leg row's date (used when a date is picked from the results calendar). */
   setLegDate(index: number, date: string): void;
   setActiveTab(trip: TripType): void;
+  /** The active trip shape (from the segmented control). */
+  getTripShape(): TripShape;
+  /** Reflect a trip shape on the control WITHOUT firing onTripShape (query-driven sync). */
+  setTripShape(shape: TripShape): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
   updateFieldVisibility(trip: TripType): void;
@@ -577,6 +584,9 @@ export function createForm(props: FormProps): FormHandle {
       input,
       getMargin: () => margin,
       setMargin: (n) => setMarginVal(n),
+      setFlexVisible: (on) => {
+        marginRow.style.display = on ? "" : "none";
+      },
       setRange: (on) => {
         range = on;
         if (!on) retDate = "";
@@ -846,11 +856,6 @@ export function createForm(props: FormProps): FormHandle {
     syncMultiThumb();
   }
 
-  /** Whether the form currently names a full origin→destination route (both filled). */
-  function hasOdRoute(): boolean {
-    return Boolean(props.resolveStation(origin.value) && props.resolveStation(destination.value));
-  }
-
   /**
    * Show/hide the fields for a trip type, morphing the white form body's height so
    * switching modes reshapes the card smoothly instead of jumping. The first call
@@ -895,9 +900,6 @@ export function createForm(props: FormProps): FormHandle {
     // The Multi tab's two surfaces: "plan" the tour (cities) vs edit "legs" by hand.
     const plan = multi && multiMode === "plan";
     const legs = multi && multiMode === "legs";
-    // Round trip is now a toggle on the Trip tab (and Ideas), not a separate tab; its
-    // getaway options only apply while discovering (see syncRoundTripOpts).
-
     // A one-line description of what the active mode does, under the tabs.
     const descKey = multi
       ? plan
@@ -913,7 +915,8 @@ export function createForm(props: FormProps): FormHandle {
     // wrapper in legs mode too, so its empty grid cell doesn't leave a phantom row-gap.
     odFields.style.display = legs ? "none" : "";
     originField.style.display = legs ? "none" : "";
-    dateField.style.display = legs ? "none" : "";
+    // The date + trip-shape row hides together in the legs editor (each leg is dated).
+    dateRow.style.display = legs ? "none" : "";
     // Destination is an endpoint in single trips and the optional finish in a tour plan.
     destinationField.style.display = single || plan ? "" : "none";
     destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
@@ -922,9 +925,6 @@ export function createForm(props: FormProps): FormHandle {
     // just one" hint only applies to the simple tab, where a lone endpoint browses.
     swapBtn.style.display = single ? "" : "none";
     odHint.style.display = simple ? "" : "none";
-    // A single outbound date now — the return day is picked from the results calendar
-    // (od round trip) or derived from the stay length (getaway), never a range picker.
-    departDate.setRange(false);
 
     // Sub-mode toggle + its two panels.
     multiSwitch.style.display = multi ? "" : "none";
@@ -939,8 +939,9 @@ export function createForm(props: FormProps): FormHandle {
 
     viaField.style.display = single ? "" : "none";
     syncNightOpts();
-    // Surprise randomizes a city/route; it means nothing in the manual legs editor.
-    surpriseBtn.style.display = legs ? "none" : "";
+    // Surprise randomizes a city/route — including a random next stop in the manual
+    // legs editor, so it stays available there too.
+    surpriseBtn.style.display = "";
 
     // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";
@@ -953,12 +954,10 @@ export function createForm(props: FormProps): FormHandle {
     radiusField.style.display = single ? "" : "none";
     scopeField.style.display = single ? "" : "none";
 
-    // The "Round trip" toggle rides the Trip tab and Ideas. Its getaway options only
-    // show while discovering (no fixed destination); a known route uses the results
-    // calendars, so they'd be redundant there. `discover`/`roundOn` gate that inside
-    // syncRoundTripOpts.
-    roundTripField.style.display = simple || ideas ? "" : "none";
-    syncRoundTripOpts();
+    // The trip-shape control (One-way / Day trip / Round trip) rides the Trip tab and
+    // Ideas; other tabs (multi-city) don't take a return, so it's hidden there.
+    tripShapeField.style.display = simple || ideas ? "" : "none";
+    syncTripShape();
     // A hidden control measures as zero, so the pills can only be placed once their
     // control is on screen — reposition them after the display flags above. This is
     // also where a query-driven `.checked` (set without a `change` event) lands.
@@ -1001,12 +1000,6 @@ export function createForm(props: FormProps): FormHandle {
       const v = input.value.trim();
       input.classList.toggle("is-invalid", v !== "" && !props.resolveStation(v));
     });
-  }
-  // Filling / clearing a destination flips whether the round-trip getaway options
-  // apply (a known route picks its return from the results calendars instead), so
-  // re-sync them whenever an endpoint changes.
-  for (const input of [origin, destination]) {
-    input.addEventListener("change", () => syncRoundTripOpts());
   }
   // (Removed: auto-advancing focus from origin to destination on touch. It fired on
   // every blur and re-popped the on-screen keyboard the moment you finished the origin
@@ -1076,36 +1069,56 @@ export function createForm(props: FormProps): FormHandle {
     syncYesNoFields(); // the lines above bypass `change`
   };
   night.addEventListener("change", syncNightOpts);
-  const roundTrip = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const roundTripToggle = yesNoField(t("field_roundtrip"), roundTrip, "daytrip-toggle");
-  const nights = el("select", { class: "input" }, [
-    optionEl("0", t("nights_sameday"), true),
-    optionEl("1", t("nights_n", { n: 1 }), false),
-    optionEl("2", t("nights_n", { n: 2 }), false),
-    optionEl("3", t("nights_n", { n: 3 }), false),
-    optionEl("flex", t("nights_flex"), false),
-  ]) as HTMLSelectElement;
-  const nightsField = field(t("field_nights"), nights);
-  const stayHours = inputEl("number");
-  stayHours.min = "1";
-  stayHours.max = "12";
-  stayHours.placeholder = "4";
-  stayHours.setAttribute("aria-label", t("field_daytrip_hours"));
-  const stayHoursField = field(t("field_daytrip_hours"), stayHours);
-  const lateReturn = el("input", { type: "checkbox" }) as HTMLInputElement;
-  const lateReturnField = yesNoField(t("field_late_return"), lateReturn);
-  const roundTripOpts = el("div", { class: "daytrip-opts" }, [nightsField, stayHoursField, lateReturnField]);
-  const roundTripField = el("div", { class: "field daytrip-group" }, [roundTripToggle, roundTripOpts]);
-  const syncRoundTripOpts = (): void => {
-    // Getaway options (nights / time on site) apply while DISCOVERING — Ideas, or the
-    // Trip tab without a fixed destination ("where can I round-trip to?"). With a known
-    // od route the results calendars pick the return, so the options would be redundant.
-    const discover = currentTrip === "ideas" || (currentTrip === "simple" && !hasOdRoute());
-    roundTripOpts.style.display = roundTrip.checked && discover ? "" : "none";
-    stayHoursField.style.display = nights.value === "0" ? "" : "none";
+
+  // Trip-shape segmented control (One-way / Day trip / Round trip). It lives INSIDE the
+  // departure-date row (below), immediately beside the date field — never in Advanced —
+  // so switching between a one-way, a same-day day trip and a multi-day round trip is a
+  // single obvious click right where you pick the day. It is the single source of truth
+  // for whether a return is wanted; clicking a segment re-runs in place (auto-showing the
+  // possible-days calendar).
+  let tripShape: TripShape = "oneway";
+  const shapeBtns = {} as Record<TripShape, HTMLButtonElement>;
+  const makeShapeBtn = (shape: TripShape, key: Parameters<typeof t>[0]): HTMLButtonElement => {
+    const b = el("button", {
+      class: "seg-btn",
+      type: "button",
+      text: t(key),
+      attrs: { "aria-pressed": "false" },
+      on: { click: () => selectShape(shape) },
+    }) as HTMLButtonElement;
+    shapeBtns[shape] = b;
+    return b;
   };
-  roundTrip.addEventListener("change", syncRoundTripOpts);
-  nights.addEventListener("change", syncRoundTripOpts);
+  const tripShapeField = el(
+    "div",
+    { class: "trip-shape has-kbd", attrs: { role: "group", "aria-label": t("mode_trip_label") } },
+    [
+      makeShapeBtn("oneway", "mode_oneway"),
+      makeShapeBtn("daytrip", "mode_daytrip"),
+      makeShapeBtn("roundtrip", "mode_roundtrip"),
+      el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } }),
+    ],
+  );
+  /** Paint the active segment + hide the ±flex stepper in day/round mode. */
+  const syncTripShape = (): void => {
+    for (const s of ["oneway", "daytrip", "roundtrip"] as TripShape[]) {
+      const on = s === tripShape;
+      shapeBtns[s].classList.toggle("active", on);
+      shapeBtns[s].setAttribute("aria-pressed", String(on));
+    }
+    // The possible-days calendar IS the flexibility surface in day/round mode, so the
+    // ±flex stepper is hidden there (not silently zeroed).
+    departDate.setFlexVisible(tripShape === "oneway");
+  };
+  const selectShape = (shape: TripShape): void => {
+    if (tripShape === shape) return;
+    tripShape = shape;
+    syncTripShape();
+    props.onTripShape(shape);
+  };
+  // The date field and the trip-shape control ride together in one row, so the shape
+  // switch sits immediately beside the day you're picking (requirement 1).
+  const dateRow = el("div", { class: "date-row" }, [dateField, tripShapeField]);
   const region = el("select", { class: "input" }, [
     optionEl("", t("region_any"), true),
     ...props.regions.map((r) => optionEl(r, r, false)),
@@ -1356,9 +1369,8 @@ export function createForm(props: FormProps): FormHandle {
     citiesField,
     odFields,
     odHint,
-    dateField,
+    dateRow,
     endDateField,
-    roundTripField,
     regionField,
     legsBlock,
     stayField,
@@ -1411,13 +1423,7 @@ export function createForm(props: FormProps): FormHandle {
     night,
     onlyNight,
     onlyNightField,
-    roundTrip,
-    nights,
-    stayHours,
-    stayHoursField,
-    lateReturn,
-    roundTripField,
-    roundTripOpts,
+    tripShapeField,
     via,
     originField,
     destinationField,
@@ -1462,6 +1468,11 @@ export function createForm(props: FormProps): FormHandle {
       legRows[index]?.dateCtl.setDate(date);
     },
     setActiveTab,
+    getTripShape: () => tripShape,
+    setTripShape: (shape) => {
+      tripShape = shape;
+      syncTripShape();
+    },
     getMultiMode: () => multiMode,
     setMultiMode,
     updateFieldVisibility,

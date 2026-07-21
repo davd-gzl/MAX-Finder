@@ -16,6 +16,7 @@ import { initApp } from "./app";
 import { registerServiceWorker } from "./pwa/register";
 import { initNative } from "./native/capacitor";
 import { el } from "./ui/dom";
+import { showPostcard } from "./ui/toast";
 import { t, setLang, detectLang } from "./i18n";
 
 /** Centered spinner + label shown while the dataset loads. */
@@ -68,5 +69,14 @@ if (root) {
     });
 }
 
-registerServiceWorker();
+// When a new build is deployed, greet the user with a dismissible "reload to update"
+// postcard rather than reloading under them.
+registerServiceWorker(() => {
+  showPostcard({
+    title: t("update_title"),
+    message: t("update_msg"),
+    actionLabel: t("update_reload"),
+    onAction: () => location.reload(),
+  });
+});
 void initNative();

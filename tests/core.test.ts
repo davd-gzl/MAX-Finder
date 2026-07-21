@@ -7,8 +7,8 @@ import { reachableDestinations, reachableOrigins } from "../src/core/destination
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
-import { bestTrips, bestTripsAcrossWindow, stationsOnDate } from "../src/core/best";
-import { getaways, getawayIdeas, getawaysAcrossWindow } from "../src/core/getaways";
+import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
+import { getaways, getawayIdeas, getawaysAcrossWindow, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -317,6 +317,39 @@ describe("bestTripsAcrossWindow (ideas, all days)", () => {
     expect(chalon!.journey.legs).toHaveLength(1); // the direct hop, not the via-Lyon detour
     expect(chalon!.journey.totalDurationMin).toBe(60);
     expect(chalon!.days).toBe(2); // still counted as reachable on both days
+  });
+});
+
+describe("reachableBest (one-pass browse reachability)", () => {
+  // The browse "via" list used to run a per-candidate graph search (O(stations) DFS
+  // calls — seconds on a busy hub). It now does ONE multi-target sweep per direction.
+  // These lock in that the sweep returns exactly what the per-candidate search did.
+  const date = "2026-06-25";
+  const opts = { maxConnections: 1 };
+  const cands = stationsOnDate(trains, date);
+
+  it("matches per-candidate bestJourney for dir=from", () => {
+    const got = new Map(
+      reachableBest(trains, "PARIS (intramuros)", date, cands, opts, "from").map((r) => [r.station, r.journey.totalDurationMin]),
+    );
+    for (const s of cands) {
+      if (s === "PARIS (intramuros)") continue;
+      const bj = bestJourney(trains, "PARIS (intramuros)", s, date, opts);
+      if (bj) expect(got.get(s)).toBe(bj.totalDurationMin);
+      else expect(got.has(s)).toBe(false);
+    }
+  });
+
+  it("matches per-candidate bestJourney for dir=to (reverse sweep)", () => {
+    const got = new Map(
+      reachableBest(trains, "PARIS (intramuros)", date, cands, opts, "to").map((r) => [r.station, r.journey.totalDurationMin]),
+    );
+    for (const s of cands) {
+      if (s === "PARIS (intramuros)") continue;
+      const bj = bestJourney(trains, s, "PARIS (intramuros)", date, opts);
+      if (bj) expect(got.get(s)).toBe(bj.totalDurationMin);
+      else expect(got.has(s)).toBe(false);
+    }
   });
 });
 
@@ -825,6 +858,23 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
   it("respects the minimum time on site", () => {
     const trips = getaways(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
     expect(trips.map((t) => t.destination)).toEqual(["ARRAS"]); // Reims' 2 h window is now too short
+  });
+
+  it("dayTripCalendar: green only when a real same-day there-and-back exists, count = hours on site", () => {
+    // ARRAS has a same-day round trip (12 h on site); DOUAI has a one-way but no
+    // feasible same-day return, so its day must NOT be green.
+    const arras = dayTripCalendar(data, "PARIS (intramuros)", "ARRAS", ["2026-07-01"], { maxConnections: 0, minOnSiteMin: 60 });
+    expect(arras[0]!.available).toBe(true);
+    expect(arras[0]!.count).toBe(12); // 10:00 → 22:00 = 12 h on site
+    const douai = dayTripCalendar(data, "PARIS (intramuros)", "DOUAI", ["2026-07-01"], { maxConnections: 0 });
+    expect(douai[0]!.available).toBe(false); // one-way seat, but no same-day return
+    expect(douai[0]!.count).toBe(0);
+  });
+
+  it("roundTripCalendar: green with the best nights count when a multi-day round trip exists", () => {
+    const cal = roundTripCalendar(stay, "PARIS (intramuros)", "ROUEN", ["2026-07-01"], { maxConnections: 0 });
+    expect(cal[0]!.available).toBe(true);
+    expect(cal[0]!.count).toBe(2); // flexibleNights keeps the LONGEST feasible stay (return on 07-03 = 2 nights)
   });
 
   it("excludes a past-midnight return unless lateReturn is set", () => {

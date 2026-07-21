@@ -505,6 +505,113 @@ export function latestReturns(
   return best;
 }
 
+// Memoize reachableInto (multi-source → one target, fastest) per (stable) trains array.
+const intoCache = new WeakMap<MaxTrain[], Map<string, Map<string, Journey>>>();
+
+function intoMemo(trains: MaxTrain[]): Map<string, Map<string, Journey>> {
+  let m = intoCache.get(trains);
+  if (!m) {
+    m = new Map();
+    intoCache.set(trains, m);
+  }
+  return m;
+}
+
+/**
+ * For every station that can reach `target`, the FASTEST journey into it whose first
+ * leg departs on `date` — the backward mirror of {@link reachableJourneys} (one
+ * multi-source sweep), so the "where can I come FROM" browse costs a single pass
+ * instead of a per-origin search. Same connection rules (hub changes, layover window,
+ * no station twice) as the forward search. Derived from {@link latestReturns} but
+ * without the home-by ceiling and keeping the shortest journey, not the latest.
+ */
+export function reachableInto(
+  trains: MaxTrain[],
+  target: string,
+  date: string,
+  opts: ConnectionOptions = {},
+): Map<string, Journey> {
+  const maxConn = opts.maxConnections ?? 1;
+  const hubSet = new Set(opts.hubs ?? HUB_STATIONS);
+  const minC = opts.minConnectionMin ?? MIN_CONNECTION_MIN;
+  const span = Math.max(2, Math.floor(opts.spanDays ?? 2));
+  const baseMaxC = opts.maxConnectionMin ?? MAX_CONNECTION_MIN;
+  const maxC = span > 2 ? Math.max(baseMaxC, (span - 1) * 1440) : baseMaxC;
+
+  const memo = intoMemo(trains);
+  const key = `${target}@${date}|${maxConn}|${minC}-${maxC}|${span}|${opts.departAfter ?? ""}|${opts.departBefore ?? ""}|${opts.arriveBefore ?? ""}|${opts.maxDurationMin ?? ""}|${opts.trainType ?? ""}|${opts.excludeNight ? "nonight" : ""}|${opts.onlyNight ? "onlynight" : ""}|${[...hubSet].join(",")}`;
+  const cached = memo.get(key);
+  if (cached) return cached;
+
+  const idx = availableByDate(trains);
+  let pool: MaxTrain[] = [];
+  for (let i = 0; i < span; i++) pool.push(...(idx.get(addDays(date, i)) ?? []));
+  if (opts.trainType) pool = pool.filter((t) => (t.axe ?? "") === opts.trainType);
+  if (opts.excludeNight) pool = pool.filter((t) => !isNightTrain(t));
+
+  const after = opts.departAfter ? parseTimeToMinutes(opts.departAfter) : undefined;
+  const before = opts.departBefore ? parseTimeToMinutes(opts.departBefore) : undefined;
+  const arriveBy = opts.arriveBefore ? parseTimeToMinutes(opts.arriveBefore) : undefined;
+  const maxDur = opts.maxDurationMin;
+
+  // Index by ARRIVAL station, to walk a journey backward from `target`.
+  const byDestination = new Map<string, MaxTrain[]>();
+  for (const t of pool) {
+    const arr = byDestination.get(t.destination);
+    if (arr) arr.push(t);
+    else byDestination.set(t.destination, [t]);
+  }
+
+  const best = new Map<string, Journey>();
+  const path: MaxTrain[] = []; // reverse order; path[0] = the first (earliest) leg
+
+  const consider = (): void => {
+    const head = path[0];
+    if (!head || head.date !== date) return; // the first leg must depart on `date`
+    if (after !== undefined && head.departMin < after) return;
+    if (before !== undefined && head.departMin > before) return;
+    const last = path[path.length - 1];
+    if (!last) return;
+    if (opts.onlyNight && !isNightTrain(last)) return;
+    const j = toJourney([...path]);
+    if (maxDur != null && j.totalDurationMin > maxDur) return;
+    if (arriveBy !== undefined && journeyArriveAbs(j) > arriveBy) return;
+    const cur = best.get(head.origin);
+    // Keep the shortest journey into the target (ties → earlier arrival).
+    if (!cur || j.totalDurationMin < cur.totalDurationMin) best.set(head.origin, j);
+  };
+
+  const dfs = (): void => {
+    consider();
+    if (path.length - 1 >= maxConn) return;
+    const head = path[0];
+    if (!head || !hubSet.has(head.origin)) return; // a prepended change must be at a hub
+    const visited = new Set<string>();
+    for (const l of path) {
+      visited.add(l.origin);
+      visited.add(l.destination);
+    }
+    const headDep = absoluteMinute(head.date, head.departMin);
+    for (const pv of byDestination.get(head.origin) ?? []) {
+      if (visited.has(pv.origin)) continue;
+      const layover = headDep - absoluteMinute(pv.date, pv.arriveMin);
+      if (layover < minC || layover > maxC) continue;
+      path.unshift(pv);
+      dfs();
+      path.shift();
+    }
+  };
+
+  for (const last of byDestination.get(target) ?? []) {
+    path.push(last);
+    dfs();
+    path.pop();
+  }
+  best.delete(target);
+  memo.set(key, best);
+  return best;
+}
+
 /**
  * How many calendar days a journey straddles: 1 = same-day, 2 = arrives the next
  * day, etc. Computed from the LAST leg's own date plus its past-midnight rollover

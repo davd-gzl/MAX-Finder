@@ -88,6 +88,14 @@ export interface SearchQuery {
   flexDays?: number;
   /** Return date for a round trip ("aller-retour"): the day to travel back. */
   returnDate?: string;
+  /**
+   * Trip shape (the segmented control beside the date field). `undefined` = a plain
+   * one-way trip; `"daytrip"` = there and back the SAME day (metric: hours on site);
+   * `"roundtrip"` = there and back on DIFFERENT days (metric: nights away). It is the
+   * single source of truth for whether a return is wanted and how it's measured,
+   * replacing the older `roundTrip` boolean as an input.
+   */
+  tripShape?: "daytrip" | "roundtrip";
   /** Explicit multi-city legs (Multiville): each an origin→destination on its own date. */
   legs?: TripLeg[];
   /** Region filter, used by "best" mode. */

@@ -79,35 +79,44 @@ export function showSettingsModal(opts: {
   onReduceMotion: (v: boolean) => void;
   onMap: (v: boolean) => void;
   onCompact: (v: boolean) => void;
+  /** Master "Low-end mode": ON = all three savers on, OFF = all three off. */
+  onLowEnd: (v: boolean) => void;
 }): void {
   const dialog = el("dialog", { class: "modal settings-modal" }) as HTMLDialogElement;
-  const body = el("div", { class: "set-rows" }, [
-    settingSwitch(t("set_reduce_motion"), t("set_reduce_motion_hint"), opts.reduceMotion, opts.onReduceMotion),
-    settingSwitch(t("set_show_map"), t("set_show_map_hint"), opts.map, opts.onMap),
-    settingSwitch(t("set_compact"), t("set_compact_hint"), opts.compact, opts.onCompact),
-  ]);
-  // "Low-end device": reduce motion + hide the map + compact list, in one tap. Rebuilds
-  // the dialog so the switches reflect the new state.
-  const preset = el("button", {
-    class: "btn btn-ghost set-preset",
-    type: "button",
-    text: t("set_lowend"),
-    on: {
-      click: () => {
-        opts.onReduceMotion(true);
-        opts.onMap(false);
-        opts.onCompact(true);
-        dialog.close();
-        showSettingsModal({ ...opts, reduceMotion: true, map: false, compact: true });
-      },
-    },
+  // Low-end mode is ON exactly when all three savers are active — a master switch, not
+  // a one-shot preset: toggling it OFF restores motion, the map and comfortable density.
+  const lowEnd = opts.reduceMotion && !opts.map && opts.compact;
+  const rebuild = (next: Partial<typeof opts>): void => {
+    dialog.close();
+    showSettingsModal({ ...opts, ...next });
+  };
+  const master = settingSwitch(t("set_lowend"), t("set_lowend_hint"), lowEnd, (v) => {
+    opts.onLowEnd(v);
+    // Reflect the flipped sub-switches by re-rendering with the new state.
+    rebuild({ reduceMotion: v, map: !v, compact: v });
   });
+  // Each individual saver applies its own change, then re-renders so the master switch
+  // above reflects whether all three are now on.
+  const body = el("div", { class: "set-rows" }, [
+    settingSwitch(t("set_reduce_motion"), t("set_reduce_motion_hint"), opts.reduceMotion, (v) => {
+      opts.onReduceMotion(v);
+      rebuild({ reduceMotion: v });
+    }),
+    settingSwitch(t("set_show_map"), t("set_show_map_hint"), opts.map, (v) => {
+      opts.onMap(v);
+      rebuild({ map: v });
+    }),
+    settingSwitch(t("set_compact"), t("set_compact_hint"), opts.compact, (v) => {
+      opts.onCompact(v);
+      rebuild({ compact: v });
+    }),
+  ]);
   dialog.append(
     el("div", { class: "modal-body" }, [
       el("h2", { class: "modal-title", text: t("settings_title") }),
       el("p", { class: "modal-text muted small", text: t("set_perf") }),
+      el("div", { class: "set-rows set-master" }, [master]),
       body,
-      el("div", { class: "set-preset-row" }, [preset, el("span", { class: "muted small", text: t("set_lowend_hint") })]),
       el("p", {
         class: "muted small set-version",
         text: `MAX Finder v${APP_VERSION}${APP_BUILD ? ` · ${APP_BUILD}` : ""}`,
