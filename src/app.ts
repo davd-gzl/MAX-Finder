@@ -80,7 +80,10 @@ const APP_TITLE = document.title;
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
 // Query history for the in-app Back button (drilling into a route pushes here).
-let navStack: SearchQuery[] = [];
+// Each nav entry keeps BOTH the searched query (what results were showing) and a
+// snapshot of the LIVE form (staged, not-yet-searched edits), so returning restores the
+// form the user was building instead of resetting it to the last search.
+let navStack: { query: SearchQuery; form: SearchQuery }[] = [];
 // "Ideas" (best) mode: when no specific day is picked, show every destination
 // reachable across the whole window. A calendar-day click narrows to that day.
 let bestAllDays = true;
@@ -649,7 +652,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     // move between them too: a URL with no search is the initial (form) screen, one
     // with a search is the results screen. Without this, Back to the home URL left the
     // phone stuck on a blank results view instead of returning to the search form.
-    setMobileForm(!store.urlHasQuery());
+    setMobileForm(!queryIsRenderable(query));
   });
 }
 
@@ -690,7 +693,7 @@ function rebuild(autoRun = true): void {
   if (autoRun) runSearch();
   else showSearchPrompt();
   updateRailMetrics();
-  setMobileForm(!(autoRun && store.urlHasQuery()));
+  setMobileForm(!(autoRun && queryIsRenderable(query)));
 }
 
 /**
@@ -774,7 +777,7 @@ function ctx(): RenderCtx {
       generateBookingUrl(deps.registry.label(origin), deps.registry.label(destination), date, time),
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
-      navStack.push({ ...query }); // remember the list we came from
+      navStack.push({ query: { ...query }, form: readQueryFromForm() }); // list + staged form
       // Drop any "via" carried over from a previous exact-trip search: drilling into
       // a specific route (often a connecting one) shouldn't be filtered through an
       // unrelated hub, which would force it through a station it doesn't pass and
@@ -2593,10 +2596,14 @@ function showHint(input: HTMLInputElement): void {
 function goBack(): void {
   const prev = navStack.pop();
   if (!prev) return;
-  query = prev;
-  syncFormFromQuery();
+  // Restore the FORM to the staged snapshot (so navigating away didn't wipe edits), then
+  // the RESULTS to what was showing — the two are tracked separately per nav entry.
+  query = prev.form;
+  syncFormFromQuery(); // form now reflects the staged edits from before we navigated
+  query = prev.query;
   store.updateUrl(query);
   runSearch();
+  setMobileForm(!queryIsRenderable(query)); // don't leave the phone on a blank results view
   refs.title.focus(); // announce the restored context to screen readers
 }
 
@@ -2660,7 +2667,11 @@ function runFromForm(): void {
   if (tripType === "ideas") bestAllDays = false;
   query = readQueryFromForm();
   applyAndRun();
-  setMobileForm(false);
+  // Only swap the phone to the results view when there's something real to show. An
+  // incomplete query (no origin, etc.) stays on the form with its field flagged, rather
+  // than teleporting to a blank results screen. (applyAndRun's showHint already keeps
+  // the form open; this stops the old unconditional flip from overriding it.)
+  if (queryIsRenderable(query)) setMobileForm(false);
 }
 
 /** Shift the chosen date by `delta` days, clamped to the bookable window. */
@@ -3191,6 +3202,25 @@ function updateRailMetrics(): void {
   requestAnimationFrame(() => mapInstance?.invalidate());
 }
 
+/**
+ * Whether a query has enough to render REAL results (vs a hint / armed prompt). Used to
+ * decide the mobile screen: an incomplete query must stay on the FORM, never drop the
+ * phone onto a blank results view. (store.urlHasQuery() can't be used for this — it is
+ * always true because the URL always carries `mode`.)
+ */
+function queryIsRenderable(q: SearchQuery): boolean {
+  switch (q.mode) {
+    case "od":
+      return Boolean(q.origin && q.destination);
+    case "to":
+      return Boolean(q.destination);
+    case "tour":
+      return Boolean((q.legs && q.legs.length > 0) || q.origin || (q.cities && q.cities.length));
+    default: // "from" / "best" — and round/day-trip discovery — need an origin
+      return Boolean(q.origin);
+  }
+}
+
 function setMobileForm(open: boolean): void {
   if (!rootRef) return;
   const apply = (): void => {
@@ -3357,7 +3387,7 @@ function renderSavedTrips(): void {
 
 /** Open the dedicated saved-trips page (full list), remembering where we were. */
 function openSavedPage(): void {
-  navStack.push({ ...query }); // so the page's Back returns to the current list
+  navStack.push({ query: { ...query }, form: readQueryFromForm() }); // page's Back returns here
   if (pendingRaf) cancelAnimationFrame(pendingRaf);
   pendingRaf = 0;
   // Enter the full-page detail layout (like drilling into a route) so this isn't
