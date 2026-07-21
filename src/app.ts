@@ -43,8 +43,9 @@ import {
   GITHUB_URL,
   GITHUB_ISSUES_URL,
   OVERNIGHT_MAX_CONNECTION_MIN,
-  HUB_STATIONS,
 } from "./config";
+import { filterOptsFor, odConnOptsFor, getawayOptsFor } from "./core/queryOpts";
+import { warmSearch } from "./search/searchClient";
 import { notify } from "./pwa/register";
 
 interface Deps {
@@ -1117,18 +1118,7 @@ function tourPlanOpts() {
 }
 
 function filterOpts() {
-  return {
-    departAfter: query.departAfter,
-    departBefore: query.departBefore,
-    arriveBefore: query.arriveBefore,
-    maxDurationMin: query.maxDurationMin,
-    trainType: query.trainType,
-    ...(query.excludeNight ? { excludeNight: true } : {}),
-    ...(query.onlyNight ? { onlyNight: true } : {}),
-    // Overnight stopovers: widen the layover ceiling so a journey can wait
-    // overnight at a hub instead of being limited to a ~4h connection.
-    ...(query.overnight ? { maxConnectionMin: OVERNIGHT_MAX_CONNECTION_MIN } : {}),
-  };
+  return filterOptsFor(query);
 }
 
 // --- result sorting ---------------------------------------------------------
@@ -1196,46 +1186,70 @@ function applySort<T>(items: T[], acc: SortAccessors<T>): T[] {
  * longest feasible stay (flexibleNights). Shared by the discovery lists and calendars.
  */
 function getawayOpts() {
-  return {
-    maxConnections: query.maxConnections,
-    ...filterOpts(),
-    // Round trip: keep the longest feasible stay up to 3 nights (flexibleNights needs a
-    // ceiling — with 0 it collapses to same-day). Day trip: nights 0 (the default).
-    ...(query.tripShape === "roundtrip" ? { nights: 3, flexibleNights: true } : {}),
-  };
+  return getawayOptsFor(query);
 }
 
 // Pending deferred-render frame, so an in-flight search can be cancelled (Escape).
 let pendingRaf = 0;
 
-/** Cancel a search that's still showing its spinner (before the compute runs). */
+// Bumped whenever a search starts or is cancelled, so a stale off-thread warm that
+// finishes late never renders over a newer (or abandoned) search.
+let searchToken = 0;
+let searchLoading = false;
+
+/** Cancel a search that's still showing its spinner (before its results render). */
 function cancelLoading(): boolean {
-  if (!pendingRaf) return false;
-  cancelAnimationFrame(pendingRaf);
-  pendingRaf = 0;
+  if (!searchLoading) return false;
+  searchLoading = false;
+  searchToken++; // invalidate any in-flight warm's completion
+  if (pendingRaf) {
+    cancelAnimationFrame(pendingRaf);
+    pendingRaf = 0;
+  }
   clear(refs.results); // drop the spinner — the search is abandoned
   return true;
 }
 
 function runSearch(): void {
-  if (pendingRaf) cancelAnimationFrame(pendingRaf);
+  searchToken++;
+  const token = searchToken;
+  searchLoading = true;
+  if (pendingRaf) {
+    cancelAnimationFrame(pendingRaf);
+    pendingRaf = 0;
+  }
   clear(refs.results);
   // Delayed spinner: CSS keeps it invisible for 150ms, so instant searches never
-  // flash it, while heavy modes (best/tour on large data) show it. The compute is
-  // deferred a frame so the spinner can paint first.
+  // flash it, while heavy modes show it.
   refs.results.append(
     el("div", { class: "loading", attrs: { role: "status", "aria-label": t("loading") } }, [
       el("span", { class: "spinner", attrs: { "aria-hidden": "true" } }),
     ]),
   );
-  // Two frames so the spinner actually paints before a heavy (connection-aware)
-  // compute blocks the main thread — otherwise long searches show no feedback.
-  pendingRaf = requestAnimationFrame(() => {
+  // Two frames so the spinner paints before the (now mostly cache-hit) render swaps in.
+  const paint = (): void => {
     pendingRaf = requestAnimationFrame(() => {
-      pendingRaf = 0;
-      clear(refs.results);
-      renderSearch();
+      pendingRaf = requestAnimationFrame(() => {
+        pendingRaf = 0;
+        if (token !== searchToken) return; // superseded or cancelled
+        searchLoading = false;
+        clear(refs.results);
+        renderSearch();
+      });
     });
+  };
+  // No Worker (old browsers, and the jsdom test env): render straight away on the main
+  // thread, exactly as before the worker existed.
+  if (typeof Worker === "undefined") {
+    paint();
+    return;
+  }
+  // Otherwise pre-compute the heavy search primitives on the background worker so the
+  // main thread stays responsive; the render then reads them straight from cache. If
+  // the worker can't help, warmSearch resolves quickly and the render computes on-thread.
+  void warmSearch(deps.trains, query, today).then(() => {
+    if (token !== searchToken) return;
+    paint();
   });
 }
 
@@ -1987,13 +2001,7 @@ function odConnOpts(
   origin: string,
   destination: string,
 ): { connOpts: ConnectionOptions; passesVia: (j: Journey) => boolean } {
-  const viaId = query.via && query.via !== origin && query.via !== destination ? query.via : undefined;
-  const connOpts: ConnectionOptions = {
-    ...filterOpts(),
-    maxConnections: viaId ? Math.max(1, query.maxConnections) : query.maxConnections,
-    ...(viaId ? { hubs: [...HUB_STATIONS, viaId] } : {}),
-  };
-  return { connOpts, passesVia: (j) => !viaId || j.hubs.includes(viaId) };
+  return odConnOptsFor(query, origin, destination);
 }
 
 /** Append the "hidden train" (hidden-city ticketing) section for the exact route, if on. */

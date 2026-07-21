@@ -624,3 +624,53 @@ export function journeySpanDays(j: Journey): number {
   const endDay = dayIndex(last.date) + Math.floor(last.arriveMin / 1440);
   return endDay - dayIndex(j.date) + 1;
 }
+
+// --- cache transfer (background-worker warming) -----------------------------
+// A serialisable snapshot of the connection caches, so a worker can run the heavy
+// search compute off the main thread and hand the results back to warm these caches:
+// the (synchronous) render then runs as cache hits. Journey values are plain objects,
+// so they structured-clone across the worker boundary.
+
+type ReachEntries = [string, [string, Journey][]][];
+
+export interface ConnCacheDump {
+  journeys: [string, Journey[]][];
+  reach: ReachEntries;
+  returns: ReachEntries;
+  into: ReachEntries;
+}
+
+const dumpReach = (m: Map<string, Map<string, Journey>>): ReachEntries =>
+  [...m].map(([k, v]) => [k, [...v]]);
+
+/** Snapshot every connection cache for a (stable) trains array. */
+export function dumpConnCaches(trains: MaxTrain[]): ConnCacheDump {
+  return {
+    journeys: [...journeyMemo(trains)],
+    reach: dumpReach(reachMemo(trains)),
+    returns: dumpReach(returnMemo(trains)),
+    into: dumpReach(intoMemo(trains)),
+  };
+}
+
+/** Merge a {@link dumpConnCaches} snapshot into the caches for a trains array, so
+ *  later lookups with the same keys return instantly instead of recomputing. */
+export function restoreConnCaches(trains: MaxTrain[], d: ConnCacheDump): void {
+  const jm = journeyMemo(trains);
+  for (const [k, v] of d.journeys) jm.set(k, v);
+  const rm = reachMemo(trains);
+  for (const [k, v] of d.reach) rm.set(k, new Map(v));
+  const retm = returnMemo(trains);
+  for (const [k, v] of d.returns) retm.set(k, new Map(v));
+  const im = intoMemo(trains);
+  for (const [k, v] of d.into) im.set(k, new Map(v));
+}
+
+/** Empty every connection cache for a trains array (the worker clears before each
+ *  warm so its dump carries only that search's working set, not the whole session). */
+export function clearConnCaches(trains: MaxTrain[]): void {
+  journeyMemo(trains).clear();
+  reachMemo(trains).clear();
+  returnMemo(trains).clear();
+  intoMemo(trains).clear();
+}
