@@ -1,6 +1,7 @@
 import type { Theme, Density } from "../state/store";
 import { el, optionEl, isTouch } from "./dom";
 import { t, LANGS, getLang } from "../i18n";
+import { APP_VERSION, APP_BUILD } from "../config";
 import {
   SHARE_SVG,
   CHECK_SVG,
@@ -18,7 +19,6 @@ type Card = "jeune" | "senior";
 /** Callbacks and initial state the shell needs; it holds no app state of its own. */
 export interface ShellProps {
   theme: Theme;
-  density: Density;
   card: Card;
   updatedText: string;
   form: HTMLElement;
@@ -27,7 +27,6 @@ export interface ShellProps {
   goHome: () => void;
   onLang: (code: string) => void;
   onThemeChange: (theme: Theme) => void;
-  onDensityChange: (density: Density) => void;
   onCard: (card: Card) => void;
   onShare: (onCopied: () => void) => void;
   onInstall: () => void;
@@ -248,28 +247,9 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
   });
   if (isTouch()) keysBtn.style.display = "none";
 
-  // Results density: comfortable ⇄ compact (fit more trains per screen).
-  const DENSITY_SVG =
-    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
-  let currentDensity: Density = props.density;
-  const densityLabel = (): string =>
-    currentDensity === "compact" ? t("density_comfortable") : t("density_compact");
-  const densityBtn = el("button", {
-    class: "ctl icon-ctl density-btn",
-    type: "button",
-    attrs: { "aria-label": densityLabel(), title: densityLabel(), "aria-pressed": String(currentDensity === "compact") },
-    html: DENSITY_SVG,
-  });
-  densityBtn.addEventListener("click", () => {
-    currentDensity = currentDensity === "compact" ? "comfortable" : "compact";
-    applyDensity(currentDensity);
-    densityBtn.setAttribute("aria-label", densityLabel());
-    densityBtn.title = densityLabel();
-    densityBtn.setAttribute("aria-pressed", String(currentDensity === "compact"));
-    props.onDensityChange(currentDensity);
-  });
-
-  // Settings (performance / display options for low-end devices).
+  // Settings (performance / display options for low-end devices). Density lives here
+  // too now (as "Compact results"), so the old standalone density header button is
+  // gone — one entry point, less clutter in the menu.
   const SETTINGS_SVG =
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
   const settingsBtn = el("button", {
@@ -320,7 +300,7 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
 
   const headerCtls = el("div", { class: "header-ctls" }, [
     el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, densityBtn, settingsBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, settingsBtn, themeBtn, shareBtn, installBtn]),
   ]);
   const menuBtn = el("button", {
     class: "ctl icon-ctl menu-btn",
@@ -408,6 +388,10 @@ export function buildShell(props: ShellProps): ShellHandles {
         attrs: { target: "_blank", rel: "noopener noreferrer" },
       }),
     ]),
+    el("p", {
+      class: "muted small foot-version",
+      text: `MAX Finder v${APP_VERSION}${APP_BUILD ? ` · ${APP_BUILD}` : ""}`,
+    }),
   ]);
 
   const mapSection = el("section", { class: "map-section", attrs: { "aria-label": t("map_title") } }, [mapEl]);
