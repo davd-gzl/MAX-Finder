@@ -43,6 +43,15 @@ have seats. So we keep it, but reframe it:
 - **Origin only** → duration-first discovery: "with this much time, here's where you
   can go", ranked by time at destination. Never a dead-end.
 
+### Efficiency, not casual (David: "I don't like the weekend / next week… it's casual,
+### I want efficiency")
+
+- Drop the casual window-preset chips ("This weekend / Next 7 days / This month"). Use the
+  **same efficient date + number-of-days controls** as the rest of the flow, so discovery
+  and a concrete trip share one mental model. No cute presets; direct controls.
+- If any of this still lags on weak devices, the **low-end setting** (Settings → low-end
+  mode) must cover it — that's the escape hatch, per the constitution.
+
 ### Interaction
 
 - **Departure date is chosen once** (form / the departure strip mirrors it).
