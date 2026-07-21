@@ -95,6 +95,54 @@ From David's testing on a real phone:
 - Search compute moved to a background worker (main-thread blocking ~3–5× lower).
 - Incremental (chunked) rendering of long result lists. *(pushed, not yet in a PR)*
 
+## Audit results (concrete plan)
+
+The audit found everything traces to **3 root causes**:
+
+1. **Duplication** — two save systems (favorite star + Save bookmark); day-trip and
+   round-trip are the *same* 2-leg accordion forked by one `isDay` boolean; three
+   divergent "open a route" handlers (`onOpenRoute` runs, `fillRoute` prefills,
+   `selectStation` highlights); the outbound date collected in the form field **and**
+   re-asked as a Leg-1 calendar; the availability calendar rendered in both the form
+   popover and the results.
+2. **Dead screens + state reset** — the mobile screen is chosen by
+   `setMobileForm(!store.urlHasQuery())`, but `urlHasQuery()` is *always* true
+   (`queryToParams` always writes `mode`), so Back/reload to an origin-less query forces
+   the results view onto `runArmedPrompt`/`showHint`, which set an empty title → the bar
+   falls back to the "MAX Finder" placeholder. And `goBack` restores the last *searched*
+   query via `syncFormFromQuery`, wiping staged (un-searched) form edits.
+3. **Mobile discovery** — `fitBounds` uses a uniform pad with no knowledge of the ~30vh
+   drawer (pins hide under the sheet); the 3-item non-wrapping `.dest-meta` row truncates
+   names; `refreshInPlace` saves/restores `window.scrollY` but results live in
+   `.drawer-scroll`, so a date/chip tap updates silently below the fold.
+
+### Round-trip verdict: MERGE (matches David's direction)
+
+Day trip is literally a 0-night round trip. Collapse the segments to **One-way / Round
+trip**. Ask the **departure date once** (form). Build **one return calendar starting at
+`query.date`** so its first cell is same-day (reuse the day-trip same-day feasibility
+filter); a 0-night cell shows hours-on-site, later cells show nights. Day vs round is then
+self-evident from the cell you tap — no separate mode. Keep a **compact outbound
+day-switcher** (David: quick date change has value) rather than a full duplicate calendar.
+The trip modal becomes a **confirmation/booking** screen: one "Book this leg" primary per
+leg, direct trains deep-link straight (no nested modal).
+
+### Prioritized work list
+
+1. `queryIsRenderable(q)` for the mobile screen decision everywhere + real titles → kills
+   the "MAX Finder" dead screen. `[M]`
+2. Preserve form state across navigation: `navStack` carries `{query, form}`; restore the
+   live form in `goBack`. `[M]`
+3. Merge day→round: One-way/Round-trip, one return calendar with same-day first cell. `[L]`
+4. Ticket flow → confirmation/booking screen, one Book per leg. `[L]`
+5. Map: asymmetric pixel padding reserving the drawer height. `[S]`
+6. Mobile feedback: `refreshInPlace` scrolls `.drawer-scroll` + auto-scroll to the count. `[S]`
+7. Truncated names: `.dest-meta` wraps; full truncation sweep at 390px. `[S]`
+8. One save system (retire favorites into saved-trips). `[M]`
+9. One `openRoute(o,d,{run})` primitive + one back-button helper + real history for detail pages. `[M]`
+10. One home for the availability calendar. `[M]`
+11. Minor de-dup: `allDaysLinkEl` helper, Surprise/Nearest, legs-clear label, one book affordance/card. `[M]`
+
 ## How this is tracked
 
 - This doc = durable design record (survives container resets).
