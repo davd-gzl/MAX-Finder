@@ -35,6 +35,15 @@ that best satisfies these, in order:
    it.
 5. **No feature may break 1–3** to satisfy 4 (or vice versa).
 
+## Living documentation (keep these current)
+
+- **`docs/user-flows.md`** is the canonical map of every user flow. Whenever a change alters
+  a user-facing flow — a new/removed mode or tab, a changed screen, a different navigation or
+  booking path — UPDATE `docs/user-flows.md` in the SAME change. Read it before touching flow
+  code so the doc and the app never drift.
+- **`docs/trip-redesign.md`** is the design record + audit plan for in-flight UX work; update
+  it as decisions land.
+
 ## Glossary & essential knowledge
 
 - **Trip flow (unified):** one flow focused on the **destination and time spent there**.
