@@ -230,23 +230,50 @@ export function reverseGetawayIdeas(
   opts: GetawayOptions = {},
   accept: (origin: string) => boolean = () => true,
 ): GetawaySweep {
+  // TWO multi-target sweeps per day (like getawayIdeas), NOT a per-origin search — a
+  // per-origin bestGetawayTo re-runs findJourneys for every candidate origin and is far
+  // too slow for a hub (tens of seconds → a frozen screen). reachableInto gives the
+  // outbound INTO the destination per origin in one sweep; reachableJourneys from the
+  // destination on the return day gives the way back per origin in another.
+  const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
+  const minOnSite = opts.minOnSiteMin ?? 240;
+  const sleeper = Boolean(opts.onlyNight);
+  const nightChoices = stayChoices(maxNights, Boolean(opts.flexibleNights), sleeper);
+
   const byOrigin = new Map<string, Getaway>();
   const datesByDest = new Map<string, string[]>(); // keyed by the discovered origin
   const perDay: CalendarDay[] = [];
   for (const date of dates) {
-    // Stations that can reach the destination on this day are the only candidate origins.
-    const candidates = reachableInto(trains, destination, date, opts);
-    const startable = new Set<string>();
-    for (const origin of candidates.keys()) {
-      if (origin === destination || !accept(origin)) continue;
-      const g = bestGetawayTo(trains, origin, destination, date, opts);
-      if (!g) continue;
-      startable.add(origin);
-      // Relabel so `.destination` names the ORIGIN we're listing (its outbound is still
-      // origin → destination), letting the standard getaway row/calendar render it.
-      const relabeled: Getaway = { ...g, destination: origin };
-      const cur = byOrigin.get(origin);
-      if (!cur || betterGetaway(relabeled, cur)) byOrigin.set(origin, relabeled);
+    // Outbound INTO the destination: fastest free-MAX journey O → destination whose first
+    // leg departs today, one per origin (a single backward multi-source sweep).
+    const intoMap = reachableInto(trains, destination, date, opts);
+    const startable = new Set<string>(); // origins that can round-trip to the destination today
+    for (const nights of nightChoices) {
+      // The way back leaves the destination on the return day (a sleeper leaves the
+      // evening after the last night — one day later), reaching each origin.
+      const returnDay = addDays(date, sleeper ? nights + 1 : nights);
+      const returnsMap = reachableJourneys(trains, destination, returnDay, opts);
+      if (returnsMap.size === 0) continue;
+      for (const [origin, outbound] of intoMap) {
+        if (origin === destination || !accept(origin)) continue;
+        const back = returnsMap.get(origin);
+        if (!back) continue;
+        // Same-day: the return must leave after you've had your time in the destination.
+        if (!sleeper && nights === 0 && back.departMin < journeyArriveAbs(outbound) + minOnSite) continue;
+        startable.add(origin);
+        // Relabel so `.destination` names the ORIGIN we're listing (its outbound is still
+        // origin → destination), letting the standard getaway row/calendar render it.
+        const g: Getaway = {
+          destination: origin,
+          outbound,
+          back,
+          nights,
+          onSiteMin: !sleeper && nights === 0 ? back.departMin - journeyArriveAbs(outbound) : undefined,
+          travelMin: outbound.totalDurationMin + back.totalDurationMin,
+        };
+        const cur = byOrigin.get(origin);
+        if (!cur || betterGetaway(g, cur)) byOrigin.set(origin, g);
+      }
     }
     for (const origin of startable) pushDate(datesByDest, origin, date);
     perDay.push({ date, available: startable.size > 0, count: startable.size });
