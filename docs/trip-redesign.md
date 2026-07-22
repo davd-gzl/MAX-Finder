@@ -154,6 +154,10 @@ smell. New confirmed direction (this supersedes the MERGE section below):
 - Also fix: French field labels / select options that clip on mobile (wrap them — ZERO
   truncation), and losing departure/destination when navigating back (persist form state
   across popstate / browser-back, not just the in-app back button).
+- **Step-wise back inside multi-step flows.** In the round-trip accordion, pressing Back
+  after selecting the outbound must return to STEP 1 (re-open / change the outbound), not
+  exit the whole flow. Audit for similar cases (multi-city legs, any accordion/stepper) and
+  make Back walk the steps backward before leaving the flow.
 
 ### Round-trip verdict: MERGE (matches David's direction) — SUPERSEDED, see above
 
