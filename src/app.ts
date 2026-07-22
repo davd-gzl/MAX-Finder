@@ -21,7 +21,7 @@ import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
 import { buildShell, applyTheme, applyDensity, applyReduceMotion, applyMap, closeHeaderMenu } from "./ui/shell";
 import { showPostcard } from "./ui/toast";
-import { createForm, nextTripShape } from "./ui/form";
+import { createForm } from "./ui/form";
 import type { FormHandle, FormRefs, TripType, TripShape } from "./ui/form";
 import type { RouteMap, MarkerInfo } from "./ui/map";
 import * as render from "./ui/render";
@@ -121,8 +121,15 @@ function tripIsRound(): boolean {
 function returnForStay(stay: StayChoice, depart: string): string {
   const n = stayNights(stay);
   if (n == null) return proposedReturn(depart); // flexible: the calendar decides
+  return returnAfterNights(depart, n);
+}
+
+/** Departure + N nights, clamped to the last bookable day. The nights stepper's return
+ *  date for a round trip — used for any N (including N>3, which the stay maps to Flexible
+ *  but whose explicit return day is still honoured). */
+function returnAfterNights(depart: string, nights: number): string {
   const last = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  const d = addDays(depart, n);
+  const d = addDays(depart, Math.max(0, nights));
   return d > last ? last : d;
 }
 
@@ -620,7 +627,7 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
   today = new Date().toISOString().slice(0, 10);
   query = store.urlHasQuery()
     ? queryFromUrl()
-    : { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
+    : { mode: "from", date: today, card: settings.card, maxConnections: 1, hidden: true };
 
   // A genuine page reload restores the form from the URL but does NOT auto-run the
   // search — results wait for the Search button, matching how form edits are now
@@ -926,9 +933,17 @@ function syncFormFromQuery(): void {
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.onlyNight.checked = Boolean(query.onlyNight);
-  // The "How long?" / stay control mirrors query.stay (undefined → One-way / Just going).
-  // setTripShape repaints the control without firing a change event.
-  formApi.setTripShape(query.stay ?? "oneway");
+  // The trip-type control mirrors the query: no stay → one-way (stepper hidden); a stay →
+  // round trip with N nights, taken from the concrete return span when present (so N>3
+  // links repaint the real count) else from the stay choice. setStayNights repaints the
+  // toggle + stepper WITHOUT firing a change event.
+  formApi.setStayNights(
+    query.stay === undefined
+      ? null
+      : query.returnDate
+        ? Math.max(0, dayIndex(query.returnDate) - dayIndex(query.date))
+        : (stayNights(query.stay) ?? 1),
+  );
   refs.region.value = query.region ?? "";
   // Cities only travel in the URL from the tour-plan surface, so a query built on
   // another tab carries none — restoring "no cities" from it would wipe the chips on
@@ -966,16 +981,14 @@ function readQueryFromForm(): SearchQuery {
   // origin (from → discovery), Ideas (best), and a destination-only "to" (kept so the
   // armed prompt can ask for an origin without dropping the intent). "One-way" (Just
   // going) leaves it undefined.
-  const formShape: TripShape = tripType === "simple" || tripType === "ideas" ? formApi.getTripShape() : "oneway";
-  const stay: StayChoice | undefined =
-    formShape !== "oneway" &&
-    (mode === "od" || mode === "from" || mode === "to" || mode === "best")
-      ? formShape
-      : undefined;
-  // Only od carries a concrete return date. A fixed stay (same day / N nights) derives it
-  // straight from the stay (departure + N) — no second question. Flexible keeps a
-  // still-valid carried return (the calendar pick), else proposes outbound + 2. Discovery
-  // derives its return from the getaway sweep instead.
+  const modeTakesStay = mode === "od" || mode === "from" || mode === "to" || mode === "best";
+  const rawNights = tripType === "simple" || tripType === "ideas" ? formApi.getStayNights() : null;
+  // The nights count is the single source of truth: null → one-way, else 0..3 map to the
+  // fixed stays and anything longer to "flexible". od always carries the EXPLICIT return
+  // date (departure + N), honoured downstream even for N>3; discovery ("from"/"best")
+  // derives its return from the getaway sweep instead, so it only needs the stay.
+  const formNights = rawNights !== null && modeTakesStay ? rawNights : null;
+  const stay: StayChoice | undefined = formNights !== null ? stayFromNights(formNights) : undefined;
   const outDate = refs.date.value || query.date;
   return {
     mode,
@@ -984,14 +997,7 @@ function readQueryFromForm(): SearchQuery {
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
     stay,
-    returnDate:
-      stay && mode === "od"
-        ? stay === "flexible"
-          ? query.returnDate && query.returnDate >= outDate
-            ? query.returnDate
-            : proposedReturn(outDate)
-          : returnForStay(stay, outDate)
-        : undefined,
+    returnDate: formNights !== null && mode === "od" ? returnAfterNights(outDate, formNights) : undefined,
     legs: legsMode
       ? formApi
           .getLegValues()
@@ -1092,6 +1098,16 @@ function proposedReturn(depart: string): string {
 }
 
 function applyAndRun(): void {
+  // If we're leaving the bare home/form page — no query in the URL and no form snapshot on
+  // the entry yet — stamp it (same URL, we only add state) with the staged form so a
+  // browser Back returns with the departure/destination/filters still filled instead of a
+  // wiped form ("even if you come back it gets deleted"). Guard on BOTH: an entry with a
+  // query in its URL owns a real page (a deep-linked or prior search) whose form Back must
+  // restore verbatim — stamping it with the form we're switching TO would corrupt it. The
+  // results entry pushed below carries its own snapshot for Forward.
+  if (!store.urlHasQuery() && !formStateFrom(history.state)) {
+    history.replaceState(formSnapshot(), "", location.href);
+  }
   // Push a browser history entry so the native Back button returns to the prior page,
   // stashing a snapshot of the live form on the entry so a gesture-Back / popstate can
   // restore the exact form that produced this page instead of wiping it (state
@@ -2187,7 +2203,26 @@ function runOdSearch(c: RenderCtx): void {
       else if (lvl === 2) d.nearbyBoth = true;
     }
   }
-  refs.results.append(render.calendarEl(cal, c, query.date));
+  // The departure is already chosen (the form set it), so the possible-days calendar is
+  // COLLAPSED by default here too — re-showing the whole strip read as asking the date
+  // twice. A one-tap "Départ : … · Changer" summary reveals it to switch days or scan
+  // availability, mirroring the round-trip outbound calendar's collapse pattern.
+  const odCalEl = render.calendarEl(cal, c, query.date);
+  const odCalPanel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [odCalEl]);
+  const odCalToggle = el("button", {
+    class: "cal-toggle linklike",
+    type: "button",
+    text: t("outbound_change", { date: formatDate(query.date) }),
+    attrs: { "aria-expanded": "false" },
+    on: {
+      click: () => {
+        const opening = odCalPanel.hasAttribute("hidden");
+        odCalPanel.toggleAttribute("hidden", !opening);
+        odCalToggle.setAttribute("aria-expanded", String(opening));
+      },
+    },
+  });
+  refs.results.append(el("div", { class: "cal-collapsible" }, [odCalToggle, odCalPanel]));
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   const withinSpan = (j: Journey): boolean => !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
@@ -2508,8 +2543,11 @@ function runTripSearch(c: RenderCtx): void {
     // return day also settles the stay onto the matching length (same day / N nights /
     // Flexible beyond 3) so the "How long?" control stays truthful.
     odReturnDate = retDate;
-    query = { ...query, returnDate: retDate, stay: stayFromNights(dayIndex(retDate) - dayIndex(query.date)) };
-    formApi.setTripShape(query.stay ?? "flexible");
+    const nights = Math.max(0, dayIndex(retDate) - dayIndex(query.date));
+    query = { ...query, returnDate: retDate, stay: stayFromNights(nights) };
+    // Repaint the stepper to the ACTUAL picked span (setStayNights, not setTripShape, so
+    // an N>3 pick shows the real count rather than a bare "Flexible").
+    formApi.setStayNights(nights);
     store.updateUrl(query, formSnapshot());
     paintReturn(retDate);
     // The return list updates IN PLACE right where the calendar is — no scroll jump (a
@@ -2527,10 +2565,18 @@ function runTripSearch(c: RenderCtx): void {
   // one-line notice rather than silently wiping it.
   const onOutboundDay = (d: string): void => {
     if (d === query.date) return;
-    const fixedN = query.stay ? stayNights(query.stay) : null;
+    // Keep the current stay length when re-anchoring the outbound: a fixed stay reads it
+    // from the stay choice; a Flexible N>3 pick reads it from the concrete return span so
+    // the N-night gap shifts with the new departure rather than collapsing to the default.
+    const fixedN = query.stay
+      ? (stayNights(query.stay) ??
+        (query.returnDate && query.returnDate >= query.date
+          ? dayIndex(query.returnDate) - dayIndex(query.date)
+          : null))
+      : null;
     let ret: string;
     if (fixedN != null) {
-      ret = returnForStay(query.stay!, d); // keep the N-night stay, shifted to the new day
+      ret = returnAfterNights(d, fixedN); // keep the N-night stay, shifted to the new day
       returnMoved = false;
     } else {
       const keep = odReturnDate != null && odReturnDate >= d;
@@ -2683,7 +2729,7 @@ function goBack(): void {
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
   navStack = [];
-  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, excludeNight: true, hidden: true };
+  query = { mode: "from", date: today, card: settings.card, maxConnections: 1, hidden: true };
   syncFormFromQuery();
   applyAndRun();
   setMobileForm(true);
@@ -2725,10 +2771,11 @@ function applyTripShape(shape: TripShape): void {
   applyAndRun();
 }
 
-/** The "r" shortcut steps through the "How long?" control — Just going → Same day →
- *  1 night → 2 → 3 → Flexible → (back to Just going). */
+/** The "r" shortcut toggles the trip type — Aller simple ↔ Aller-retour. Turning the
+ *  return on keeps the current nights count (Flexible preserves it); turning it off drops
+ *  to a plain one-way. */
 function cycleTripShape(): void {
-  applyTripShape(nextTripShape(formApi.getTripShape()));
+  applyTripShape(formApi.getStayNights() !== null ? "oneway" : "flexible");
 }
 
 /** Run a fresh search from the current form (submit or "g" shortcut). */

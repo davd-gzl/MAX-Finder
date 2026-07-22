@@ -120,8 +120,10 @@ describe("app (jsdom smoke)", () => {
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
     );
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    // A legacy rdate two days after the outbound resolves to the "2" (2-night) chip.
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("2");
+    // A legacy rdate two days after the outbound resolves to a 2-night round trip: the
+    // "Aller-retour" segment is pressed and the nights stepper reads "2 nights".
+    expect(root.querySelectorAll(".trip-toggle .trip-seg")[1]?.getAttribute("aria-pressed")).toBe("true");
+    expect(root.querySelector(".nights-val")?.textContent).toBe("2 nights");
     // origin is [0], destination is [1] within the départ/arrivée row.
     const dest = root.querySelectorAll<HTMLInputElement>('.od-fields input[list="station-list"]')[1];
     expect(dest).toBeTruthy();
@@ -136,7 +138,8 @@ describe("app (jsdom smoke)", () => {
     // Reloading it must land back on the Trip tab with the "2" chip lit.
     const reloaded = setup(url);
     expect(reloaded.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    expect(reloaded.querySelector(".trip-shape button.active")?.textContent).toBe("2");
+    expect(reloaded.querySelectorAll(".trip-toggle .trip-seg")[1]?.getAttribute("aria-pressed")).toBe("true");
+    expect(reloaded.querySelector(".nights-val")?.textContent).toBe("2 nights");
   });
 
   it("drills into a connecting destination and back again", () => {
@@ -417,41 +420,50 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("to")).toBeNull();
   });
 
-  it("offers the six duration-framed stay chips beside the date", () => {
+  it("offers a One-way / Round-trip toggle with a nights stepper beside the date", () => {
     const root = setup("");
-    const seg = root.querySelector(".trip-shape");
-    expect(seg).toBeTruthy();
+    const wrap = root.querySelector(".trip-shape-wrap");
+    expect(wrap).toBeTruthy();
     // It lives inside the date row (requirement 1), not in the Advanced panel.
-    expect(seg!.closest(".date-row")).toBeTruthy();
-    expect(seg!.closest(".advanced")).toBeNull();
-    const btns = Array.from(seg!.querySelectorAll("button"));
-    // The whole "How long?" choice: Just going · Same day · 1 night · 2 · 3 · Flexible —
-    // framed by time at destination, so day-vs-round is self-evident (no separate toggle).
-    expect(btns.length).toBe(6);
-    expect(btns.map((b) => b.textContent)).toEqual(["Just going", "Same day", "1 night", "2", "3", "Flexible"]);
-    // "Just going" (a plain one-way, no return) is the baseline; one click picks a stay.
-    expect(seg!.querySelector("button.active")?.textContent).toBe("Just going");
-    (btns.find((b) => b.textContent === "Same day") as HTMLElement).click();
-    expect(seg!.querySelector("button.active")?.textContent).toBe("Same day");
-    expect((btns.find((b) => b.textContent === "Same day") as HTMLElement).getAttribute("aria-pressed")).toBe("true");
-    // The bare number chips carry the full "N nights" for assistive tech.
-    expect((btns.find((b) => b.textContent === "2") as HTMLElement).getAttribute("aria-label")).toBe("2 nights");
+    expect(wrap!.closest(".date-row")).toBeTruthy();
+    expect(wrap!.closest(".advanced")).toBeNull();
+    // A 2-option segmented control: Aller simple (one-way) / Aller-retour (round trip).
+    const segs = Array.from(wrap!.querySelectorAll<HTMLElement>(".trip-toggle .trip-seg"));
+    expect(segs.map((b) => b.textContent)).toEqual(["One-way", "Round trip"]);
+    // One-way is the baseline; the nights stepper is hidden until a round trip is chosen.
+    expect(segs[0]!.getAttribute("aria-pressed")).toBe("true");
+    expect((wrap!.querySelector(".nights-field") as HTMLElement).style.display).toBe("none");
+    // Switching to Round trip presses that segment and reveals the stepper (default 1 night).
+    segs[1]!.click();
+    expect(segs[1]!.getAttribute("aria-pressed")).toBe("true");
+    expect((wrap!.querySelector(".nights-field") as HTMLElement).style.display).not.toBe("none");
+    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("1 night");
+    // The −/+ buttons carry accessible labels and the value announces via aria-live.
+    const [minus, plus] = Array.from(wrap!.querySelectorAll<HTMLElement>(".nights-step"));
+    expect(minus!.getAttribute("aria-label")).toBe("Fewer nights");
+    expect(plus!.getAttribute("aria-label")).toBe("More nights");
+    expect(wrap!.querySelector(".nights-val")?.getAttribute("aria-live")).toBe("polite");
+    // Stepping up reads "2 nights"; stepping down to 0 reads "Same day" (a day trip).
+    plus!.click();
+    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("2 nights");
+    minus!.click();
+    minus!.click();
+    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("Same day");
+    expect((minus as HTMLButtonElement).disabled).toBe(true); // can't go below 0 nights
   });
 
-  it("picking a stay chip runs the round trip in place — no second Search tap", () => {
-    // Origin + destination + date are already set, so choosing a duration is the only
+  it("toggling to Round trip runs it in place — no second Search tap", () => {
+    // Origin + destination + date are already set, so flipping to a round trip is the only
     // decision left: it must render the round trip straight away (minimise clicks).
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
     );
     // A plain one-way to start: no return section.
     expect(root.querySelector(".od-return")).toBeNull();
-    const oneNight = Array.from(root.querySelectorAll<HTMLElement>(".trip-shape button")).find(
-      (b) => b.textContent === "1 night",
-    );
-    oneNight!.click();
-    // The 2-leg round trip is now showing (the click alone ran it), and the choice is in
-    // the URL as stay=1.
+    const round = root.querySelectorAll<HTMLElement>(".trip-toggle .trip-seg")[1];
+    round!.click();
+    // The 2-leg round trip is now showing (the toggle alone ran it), defaulting to 1 night,
+    // and the choice is in the URL as stay=1.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
     expect(root.querySelector(".od-return")).not.toBeNull();
     expect(new URLSearchParams(location.search).get("stay")).toBe("1");
@@ -467,21 +479,23 @@ describe("app (jsdom smoke)", () => {
     expect(wrap).toBeTruthy();
     const box = wrap.querySelector<HTMLInputElement>("input[type=checkbox]")!;
     const toggle = wrap.querySelector<HTMLElement>(".switch")!;
-    // The default search excludes night trains, so the switch starts off.
-    expect(box.checked).toBe(false);
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
-    expect(toggle.classList.contains("is-on")).toBe(false);
-    // Toggling on flips the value and fires change — which is what un-greys the
+    // Night trains are now INCLUDED by default, so the switch starts ON and the nested
+    // "only night trains" sub-field is enabled from the start.
+    expect(box.checked).toBe(true);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(toggle.classList.contains("is-on")).toBe(true);
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
+    // Toggling off flips the value and fires change — which greys out (disables) the
     // nested "only night trains" sub-field.
     toggle.click();
-    expect(box.checked).toBe(true);
-    expect(toggle.classList.contains("is-on")).toBe(true);
-    expect(toggle.getAttribute("aria-checked")).toBe("true");
-    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
-    // Toggling again flips it back off.
-    toggle.click();
     expect(box.checked).toBe(false);
+    expect(toggle.classList.contains("is-on")).toBe(false);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
     expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(true);
+    // Toggling again flips it back on.
+    toggle.click();
+    expect(box.checked).toBe(true);
+    expect(root.querySelector<HTMLInputElement>(".field-sub input[type=checkbox]")!.disabled).toBe(false);
   });
 
   it("lists cities, not times, on the round-trip browse (where-to) page", () => {
@@ -513,9 +527,10 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
     );
-    // Legacy rt=day is no longer a distinct mode — it resolves to the "Same day" stay chip
-    // (a day trip is the 0-night case).
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("Same day");
+    // Legacy rt=day is no longer a distinct mode — it resolves to a round trip with the
+    // nights stepper on 0 ("Same day" — a day trip is the 0-night case).
+    expect(root.querySelectorAll(".trip-toggle .trip-seg")[1]?.getAttribute("aria-pressed")).toBe("true");
+    expect(root.querySelector(".nights-val")?.textContent).toBe("Same day");
     // ONE return calendar, and its FIRST cell is the OUTBOUND day (same-day = 0 nights),
     // not the day after — so tapping it gives a same-day trip with no separate mode.
     const retCells = root.querySelectorAll(".od-return-cal .cal-cell");
@@ -547,8 +562,9 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
     );
-    // rt=round resolves to the Flexible chip (pick the return on the calendar).
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("Flexible");
+    // rt=round (no fixed length) resolves to a round trip; the return calendar decides the
+    // day, and picking one settles the stepper onto the matching night count.
+    expect(root.querySelectorAll(".trip-toggle .trip-seg")[1]?.getAttribute("aria-pressed")).toBe("true");
     const retCell = root.querySelector(".od-return-cal .cal-cell.ok") as HTMLElement | null;
     if (retCell) {
       retCell.click();

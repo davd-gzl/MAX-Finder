@@ -631,6 +631,13 @@ a {
 }
 
 /* ---- search-scope band: radius (with hint) + hidden-train, promoted out of Advanced ---- */
+/* "Max correspondances" as its own main-form band (moved out of Advanced): full-width so
+   the closed select value never clips, but capped so it reads as a form control, not a
+   stretched bar. */
+.connections-field {
+  grid-column: 1 / -1;
+  max-width: 22rem;
+}
 .scope-field {
   grid-column: 1 / -1;
   display: grid;
@@ -646,9 +653,10 @@ a {
   line-height: 1.35;
 }
 
-/* ---- date row: the date field + the trip-shape segmented control side by side ----
-   The One-way / Day trip / Round trip switch sits immediately beside the date so
-   changing the shape is one click right where you pick the day (never in Advanced). */
+/* ---- date row: the date field + the trip-type control side by side ----
+   The Aller simple / Aller-retour toggle (and its nights stepper) sits immediately beside
+   the date so changing the shape is one tap right where you pick the day, never in
+   Advanced. */
 .date-row {
   grid-column: 1 / -1;
   display: flex;
@@ -660,66 +668,119 @@ a {
   flex: 1 1 12rem;
   min-width: 0;
 }
-.trip-shape {
+/* The trip-type control wrapper: the segmented toggle above, the nights stepper below it
+   (revealed only for a round trip), aligned to the bottom of the row beside the date. */
+.trip-shape-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-self: end;
+}
+/* Aller simple / Aller-retour: the SAME sliding-pill segmented control as the main trip
+   tabs (.multi-switch) — a thumb behind the active segment rather than flat chips. */
+.trip-toggle {
   position: relative;
   display: inline-flex;
-  /* The "How long?" control is a WRAPPING chip row (Just going · Same day · 1 night · 2 ·
-     3 · Flexible): it wraps onto as many lines as it needs so no chip is ever truncated
-     (zero-truncation rule), rather than a fixed-width segmented control. */
-  flex-wrap: wrap;
   gap: 0.2rem;
   padding: 5px;
   background: var(--chip);
   border-radius: 14px;
-  align-self: end;
 }
-.seg-btn {
+.trip-seg {
+  flex: 1 1 0;
+  position: relative;
+  z-index: 1;
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.9rem;
   border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s;
 }
-.seg-btn:hover {
+.trip-seg:hover {
   color: var(--text);
 }
-.seg-btn.active {
+.trip-seg.active {
   color: var(--text);
-  background: var(--surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-.trip-shape .kbd-hint {
+.trip-toggle .kbd-hint {
   align-self: center;
 }
 @media (prefers-reduced-motion: reduce) {
-  .seg-btn {
+  .trip-seg {
     transition: none;
   }
 }
-/* On phones the "How long?" chips fill the row and wrap onto multiple lines rather than
-   scrolling sideways or clipping — the chip text stays intact at ≤360px (zero
-   truncation). Each chip sizes to its own content; the row simply wraps. */
+/* The nights stepper: a small label + a rounded [ − ] value [ + ] control matching the
+   app's inputs. Comfortable ≥40px tap targets, theme-aware, tabular value. */
+.nights-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nights-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.nights-ctl {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.nights-step {
+  border: 0;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.nights-step:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.nights-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.nights-val {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  padding: 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border-inline: 1px solid var(--border);
+}
+/* On phones the toggle fills the row; the stepper keeps its comfortable tap targets and
+   wraps under it. Text stays intact at ≤390px (zero truncation). */
 @media (max-width: 520px) {
-  .trip-shape {
-    display: flex;
+  .trip-shape-wrap {
     width: 100%;
-    gap: 0.25rem;
-    justify-content: flex-start;
   }
-  .seg-btn {
-    flex: 0 1 auto;
-    min-width: 0;
-    white-space: normal;
-    padding: 0.4rem 0.55rem;
-    line-height: 1.15;
+  .trip-toggle {
+    width: 100%;
   }
-  .trip-shape .kbd-hint {
+  .trip-toggle .kbd-hint {
     display: none;
+  }
+  .nights-field {
+    justify-content: space-between;
   }
 }
 
@@ -972,7 +1033,8 @@ a {
 .mode-tab:focus-visible,
 .btn:focus-visible,
 .cal-cell:focus-visible,
-.seg-btn:focus-visible,
+.trip-seg:focus-visible,
+.nights-step:focus-visible,
 .iconbtn:focus-visible,
 .fav-open:focus-visible,
 .ctl:focus-visible {

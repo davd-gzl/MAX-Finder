@@ -1,5 +1,6 @@
 import type { SearchMode, StayChoice } from "../types";
 import type { ConnectionOptions } from "../core/connections";
+import { stayNights, stayFromNights } from "../core/roundtrip";
 import { el, clear, optionEl } from "./dom";
 import { t, getLang } from "../i18n";
 import { addDays, dayIndex } from "../util/time";
@@ -14,24 +15,6 @@ export type TripType = "simple" | "multi" | "ideas";
  * self-evident, so there is no separate "day trip" segment.
  */
 export type TripShape = "oneway" | StayChoice;
-
-/** The stay control's options, in display order, with their i18n label + aria keys. */
-const SHAPE_OPTIONS: { shape: TripShape; label: Parameters<typeof t>[0]; aria?: Parameters<typeof t>[0] }[] = [
-  // Framed by TIME AT DESTINATION, not transport jargon, so the words feel natural under
-  // "How long?": Just going (no return) · Same day · 1 night · 2 · 3 · Flexible.
-  { shape: "oneway", label: "stay_oneway" },
-  { shape: "sameday", label: "stay_sameday" },
-  { shape: "n1", label: "stay_n1" },
-  { shape: "n2", label: "stay_n2", aria: "stay_n2_aria" },
-  { shape: "n3", label: "stay_n3", aria: "stay_n3_aria" },
-  { shape: "flexible", label: "stay_flexible" },
-];
-const SHAPE_ORDER: TripShape[] = SHAPE_OPTIONS.map((o) => o.shape);
-
-/** The next stay choice when cycling with the "r" shortcut (wraps round the control). */
-export function nextTripShape(shape: TripShape): TripShape {
-  return SHAPE_ORDER[(SHAPE_ORDER.indexOf(shape) + 1) % SHAPE_ORDER.length]!;
-}
 
 /** The date-picker control returned by makeDateField. */
 export interface DateFieldCtl {
@@ -95,7 +78,7 @@ export interface FormRefs {
   night: HTMLInputElement;
   onlyNight: HTMLInputElement;
   onlyNightField: HTMLElement;
-  /** The trip-shape segmented control (One-way / Day trip / Round trip). */
+  /** The trip-type control wrapper: the Aller simple / Aller-retour toggle + nights stepper. */
   tripShapeField: HTMLElement;
   via: HTMLInputElement;
   originField: HTMLElement;
@@ -165,10 +148,14 @@ export interface FormHandle {
   /** Set one leg row's date (used when a date is picked from the results calendar). */
   setLegDate(index: number, date: string): void;
   setActiveTab(trip: TripType): void;
-  /** The active trip shape (from the segmented control). */
+  /** The active trip shape, derived from (roundTrip, nights). */
   getTripShape(): TripShape;
   /** Reflect a trip shape on the control WITHOUT firing onTripShape (query-driven sync). */
   setTripShape(shape: TripShape): void;
+  /** Nights away for the round-trip stepper: `null` = one-way, else 0..N. */
+  getStayNights(): number | null;
+  /** Repaint the toggle + stepper: `null` = one-way, else round trip with N nights. */
+  setStayNights(n: number | null): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
   updateFieldVisibility(trip: TripType): void;
@@ -1079,7 +1066,11 @@ export function createForm(props: FormProps): FormHandle {
   ]) as HTMLSelectElement;
   const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
   const overnightField = yesNoField(t("field_overnight"), overnight);
+  // Night trains are INCLUDED by default (`checked` before any query syncs), so a fresh
+  // search surfaces sleeper journeys rather than silently dropping them; a `?nonight=1`
+  // deep link (query.excludeNight) unchecks it via syncFormFromQuery.
   const night = el("input", { type: "checkbox" }) as HTMLInputElement;
+  night.checked = true;
   const nightField = yesNoField(t("field_night"), night);
   const onlyNight = el("input", { type: "checkbox" }) as HTMLInputElement;
   const onlyNightField = yesNoField(t("night_only"), onlyNight, "field-sub");
@@ -1093,52 +1084,96 @@ export function createForm(props: FormProps): FormHandle {
   };
   night.addEventListener("change", syncNightOpts);
 
-  // The "How long?" / stay control: a wrapping chip row — One-way · Same day · 1 night ·
-  // 2 · 3 · Flexible — that IS the whole trip-type choice. It lives INSIDE the departure-
-  // date row (below), immediately beside the date field, never in Advanced, so how long
-  // you stay is one obvious tap where you pick the day. It is the single source of truth
-  // for whether a return is wanted AND for the stay length, making day-vs-round self-
-  // evident (Same day = a day trip; N nights = a round trip; Flexible = pick the return
-  // on the return calendar). The chips WRAP — they are never truncated. Clicking one
-  // re-runs in place (auto-showing the possible-days calendar).
-  let tripShape: TripShape = "oneway";
-  const shapeBtns = {} as Record<TripShape, HTMLButtonElement>;
-  const makeShapeBtn = (opt: (typeof SHAPE_OPTIONS)[number]): HTMLButtonElement => {
-    const b = el("button", {
-      class: "seg-btn",
-      type: "button",
-      text: t(opt.label),
-      // The 2 / 3 chips show a bare number; give AT the full "N nights" via aria-label.
-      attrs: { "aria-pressed": "false", ...(opt.aria ? { "aria-label": t(opt.aria) } : {}) },
-      on: { click: () => selectShape(opt.shape) },
-    }) as HTMLButtonElement;
-    shapeBtns[opt.shape] = b;
-    return b;
-  };
-  const tripShapeField = el(
+  // The trip-type control: a 2-option segmented control with the SAME sliding-pill style
+  // as the main trip tabs — Aller simple (one-way) / Aller-retour (round trip) — plus a
+  // nights stepper that appears only for a round trip. It lives INSIDE the departure-date
+  // row (below), immediately beside the date field, never in Advanced. It is the single
+  // source of truth for whether a return is wanted (`roundTrip`) AND how long you stay
+  // (`nights`: 0 = Journée / same-day round trip, N = N nuits). Toggling the segment or
+  // stepping the nights re-runs the search in place — no extra Search tap.
+  let roundTrip = false;
+  let nights = 1;
+  const NIGHTS_MAX = 10;
+  const onewayBtn = el("button", {
+    class: "trip-seg",
+    type: "button",
+    text: t("mode_oneway"),
+    attrs: { "aria-pressed": "true" },
+    on: { click: () => setRound(false) },
+  }) as HTMLButtonElement;
+  const roundBtn = el("button", {
+    class: "trip-seg",
+    type: "button",
+    text: t("mode_roundtrip"),
+    attrs: { "aria-pressed": "false" },
+    on: { click: () => setRound(true) },
+  }) as HTMLButtonElement;
+  const tripToggle = el(
     "div",
-    { class: "trip-shape has-kbd", attrs: { role: "group", "aria-label": t("stay_label") } },
-    [...SHAPE_OPTIONS.map(makeShapeBtn), el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } })],
+    { class: "trip-toggle has-kbd", attrs: { role: "group", "aria-label": t("stay_label") } },
+    [onewayBtn, roundBtn, el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } })],
   );
-  /** Paint the active chip + hide the ±flex stepper whenever a return is wanted. */
+  const syncShapeThumb = makeThumb(tripToggle);
+  // The nights stepper: [ − ] <value> [ + ] with a small label. Value text: 0 → "Journée",
+  // 1 → "1 nuit", N → "N nuits". Range 0–10. `aria-live` announces each change; the −/+
+  // buttons carry explicit aria-labels since their glyphs alone don't name the action.
+  const nightsVal = el("span", {
+    class: "nights-val",
+    attrs: { role: "status", "aria-live": "polite" },
+  });
+  const nightsMinus = el("button", {
+    class: "nights-step",
+    type: "button",
+    text: "−",
+    attrs: { "aria-label": t("stay_fewer_nights") },
+  }) as HTMLButtonElement;
+  const nightsPlus = el("button", {
+    class: "nights-step",
+    type: "button",
+    text: "+",
+    attrs: { "aria-label": t("stay_more_nights") },
+  }) as HTMLButtonElement;
+  const nightsField = el("div", { class: "nights-field" }, [
+    el("span", { class: "nights-label muted", text: t("stay_nights_label") }),
+    el("div", { class: "nights-ctl" }, [nightsMinus, nightsVal, nightsPlus]),
+  ]);
+  const nightsLabel = (n: number): string =>
+    n <= 0 ? t("stay_sameday") : n === 1 ? t("stay_night_one") : t("stay_night_many", { n });
+  /** Paint the toggle + stepper from (roundTrip, nights); hide the ±flex stepper on a return. */
   const syncTripShape = (): void => {
-    for (const s of SHAPE_ORDER) {
-      const on = s === tripShape;
-      shapeBtns[s].classList.toggle("active", on);
-      shapeBtns[s].setAttribute("aria-pressed", String(on));
-    }
+    onewayBtn.classList.toggle("active", !roundTrip);
+    onewayBtn.setAttribute("aria-pressed", String(!roundTrip));
+    roundBtn.classList.toggle("active", roundTrip);
+    roundBtn.setAttribute("aria-pressed", String(roundTrip));
+    nightsField.style.display = roundTrip ? "" : "none";
+    nightsVal.textContent = nightsLabel(nights);
+    nightsMinus.disabled = nights <= 0;
+    nightsPlus.disabled = nights >= NIGHTS_MAX;
     // The possible-days / return calendars ARE the flexibility surface once a return is
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
-    departDate.setFlexVisible(tripShape === "oneway");
+    departDate.setFlexVisible(!roundTrip);
+    syncShapeThumb();
   };
-  const selectShape = (shape: TripShape): void => {
-    if (tripShape === shape) return;
-    tripShape = shape;
+  /** The current shape as a TripShape (one-way, or the stay the nights imply). */
+  const currentShape = (): TripShape => (roundTrip ? stayFromNights(nights) : "oneway");
+  function setRound(on: boolean): void {
+    if (roundTrip === on) return;
+    roundTrip = on;
     syncTripShape();
-    props.onTripShape(shape);
+    props.onTripShape(currentShape());
+  }
+  const stepNights = (delta: number): void => {
+    const next = Math.max(0, Math.min(NIGHTS_MAX, nights + delta));
+    if (next === nights) return;
+    nights = next;
+    syncTripShape();
+    props.onTripShape(currentShape());
   };
-  // The date field and the trip-shape control ride together in one row, so the shape
-  // switch sits immediately beside the day you're picking (requirement 1).
+  nightsMinus.addEventListener("click", () => stepNights(-1));
+  nightsPlus.addEventListener("click", () => stepNights(1));
+  // The date field and the trip-type control ride together in one row, so the toggle +
+  // stepper sit immediately beside the day you're picking (requirement 1).
+  const tripShapeField = el("div", { class: "trip-shape-wrap" }, [tripToggle, nightsField]);
   const dateRow = el("div", { class: "date-row" }, [dateField, tripShapeField]);
   const region = el("select", { class: "input" }, [
     optionEl("", t("region_any"), true),
@@ -1300,9 +1335,6 @@ export function createForm(props: FormProps): FormHandle {
     el("summary", { text: t("field_advanced") }),
     advancedToggles,
     el("div", { class: "advanced-grid" }, [
-      // "1 correspondance max" / "Quoi qu'il en coûte" fill the select — full width so
-      // the closed value never clips.
-      field(t("field_connections"), maxConnections, "field-wide"),
       viaField,
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),
@@ -1315,6 +1347,11 @@ export function createForm(props: FormProps): FormHandle {
       trainTypeField,
     ]),
   ]);
+  // "Max correspondances" is a common, high-impact filter, so it lives in the MAIN form
+  // (not buried in Advanced): its own full-width band below the fields grid, visible
+  // without unfolding a panel. "1 correspondance max" / "Quoi qu'il en coûte" fill the
+  // select — full width so the closed value never clips.
+  const connectionsField = field(t("field_connections"), maxConnections, "field-wide connections-field");
   // Radius sits in its own band in the main form (not Advanced), so this "reach more
   // free seats" option is visible without unfolding a panel. (The hidden-train toggle
   // lives in Advanced — it's a global preference that only the exact trip acts on.)
@@ -1399,6 +1436,7 @@ export function createForm(props: FormProps): FormHandle {
     regionField,
     legsBlock,
     stayField,
+    connectionsField,
     scopeField,
   ]);
   // A one-line description under the tabs telling you what the current mode does,
@@ -1493,9 +1531,27 @@ export function createForm(props: FormProps): FormHandle {
       legRows[index]?.dateCtl.setDate(date);
     },
     setActiveTab,
-    getTripShape: () => tripShape,
+    getTripShape: currentShape,
     setTripShape: (shape) => {
-      tripShape = shape;
+      if (shape === "oneway") {
+        roundTrip = false;
+      } else if (shape === "flexible") {
+        roundTrip = true; // Flexible has no fixed length: keep the current nights count.
+      } else {
+        roundTrip = true;
+        const n = stayNights(shape); // sameday → 0, n1/n2/n3 → 1/2/3
+        if (n != null) nights = n;
+      }
+      syncTripShape();
+    },
+    getStayNights: () => (roundTrip ? nights : null),
+    setStayNights: (n) => {
+      if (n === null) {
+        roundTrip = false;
+      } else {
+        roundTrip = true;
+        nights = Math.max(0, Math.min(NIGHTS_MAX, n));
+      }
       syncTripShape();
     },
     getMultiMode: () => multiMode,

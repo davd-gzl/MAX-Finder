@@ -317,6 +317,13 @@ export const fr = {
   stay_n2_aria: "2 nuits",
   stay_n3_aria: "3 nuits",
   stay_flexible: "Flexible",
+  // Nights stepper (shown for a round trip): label + the value text (0 → "Journée",
+  // 1 → "1 nuit", N → "N nuits") + the −/+ button aria-labels.
+  stay_nights_label: "Durée sur place",
+  stay_night_one: "1 nuit",
+  stay_night_many: "{n} nuits",
+  stay_fewer_nights: "Moins de nuits",
+  stay_more_nights: "Plus de nuits",
   act_book_out: "Réserver l'aller",
   act_book_ret: "Réserver le retour",
   trip_book_note: "Chaque trajet se réserve séparément sur SNCF Connect.",
