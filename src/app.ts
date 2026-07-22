@@ -2080,7 +2080,9 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
     ),
   );
   // Trips fall on different start days across the month, so each row shows its date.
-  for (const trip of sorted) refs.results.append(render.getawayRowEl(trip, c, { showDate: true }));
+  // Render incrementally (like browse/best) so a busy hub's long list never blocks the
+  // main thread in one go — the first rows paint immediately, the rest fill in per frame.
+  appendInChunks(refs.results, sorted, (trip) => render.getawayRowEl(trip, c, { showDate: true }));
   showMap(origin, sorted.map((trip) => trip.destination));
 }
 
