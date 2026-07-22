@@ -116,6 +116,18 @@ The audit found everything traces to **3 root causes**:
    names; `refreshInPlace` saves/restores `window.scrollY` but results live in
    `.drawer-scroll`, so a date/chip tap updates silently below the fold.
 
+### Ticket flow refinement (David, brainstorm — "something like that")
+
+- A **direct / one-way trip** is booked from the **right-side button** (the arrow/book button),
+  NOT a whole-card tap — as it was originally. Don't make the whole card book.
+- After you **select** a one-way ticket, it **collapses to a small summary** and prompts
+  **"Do you want to come back?"** — tap yes and it extends into a round trip (adds the return
+  step / return calendar). This makes one-way → round trip ONE continuous flow: you always
+  start by picking your outbound, then optionally add the return.
+- David likes selecting the **precise return date directly** on the calendar in round trip —
+  keep the linked-calendar direct date pick.
+- To refine on the REAL screen after the current build lands (concrete > abstract).
+
 ### Booking must be OBVIOUS (David: "this is really cool but how can I access my ticket?")
 
 Once both legs are chosen (✓ Aller / ✓ Retour recap), the only booking affordance is a bare
