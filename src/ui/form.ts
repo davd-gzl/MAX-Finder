@@ -1,4 +1,4 @@
-import type { SearchMode } from "../types";
+import type { SearchMode, StayChoice } from "../types";
 import type { ConnectionOptions } from "../core/connections";
 import { el, clear, optionEl } from "./dom";
 import { t, getLang } from "../i18n";
@@ -6,11 +6,32 @@ import { addDays, dayIndex } from "../util/time";
 
 export type TripType = "simple" | "multi" | "ideas";
 
-/** The date-adjacent segmented control: a plain one-way or a round trip (there and
- * back — same day or a later one). Mirrors `SearchQuery.tripShape` ("oneway" =
- * undefined). A same-day return is just the 0-night case of a round trip, not a
- * separate segment. */
-export type TripShape = "oneway" | "roundtrip";
+/**
+ * The date-adjacent "How long?" / stay control — the whole trip-type choice. `"oneway"`
+ * is a plain one-way (no return, `SearchQuery.stay === undefined`); every other value is
+ * a {@link StayChoice} that also names the stay: same day (a day trip), a fixed 1/2/3
+ * nights, or Flexible (pick the return on the return calendar). It makes day-vs-round
+ * self-evident, so there is no separate "day trip" segment.
+ */
+export type TripShape = "oneway" | StayChoice;
+
+/** The stay control's options, in display order, with their i18n label + aria keys. */
+const SHAPE_OPTIONS: { shape: TripShape; label: Parameters<typeof t>[0]; aria?: Parameters<typeof t>[0] }[] = [
+  // Framed by TIME AT DESTINATION, not transport jargon, so the words feel natural under
+  // "How long?": Just going (no return) · Same day · 1 night · 2 · 3 · Flexible.
+  { shape: "oneway", label: "stay_oneway" },
+  { shape: "sameday", label: "stay_sameday" },
+  { shape: "n1", label: "stay_n1" },
+  { shape: "n2", label: "stay_n2", aria: "stay_n2_aria" },
+  { shape: "n3", label: "stay_n3", aria: "stay_n3_aria" },
+  { shape: "flexible", label: "stay_flexible" },
+];
+const SHAPE_ORDER: TripShape[] = SHAPE_OPTIONS.map((o) => o.shape);
+
+/** The next stay choice when cycling with the "r" shortcut (wraps round the control). */
+export function nextTripShape(shape: TripShape): TripShape {
+  return SHAPE_ORDER[(SHAPE_ORDER.indexOf(shape) + 1) % SHAPE_ORDER.length]!;
+}
 
 /** The date-picker control returned by makeDateField. */
 export interface DateFieldCtl {
@@ -177,8 +198,8 @@ function inputEl(type: string, list?: string): HTMLInputElement {
  * @param control the control element.
  * @returns the labelled field element.
  */
-function field(label: string, control: HTMLElement): HTMLElement {
-  return el("label", { class: "field" }, [
+function field(label: string, control: HTMLElement, cls?: string): HTMLElement {
+  return el("label", { class: cls ? `field ${cls}` : "field" }, [
     el("span", { class: "field-label", text: label, attrs: { title: label } }),
     control,
   ]);
@@ -1072,44 +1093,42 @@ export function createForm(props: FormProps): FormHandle {
   };
   night.addEventListener("change", syncNightOpts);
 
-  // Trip-shape segmented control (One-way / Round trip). It lives INSIDE the
-  // departure-date row (below), immediately beside the date field — never in Advanced —
-  // so switching between a one-way and a round trip is a single obvious click right where
-  // you pick the day. It is the single source of truth for whether a return is wanted;
-  // clicking a segment re-runs in place (auto-showing the possible-days calendar). A
-  // same-day return is the 0-night case of a round trip, chosen from the return calendar,
-  // not a third segment.
+  // The "How long?" / stay control: a wrapping chip row — One-way · Same day · 1 night ·
+  // 2 · 3 · Flexible — that IS the whole trip-type choice. It lives INSIDE the departure-
+  // date row (below), immediately beside the date field, never in Advanced, so how long
+  // you stay is one obvious tap where you pick the day. It is the single source of truth
+  // for whether a return is wanted AND for the stay length, making day-vs-round self-
+  // evident (Same day = a day trip; N nights = a round trip; Flexible = pick the return
+  // on the return calendar). The chips WRAP — they are never truncated. Clicking one
+  // re-runs in place (auto-showing the possible-days calendar).
   let tripShape: TripShape = "oneway";
   const shapeBtns = {} as Record<TripShape, HTMLButtonElement>;
-  const makeShapeBtn = (shape: TripShape, key: Parameters<typeof t>[0]): HTMLButtonElement => {
+  const makeShapeBtn = (opt: (typeof SHAPE_OPTIONS)[number]): HTMLButtonElement => {
     const b = el("button", {
       class: "seg-btn",
       type: "button",
-      text: t(key),
-      attrs: { "aria-pressed": "false" },
-      on: { click: () => selectShape(shape) },
+      text: t(opt.label),
+      // The 2 / 3 chips show a bare number; give AT the full "N nights" via aria-label.
+      attrs: { "aria-pressed": "false", ...(opt.aria ? { "aria-label": t(opt.aria) } : {}) },
+      on: { click: () => selectShape(opt.shape) },
     }) as HTMLButtonElement;
-    shapeBtns[shape] = b;
+    shapeBtns[opt.shape] = b;
     return b;
   };
   const tripShapeField = el(
     "div",
-    { class: "trip-shape has-kbd", attrs: { role: "group", "aria-label": t("mode_trip_label") } },
-    [
-      makeShapeBtn("oneway", "mode_oneway"),
-      makeShapeBtn("roundtrip", "mode_roundtrip"),
-      el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } }),
-    ],
+    { class: "trip-shape has-kbd", attrs: { role: "group", "aria-label": t("stay_label") } },
+    [...SHAPE_OPTIONS.map(makeShapeBtn), el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } })],
   );
-  /** Paint the active segment + hide the ±flex stepper in round-trip mode. */
+  /** Paint the active chip + hide the ±flex stepper whenever a return is wanted. */
   const syncTripShape = (): void => {
-    for (const s of ["oneway", "roundtrip"] as TripShape[]) {
+    for (const s of SHAPE_ORDER) {
       const on = s === tripShape;
       shapeBtns[s].classList.toggle("active", on);
       shapeBtns[s].setAttribute("aria-pressed", String(on));
     }
-    // The possible-days calendar IS the flexibility surface in round-trip mode, so the
-    // ±flex stepper is hidden there (not silently zeroed).
+    // The possible-days / return calendars ARE the flexibility surface once a return is
+    // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(tripShape === "oneway");
   };
   const selectShape = (shape: TripShape): void => {
@@ -1186,7 +1205,9 @@ export function createForm(props: FormProps): FormHandle {
   const odHint = el("p", { class: "od-hint muted small", text: t("hint_od_optional") });
   const odFields = el("div", { class: "od-fields" }, [originField, swapBtn, destinationField]);
   const viaField = clearableField(t("field_via"), via);
-  const regionField = field(t("field_region"), region);
+  // Region names get long (e.g. "Provence-Alpes-Côte d'Azur"): give the field the full
+  // grid width so its select value has room and never clips (zero truncation).
+  const regionField = field(t("field_region"), region, "field-wide");
   const clearCitiesBtn = el("button", {
     class: "linklike cities-clear",
     type: "button",
@@ -1265,7 +1286,7 @@ export function createForm(props: FormProps): FormHandle {
 
   const maxDurationField = field(t("field_maxDuration"), maxDuration);
   const maxSpanDaysField = field(t("field_maxSpanDays"), maxSpanDays);
-  const trainTypeField = field(t("field_trainType"), trainType);
+  const trainTypeField = field(t("field_trainType"), trainType, "field-wide");
   // The yes/no answers lead the panel as their own band; everything below is a
   // value to fill in, laid out three per row.
   const advancedToggles = el("div", { class: "advanced-toggles" }, [
@@ -1279,7 +1300,9 @@ export function createForm(props: FormProps): FormHandle {
     el("summary", { text: t("field_advanced") }),
     advancedToggles,
     el("div", { class: "advanced-grid" }, [
-      field(t("field_connections"), maxConnections),
+      // "1 correspondance max" / "Quoi qu'il en coûte" fill the select — full width so
+      // the closed value never clips.
+      field(t("field_connections"), maxConnections, "field-wide"),
       viaField,
       field(t("field_departAfter"), departAfter),
       field(t("field_departBefore"), departBefore),

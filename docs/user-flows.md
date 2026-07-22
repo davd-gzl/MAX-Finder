@@ -17,23 +17,41 @@ search (`deriveMode` in `src/app.ts`; dispatch in `renderSearch`).
 | **Multi-city** (`multi`) | legs or cities | `tour` | a multi-stop tour |
 | **Ideas** (`ideas`) | From | `best` | best destinations, ranked |
 
-The **Round trip** toggle sits beside the date (`One-way / Round trip`; `r` toggles it).
-`1/2/3` switch tabs. Day trip is not a separate mode — it is a same-day round trip.
+The **"How long?" / stay control** sits beside the date — a wrapping chip row that IS the
+whole trip-type choice, framed by time at destination: **Just going · Same day · 1 night ·
+2 · 3 · Flexible** (FR: Juste l'aller · Journée · 1 nuit · 2 · 3 · Flexible). *Just going* =
+a plain one-way (no return); *Same day* = a day trip (metric = hours on site); *N nights* =
+a round trip with that fixed stay (the return is auto-derived as departure + N, adjustable
+on the return calendar); *Flexible* = a round trip whose return you pick on the return
+calendar. Day-vs-round is self-evident from the pick — there is no separate day/round
+toggle, and no glossary blurb. `r` steps through the chips; `1/2/3` switch tabs. Picking a
+chip re-runs in place (no second Search tap when origin + destination + date are set).
+Legacy `?rt=day` / `?rt=round` / `?rdate=` deep links still resolve (rt=day or rdate==date →
+Same day; a later rdate → the matching nights, or Flexible beyond 3).
 
 ## Trip tab
 
 1. **From + To, One-way** → exact one-way trip (`runOdSearch`). A 30-day availability
    calendar for the route + the selected day's train list. Tap a green day to move; tap a
    train to book (direct → deep link; connecting → step-by-step).
-2. **From + To, Round trip** → the merged flow (`runTripSearch`). Two-leg accordion:
-   - **Leg 1 Outbound** — possible-days calendar collapsed as "Departure: <date> · Change";
-     below it the day's outbound trains. Pick one → it collapses to a ✓ summary and…
-   - **Leg 2 Return** opens (auto-scrolled in) — a return calendar whose **first cell is the
-     same day** (hours on site), later cells are nights at the destination. Pick a return →
-   - **Trip modal** = booking recap: one "Book this leg" per leg, or Save the whole trip.
+2. **From + To, a stay chosen** → the round-trip flow (`runTripSearch`). Two-leg accordion,
+   with linked calendars:
+   - **Leg 1 Outbound** — possible-days calendar collapsed as "Departure: <date> · Change"
+     (it mirrors the form date, never re-asks it); below it the day's outbound trains.
+     Clicking a departure day **restarts the return calendar from that day** (departure + N
+     for a fixed stay, else same-day-first). Pick a train → it collapses to a ✓ summary and…
+   - **Leg 2 Return** opens (gently revealed only if below the fold — a calendar tap never
+     scrolls the drawer up) — a return calendar whose **first cell is the same day** (hours
+     on site), later cells are nights at the destination, pre-selected to the stay's return.
+     A fixed N-night stay derives the return with no second question; Flexible picks it here.
+     Pick a return →
+   - **Trip modal** = booking recap: an unmistakable per-leg action — "Book the outbound" /
+     "Book the return" (each deep-links SNCF Connect; a connecting leg opens the step modal)
+     — plus Save the whole trip. Back inside the accordion re-opens the outbound before it
+     exits the flow (step-wise back).
 3. **Only From, One-way** → browse (`runBrowse` "from"). Every destination reachable from the
    station, ranked by how well-served it is, with availability. Tap a card → the exact trip.
-4. **Only From, Round trip** → discovery (`runGetaways`), "Where can you get away to?".
+4. **Only From, a stay chosen** → discovery (`runGetaways`), "Where can you get away to?".
    Destinations ranked by **time at the destination** (hours on site if same-day is best,
    else nights) + a possible-start-days calendar. Tap a day → narrows to that day
    (auto-scrolls to results). Tap a destination → opens the round trip.

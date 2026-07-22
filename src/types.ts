@@ -7,6 +7,14 @@ export type CardType = "jeune" | "senior";
 export type SearchMode = "from" | "to" | "od" | "best" | "tour";
 
 /**
+ * The "How long?" / stay choice — the whole trip-type control. `"sameday"` is a day
+ * trip (hours on site); `"n1"`/`"n2"`/`"n3"` are round trips with that many nights;
+ * `"flexible"` is a round trip whose return you pick on the return calendar. (One-way
+ * is the absence of a stay, i.e. `SearchQuery.stay === undefined`.)
+ */
+export type StayChoice = "sameday" | "n1" | "n2" | "n3" | "flexible";
+
+/**
  * A raw record as published by the SNCF `tgvmax` Open Data dataset.
  * One record ≈ one train, one origin→destination, one date.
  * Field names mirror the dataset (French) so the fetch script can map directly.
@@ -89,13 +97,16 @@ export interface SearchQuery {
   /** Return date for a round trip ("aller-retour"): the day to travel back. */
   returnDate?: string;
   /**
-   * Trip shape (the segmented control beside the date field). `undefined` = a plain
-   * one-way trip; `"roundtrip"` = there and back, on the same day or a later one. It is
-   * the single source of truth for whether a return is wanted; the return DATE then
-   * decides the metric — same day → hours on site, a later day → nights away — so a day
-   * trip is simply a 0-night round trip, not a distinct mode.
+   * How long the trip stays away — the single "How long?" / stay control beside the
+   * date field, and the whole trip-type choice. `undefined` = a plain one-way trip (no
+   * return); otherwise a return is wanted and the value fixes the stay:
+   *  - `"sameday"` — there and back the same day (metric = hours on site),
+   *  - `"n1"` / `"n2"` / `"n3"` — a round trip with exactly 1 / 2 / 3 nights,
+   *  - `"flexible"` — a round trip whose return you pick on the return calendar.
+   * It makes day-vs-round self-evident, so it replaces the old `tripShape` flag: a day
+   * trip is simply the `"sameday"` case, not a distinct mode.
    */
-  tripShape?: "roundtrip";
+  stay?: StayChoice;
   /** Explicit multi-city legs (Multiville): each an origin→destination on its own date. */
   legs?: TripLeg[];
   /** Region filter, used by "best" mode. */

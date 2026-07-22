@@ -153,6 +153,40 @@ the multi-city legs view. So don't fight the accordion — make the round trip u
 "pick each leg's time → combine → see the whole trip" flow the multi-legs already has, and
 end on a combined recap/booking screen.
 
+### SHIPPED — the "How long?" stay control + linked calendars (this section's spec)
+
+Implemented the spec below. What landed:
+
+- **"How long?" stay control** (`src/ui/form.ts`, `TripShape = "oneway" | StayChoice`): a
+  wrapping chip row **Just going · Same day · 1 night · 2 · 3 · Flexible** (duration/intent
+  framing, not "one-way / round trip" jargon — David's refinement), beside the date. It is
+  the whole trip-type choice; `query.stay: StayChoice` replaces the old `tripShape` flag.
+  `r` steps through the chips. The glossary blurb is deleted everywhere.
+- **Linked calendars** (`runTripSearch`): clicking a departure day restarts the return
+  calendar from it (fixed stay → departure + N; else same-day-first); the return is
+  auto-derived for a fixed stay and adjustable on the calendar.
+- **No scroll-up on a calendar tap**: `revealElement()` only ever scrolls DOWN to genuinely
+  below-fold new content; the return-day pick updates in place; `updateUrl` preserves the
+  history-state form snapshot.
+- **Obvious booking**: per-leg "Book the outbound" / "Book the return" in the trip recap
+  (`render.tripViewEl`) + a "booked separately" note.
+- **Efficient results**: results title tightened + hidden on mobile (the search bar carries
+  the route/dates), glossary removed.
+- **Step-wise Back** (`activeStepBack`): Back re-opens the outbound (and walks the multi-city
+  legs) before exiting the flow; integrated with `goBack` + Escape.
+- **State preservation**: a form snapshot rides each history entry (`store.pushUrl/updateUrl`
+  `state`), restored on `popstate`; the saved page pushes an entry so gesture-Back closes it.
+- **Zero truncation (FR ≤360px)**: advanced field labels wrap; long-value selects
+  (connections, region, type) span the full grid width; the stay chips wrap.
+- **Minimise clicks**: picking a stay chip re-runs in place (no second Search tap); the
+  outbound calendar mirrors the form date (never re-asked); a one-way list books on tap.
+  Core round-trip decision path ≈ 5 taps: stay chip → outbound → return → Book outbound →
+  Book return (each leg is a separate SNCF Connect search; a through-ticket can't be
+  deep-linked). Accepting the pre-highlighted defaults collapses outbound + return to one
+  tap each.
+
+Original spec (kept for the record):
+
 ### SUPERSEDED after testing — a single "How long?" control + linked calendars
 
 David tested the fully-merged single-return-calendar flow and it was NOT intuitive: you

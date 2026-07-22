@@ -112,16 +112,16 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".od-return")).not.toBeNull();
   });
 
-  it("keeps round trip on when the destination is cleared", () => {
+  it("keeps the stay choice on when the destination is cleared", () => {
     // Regression: a return date was gated on mode === "od", but a blank destination
-    // derives mode "from" — the round-trip intent must still survive (as rt=1) so a
-    // reload restores the Trip tab with the round-trip toggle on.
+    // derives mode "from" — the stay intent must still survive (as stay=…) so a reload
+    // restores the Trip tab with the "How long?" chip lit.
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
     );
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    // A legacy rdate later than the outbound resolves to the Round-trip segment.
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
+    // A legacy rdate two days after the outbound resolves to the "2" (2-night) chip.
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("2");
     // origin is [0], destination is [1] within the départ/arrivée row.
     const dest = root.querySelectorAll<HTMLInputElement>('.od-fields input[list="station-list"]')[1];
     expect(dest).toBeTruthy();
@@ -131,12 +131,12 @@ describe("app (jsdom smoke)", () => {
     (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
 
     const url = location.search;
-    // The shape is now serialized as rt=round (rt=day for a day trip); it survives.
-    expect(new URLSearchParams(url).get("rt")).toBe("round");
-    // Reloading it must land back on the Trip tab with the Round-trip segment lit.
+    // The choice is now serialized as stay=2 (day=same-day, 1/2/3=nights, flex=flexible).
+    expect(new URLSearchParams(url).get("stay")).toBe("2");
+    // Reloading it must land back on the Trip tab with the "2" chip lit.
     const reloaded = setup(url);
     expect(reloaded.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    expect(reloaded.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
+    expect(reloaded.querySelector(".trip-shape button.active")?.textContent).toBe("2");
   });
 
   it("drills into a connecting destination and back again", () => {
@@ -417,7 +417,7 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("to")).toBeNull();
   });
 
-  it("switches trip shape via the segmented control beside the date", () => {
+  it("offers the six duration-framed stay chips beside the date", () => {
     const root = setup("");
     const seg = root.querySelector(".trip-shape");
     expect(seg).toBeTruthy();
@@ -425,16 +425,38 @@ describe("app (jsdom smoke)", () => {
     expect(seg!.closest(".date-row")).toBeTruthy();
     expect(seg!.closest(".advanced")).toBeNull();
     const btns = Array.from(seg!.querySelectorAll("button"));
-    // Two segments now: One-way / Round trip. A same-day return is the 0-night case of a
-    // round trip (picked from the return calendar), not a third segment.
-    expect(btns.length).toBe(2);
-    // One-way is the baseline; a single click on Round trip switches (no settings trip).
-    expect(seg!.querySelector("button.active")?.textContent).toContain("One-way");
-    (btns.find((b) => b.textContent?.includes("Round trip")) as HTMLElement).click();
-    expect(seg!.querySelector("button.active")?.textContent).toContain("Round trip");
-    expect(
-      (btns.find((b) => b.textContent?.includes("Round trip")) as HTMLElement).getAttribute("aria-pressed"),
-    ).toBe("true");
+    // The whole "How long?" choice: Just going · Same day · 1 night · 2 · 3 · Flexible —
+    // framed by time at destination, so day-vs-round is self-evident (no separate toggle).
+    expect(btns.length).toBe(6);
+    expect(btns.map((b) => b.textContent)).toEqual(["Just going", "Same day", "1 night", "2", "3", "Flexible"]);
+    // "Just going" (a plain one-way, no return) is the baseline; one click picks a stay.
+    expect(seg!.querySelector("button.active")?.textContent).toBe("Just going");
+    (btns.find((b) => b.textContent === "Same day") as HTMLElement).click();
+    expect(seg!.querySelector("button.active")?.textContent).toBe("Same day");
+    expect((btns.find((b) => b.textContent === "Same day") as HTMLElement).getAttribute("aria-pressed")).toBe("true");
+    // The bare number chips carry the full "N nights" for assistive tech.
+    expect((btns.find((b) => b.textContent === "2") as HTMLElement).getAttribute("aria-label")).toBe("2 nights");
+  });
+
+  it("picking a stay chip runs the round trip in place — no second Search tap", () => {
+    // Origin + destination + date are already set, so choosing a duration is the only
+    // decision left: it must render the round trip straight away (minimise clicks).
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+    );
+    // A plain one-way to start: no return section.
+    expect(root.querySelector(".od-return")).toBeNull();
+    const oneNight = Array.from(root.querySelectorAll<HTMLElement>(".trip-shape button")).find(
+      (b) => b.textContent === "1 night",
+    );
+    oneNight!.click();
+    // The 2-leg round trip is now showing (the click alone ran it), and the choice is in
+    // the URL as stay=1.
+    expect(root.querySelectorAll(".mc-result").length).toBe(2);
+    expect(root.querySelector(".od-return")).not.toBeNull();
+    expect(new URLSearchParams(location.search).get("stay")).toBe("1");
+    // A fixed 1-night stay derives the return day (outbound + 1) with no second question.
+    expect(new URLSearchParams(location.search).get("rdate")).toBe("2026-06-26");
   });
 
   it("drives a boolean field through its toggle switch", () => {
@@ -487,21 +509,21 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
   });
 
-  it("merges day trip into round trip: legacy rt=day lights Round trip, one return calendar starting same-day", () => {
+  it("resolves legacy rt=day to the Same-day chip with a return calendar starting same-day", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
     );
-    // Legacy rt=day is no longer a distinct mode — it resolves to the Round trip segment
-    // (a day trip is the 0-night case of a round trip).
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
+    // Legacy rt=day is no longer a distinct mode — it resolves to the "Same day" stay chip
+    // (a day trip is the 0-night case).
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("Same day");
     // ONE return calendar, and its FIRST cell is the OUTBOUND day (same-day = 0 nights),
     // not the day after — so tapping it gives a same-day trip with no separate mode.
     const retCells = root.querySelectorAll(".od-return-cal .cal-cell");
     expect(retCells.length).toBeGreaterThan(0);
     expect(retCells[0]!.querySelector(".cal-day")?.textContent).toBe("25");
-    // Two accordion legs, and the glossary line still defines the two outcomes.
+    // Two accordion legs, and NO glossary blurb — the stay control makes it self-evident.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
-    expect(root.querySelector(".glossary")).not.toBeNull();
+    expect(root.querySelector(".glossary")).toBeNull();
     // The possible-days (outbound) calendar is collapsed by default once a date is chosen:
     // a one-tap "change departure" summary with the calendar panel hidden beside it.
     const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
@@ -521,16 +543,54 @@ describe("app (jsdom smoke)", () => {
     expect(leg1.querySelector(".mc-num")?.textContent).toBe("✓");
   });
 
-  it("persists the picked return date to the URL (rt=round + rdate)", () => {
+  it("persists the picked return date to the URL (stay + rdate)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
     );
+    // rt=round resolves to the Flexible chip (pick the return on the calendar).
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toBe("Flexible");
     const retCell = root.querySelector(".od-return-cal .cal-cell.ok") as HTMLElement | null;
     if (retCell) {
       retCell.click();
       const p = new URLSearchParams(location.search);
-      expect(p.get("rt")).toBe("round");
+      // Picking a return day settles both the concrete date and the matching stay chip.
+      expect(p.get("stay")).toBeTruthy();
       expect(p.get("rdate")).toBeTruthy();
     }
+  });
+
+  it("links the calendars: clicking a departure day restarts the return calendar from it", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    // The return calendar starts on the outbound day (25) — same-day is its first cell.
+    const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
+    expect(dayOf(root.querySelector(".od-return-cal .cal-cell"))).toBe("25");
+    // Expand the outbound possible-days calendar and pick a LATER green departure.
+    const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
+    (leg1.querySelector(".cal-toggle") as HTMLElement).click();
+    const later = Array.from(leg1.querySelectorAll<HTMLElement>(".cal-panel .cal-cell.ok")).find(
+      (c) => Number(dayOf(c)) > 25,
+    );
+    if (later) {
+      const day = dayOf(later);
+      later.click();
+      // "Click the first cell, it updates the other": the return calendar now restarts
+      // from the new departure day.
+      expect(dayOf(root.querySelector(".od-return-cal .cal-cell"))).toBe(day);
+    }
+  });
+
+  it("walks Back through the round-trip steps: Back re-opens the outbound before exiting", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=1`,
+    );
+    const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
+    (leg1.querySelector(".mc-leg-body .journey") as HTMLElement).click(); // pick the outbound → collapses
+    expect(leg1.classList.contains("mc-collapsed")).toBe(true);
+    // Back (Escape) steps INSIDE the flow first — the outbound re-opens to be changed,
+    // rather than the whole trip search being exited.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(leg1.classList.contains("mc-collapsed")).toBe(false);
   });
 });
