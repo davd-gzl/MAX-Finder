@@ -238,9 +238,10 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.minLegDurationMin != null && q.minLegDurationMin > 0) p.set("legdurmin", String(q.minLegDurationMin));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
   if (q.radiusKm != null && q.radiusKm > 0) p.set("rad", String(q.radiusKm));
-  // Trip shape is the canonical round-trip input: rt=day (same-day) / rt=round
-  // (multi-day). Legacy links used rt=1 (round) — still read below.
-  if (q.tripShape) p.set("rt", q.tripShape === "daytrip" ? "day" : "round");
+  // Trip shape is the canonical round-trip input: rt=round. A same-day return is the
+  // 0-night case (carried by rdate === date), not a separate value. Legacy links used
+  // rt=1 / rt=day — both still read below as a round trip.
+  if (q.tripShape) p.set("rt", "round");
   if (q.nights != null && q.nights > 0) p.set("nights", String(q.nights));
   if (q.flexNights) p.set("fn", "1");
   if (q.stayMinHours != null && q.stayMinHours > 0) p.set("stayh", String(q.stayMinHours));
@@ -307,15 +308,12 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
     // od-only search radius (km) for nearby paid-connection alternatives.
     radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
-    // Trip shape: rt=day → day trip, rt=round (or legacy rt=1) → round trip. A carried
-    // `rdate` from an older link is resolved into a shape in app.ts (queryFromUrl),
-    // where the outbound date is known.
+    // Trip shape: rt=round → round trip; legacy rt=1 / rt=day both resolve to a round
+    // trip (rt=day = the 0-night, same-day case, which the return calendar now covers).
+    // A carried `rdate` from an older link is resolved into a shape in app.ts
+    // (queryFromUrl), where the outbound date is known.
     tripShape:
-      p.get("rt") === "day"
-        ? "daytrip"
-        : p.get("rt") === "round" || p.get("rt") === "1"
-          ? "roundtrip"
-          : undefined,
+      p.get("rt") === "round" || p.get("rt") === "1" || p.get("rt") === "day" ? "roundtrip" : undefined,
     nights: Number.isFinite(nights) && nights >= 1 ? Math.min(3, Math.floor(nights)) : undefined,
     flexNights: p.get("fn") === "1" || undefined,
     stayMinHours: Number.isFinite(stayh) && stayh >= 1 ? Math.min(12, Math.floor(stayh)) : undefined,

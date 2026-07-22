@@ -720,32 +720,24 @@ a {
 }
 
 /* ---- discovery window presets (this weekend / next 7 days / this month) ---- */
-.win-presets {
+/* ---- collapsible outbound "possible days" calendar (collapsed once a date is chosen).
+   A one-tap summary reveals the calendar to switch the departure / scan availability. ---- */
+.cal-collapsible {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.4rem;
-  margin-bottom: 0.6rem;
 }
-.win-chip {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
+.cal-toggle {
+  align-self: flex-start;
+  /* Wrap rather than clip: the summary carries a full (possibly long) date. */
+  text-align: left;
+  white-space: normal;
 }
-.win-chip:hover {
-  color: var(--text);
-}
-.win-chip.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.cal-panel[hidden] {
+  display: none;
 }
 
-/* ---- glossary line (Round trip vs Day trip) under the possible-days calendar ---- */
+/* ---- glossary line (same-day hours vs overnight nights) under the calendar ---- */
 .glossary {
   display: flex;
   flex-direction: column;
@@ -769,11 +761,6 @@ a {
      without it the reused accordion body reads visibly tighter than the stepper. */
   gap: 0.4rem;
 }
-.daytrip-best {
-  margin: 0.2rem 0 0.4rem;
-  font-weight: 600;
-}
-
 /* ---- sub-mode toggles: multi-city (plan / legs) and return (dates / duration).
    Same segmented pill and type as the main trip tabs, on slightly tighter padding. ---- */
 .multi-switch,
@@ -982,7 +969,6 @@ a {
 .btn:focus-visible,
 .cal-cell:focus-visible,
 .seg-btn:focus-visible,
-.win-chip:focus-visible,
 .iconbtn:focus-visible,
 .fav-open:focus-visible,
 .ctl:focus-visible {
@@ -1813,24 +1799,47 @@ a {
   .cal-grid {
     grid-template-columns: repeat(7, 1fr);
   }
-  /* On phones the destination name keeps priority; the meta chips yield space and
-     cap so long station names ("Valenciennes", "St Pierre Des Corps") stop
-     truncating to "Valenci…". */
-  .dest-name {
-    flex: 2 1 auto;
+  /* On phones NOTHING truncates (product rule). The destination name takes the first
+     line and WRAPS in full if long ("St Pierre Des Corps"); the arrow keeps its place
+     beside it; the meta chips drop to their own line below and wrap, each showing its
+     full text. The card just grows taller — a name is never cut to "Valenci…". */
+  .dest-main {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
   }
-  .chip-via {
-    max-width: 9ch;
+  .dest-name {
+    flex: 1 1 auto;
+    order: 1;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .dest-main > .chev {
+    order: 2;
   }
   .dest-meta {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
     min-width: 0;
-    flex: 0 1 auto;
   }
-  .dest-meta .stat-chip {
-    max-width: 11ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
+  .dest-meta .stat-chip,
+  .dest-meta .chip,
+  .dest-meta .chip-onsite,
+  .dest-meta .chip-via {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  /* Airport names keep their ✈ badge but the inner text wraps instead of ellipsizing. */
+  .dest-name.stn-airport {
+    white-space: normal;
+  }
+  .dest-name .stn-text {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 }
 .cal-cell {
@@ -3685,6 +3694,22 @@ select.input::-ms-expand {
     radial-gradient(circle 8px at 100% 0, transparent 7.5px, #000 8px),
     radial-gradient(circle 8px at 100% 100%, transparent 7.5px, #000 8px);
   mask-composite: intersect;
+}
+/* The confirmation/booking recap gives each leg a clear labelled "Book this leg" primary
+   instead of the bare arrow. Widen the ticket stub so the label sits and WRAPS (never
+   clipped at 390px), and let the button fill it. */
+.journey.has-book-leg .journey-book {
+  width: auto;
+  min-width: 7rem;
+}
+.book-leg {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  white-space: normal;
+  line-height: 1.2;
+  padding: 0.55rem 0.7rem;
+  text-align: center;
 }
 .book-arrow {
   display: grid;

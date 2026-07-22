@@ -6,9 +6,11 @@ import { addDays, dayIndex } from "../util/time";
 
 export type TripType = "simple" | "multi" | "ideas";
 
-/** The date-adjacent segmented control: a plain one-way, a same-day day trip, or a
- * multi-day round trip. Mirrors `SearchQuery.tripShape` ("oneway" = undefined). */
-export type TripShape = "oneway" | "daytrip" | "roundtrip";
+/** The date-adjacent segmented control: a plain one-way or a round trip (there and
+ * back — same day or a later one). Mirrors `SearchQuery.tripShape` ("oneway" =
+ * undefined). A same-day return is just the 0-night case of a round trip, not a
+ * separate segment. */
+export type TripShape = "oneway" | "roundtrip";
 
 /** The date-picker control returned by makeDateField. */
 export interface DateFieldCtl {
@@ -1070,12 +1072,13 @@ export function createForm(props: FormProps): FormHandle {
   };
   night.addEventListener("change", syncNightOpts);
 
-  // Trip-shape segmented control (One-way / Day trip / Round trip). It lives INSIDE the
+  // Trip-shape segmented control (One-way / Round trip). It lives INSIDE the
   // departure-date row (below), immediately beside the date field — never in Advanced —
-  // so switching between a one-way, a same-day day trip and a multi-day round trip is a
-  // single obvious click right where you pick the day. It is the single source of truth
-  // for whether a return is wanted; clicking a segment re-runs in place (auto-showing the
-  // possible-days calendar).
+  // so switching between a one-way and a round trip is a single obvious click right where
+  // you pick the day. It is the single source of truth for whether a return is wanted;
+  // clicking a segment re-runs in place (auto-showing the possible-days calendar). A
+  // same-day return is the 0-night case of a round trip, chosen from the return calendar,
+  // not a third segment.
   let tripShape: TripShape = "oneway";
   const shapeBtns = {} as Record<TripShape, HTMLButtonElement>;
   const makeShapeBtn = (shape: TripShape, key: Parameters<typeof t>[0]): HTMLButtonElement => {
@@ -1094,19 +1097,18 @@ export function createForm(props: FormProps): FormHandle {
     { class: "trip-shape has-kbd", attrs: { role: "group", "aria-label": t("mode_trip_label") } },
     [
       makeShapeBtn("oneway", "mode_oneway"),
-      makeShapeBtn("daytrip", "mode_daytrip"),
       makeShapeBtn("roundtrip", "mode_roundtrip"),
       el("kbd", { class: "kbd-hint", text: "r", attrs: { "aria-hidden": "true" } }),
     ],
   );
-  /** Paint the active segment + hide the ±flex stepper in day/round mode. */
+  /** Paint the active segment + hide the ±flex stepper in round-trip mode. */
   const syncTripShape = (): void => {
-    for (const s of ["oneway", "daytrip", "roundtrip"] as TripShape[]) {
+    for (const s of ["oneway", "roundtrip"] as TripShape[]) {
       const on = s === tripShape;
       shapeBtns[s].classList.toggle("active", on);
       shapeBtns[s].setAttribute("aria-pressed", String(on));
     }
-    // The possible-days calendar IS the flexibility surface in day/round mode, so the
+    // The possible-days calendar IS the flexibility surface in round-trip mode, so the
     // ±flex stepper is hidden there (not silently zeroed).
     departDate.setFlexVisible(tripShape === "oneway");
   };
