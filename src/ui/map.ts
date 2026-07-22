@@ -57,6 +57,12 @@ export class RouteMap {
     if (this.map && this.layer) return { map: this.map, layer: this.layer };
     try {
       this.map = L.map(this.container, {
+        // Render every vector (spoke lines + circle markers) onto ONE <canvas>
+        // instead of the default one-SVG-node-per-layer. A busy hub browse draws
+        // ~200 destinations = ~400 layers; as SVG that is 400 DOM nodes that also
+        // reflow on every pan/zoom — the single biggest cause of list-view lag on
+        // phones. Canvas draws them all in one paint and pans smoothly.
+        preferCanvas: true,
         dragging: true,
         scrollWheelZoom: false,
         // Pinch-zoom and double-tap zoom stay on: on phones the full-bleed map is
