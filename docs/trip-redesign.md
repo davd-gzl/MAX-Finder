@@ -116,6 +116,14 @@ The audit found everything traces to **3 root causes**:
    names; `refreshInPlace` saves/restores `window.scrollY` but results live in
    `.drawer-scroll`, so a date/chip tap updates silently below the fold.
 
+### Booking must be OBVIOUS (David: "this is really cool but how can I access my ticket?")
+
+Once both legs are chosen (✓ Aller / ✓ Retour recap), the only booking affordance is a bare
+`>` arrow — users don't know it books. Give each leg a clear labelled action ("Réserver
+l'aller" / "Réserver le retour", i.e. Book this leg) that deep-links to SNCF Connect, and/or
+a prominent combined "Réserver" — so getting the ticket is unmistakable. This is the ticket
+flow the audit flagged (#4).
+
 ### Refined build direction (David, latest)
 
 **The possible-days calendar stays — but hides by default once a date is chosen.**
@@ -158,6 +166,17 @@ smell. New confirmed direction (this supersedes the MERGE section below):
   after selecting the outbound must return to STEP 1 (re-open / change the outbound), not
   exit the whole flow. Audit for similar cases (multi-city legs, any accordion/stepper) and
   make Back walk the steps backward before leaving the flow.
+- **No scroll-up on a calendar tap** (David: "clicking on a date on the calendar scrolls
+  up, why?"). Tapping a calendar day must update the results IN PLACE without jerking the
+  page/drawer up. The current `refreshInPlace` scroll-restore / `revealResults` / focus logic
+  causes a jump — a calendar tap should keep the calendar where it is; only gently reveal
+  genuinely-new content (e.g. the return leg the first time it appears), never scroll up.
+- **Efficient results screen** (David: "this screen is not efficient"). The results view
+  wastes vertical space: the big heading DUPLICATES the collapsed search bar (both read
+  "Paris ⇄ Lyon · dates"), and the "Aller-retour ou journée ?" blurb + guide link + "Départ
+  · Changer" push the first train far down. Drop the duplicated heading (the search bar
+  already carries it, or make one of them minimal), delete the glossary blurb, and tighten
+  the chrome so an actual train is visible with little/no scrolling.
 
 ### Round-trip verdict: MERGE (matches David's direction) — SUPERSEDED, see above
 
