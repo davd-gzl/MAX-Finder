@@ -933,17 +933,20 @@ function syncFormFromQuery(): void {
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.onlyNight.checked = Boolean(query.onlyNight);
-  // The trip-type control mirrors the query: no stay → one-way (stepper hidden); a stay →
-  // round trip with N nights, taken from the concrete return span when present (so N>3
-  // links repaint the real count) else from the stay choice. setStayNights repaints the
-  // toggle + stepper WITHOUT firing a change event.
-  formApi.setStayNights(
-    query.stay === undefined
-      ? null
-      : query.returnDate
-        ? Math.max(0, dayIndex(query.returnDate) - dayIndex(query.date))
-        : (stayNights(query.stay) ?? 1),
-  );
+  // The trip-type control mirrors the query: no stay → one-way (stepper hidden); a fixed
+  // stay → round trip with N nights, taken from the concrete return span when present else
+  // from the stay choice; Flexible → the calendar-pick mode (stepper hidden, return
+  // calendar open), seeded with the concrete span so a switch to fixed reads the real count.
+  // These setters repaint the control WITHOUT firing a change event.
+  if (query.stay === undefined) {
+    formApi.setStayNights(null);
+  } else if (query.stay === "flexible") {
+    formApi.setFlexible(query.returnDate ? Math.max(0, dayIndex(query.returnDate) - dayIndex(query.date)) : null);
+  } else {
+    formApi.setStayNights(
+      query.returnDate ? Math.max(0, dayIndex(query.returnDate) - dayIndex(query.date)) : (stayNights(query.stay) ?? 1),
+    );
+  }
   refs.region.value = query.region ?? "";
   // Cities only travel in the URL from the tour-plan surface, so a query built on
   // another tab carries none — restoring "no cities" from it would wipe the chips on
@@ -984,13 +987,20 @@ function readQueryFromForm(): SearchQuery {
   // going) leaves it undefined.
   const modeTakesStay = mode === "od" || mode === "from" || mode === "to" || mode === "best";
   const rawNights = tripType === "simple" || tripType === "ideas" ? formApi.getStayNights() : null;
-  // The nights count is the single source of truth: null → one-way, else 0..3 map to the
-  // fixed stays and anything longer to "flexible". od always carries the EXPLICIT return
-  // date (departure + N), honoured downstream even for N>3; discovery ("from"/"best")
-  // derives its return from the getaway sweep instead, so it only needs the stay.
+  // The nights count is the source of truth for a FIXED stay: null → one-way, else 0..3 map
+  // to the fixed stays. Flexible is a separate flag: its stay is "flexible" and its return
+  // is the day the user picked on the return calendar (carried on the query), NOT a derived
+  // departure + N. od carries the EXPLICIT return date; discovery ("from"/"best") derives
+  // its return from the getaway sweep instead, so it only needs the stay.
+  const formFlexible = (tripType === "simple" || tripType === "ideas") && modeTakesStay && formApi.isFlexible();
   const formNights = rawNights !== null && modeTakesStay ? rawNights : null;
-  const stay: StayChoice | undefined = formNights !== null ? stayFromNights(formNights) : undefined;
+  const stay: StayChoice | undefined = formFlexible ? "flexible" : formNights !== null ? stayFromNights(formNights) : undefined;
   const outDate = refs.date.value || query.date;
+  // Flexible on an exact route keeps the return the user picked on the calendar (still in
+  // window and on/after the outbound), else leaves it unset so the results page proposes one.
+  const flexReturn = query.returnDate && query.returnDate >= outDate ? query.returnDate : undefined;
+  const returnDate =
+    mode !== "od" ? undefined : formFlexible ? flexReturn : formNights !== null ? returnAfterNights(outDate, formNights) : undefined;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
@@ -998,7 +1008,7 @@ function readQueryFromForm(): SearchQuery {
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
     stay,
-    returnDate: formNights !== null && mode === "od" ? returnAfterNights(outDate, formNights) : undefined,
+    returnDate,
     legs: legsMode
       ? formApi
           .getLegValues()
@@ -1248,6 +1258,7 @@ function repaintFormCalendar(): void {
     mount.append(
       render.calendarEl(neutralDays, calCtx, selected, {
         title: t("form_cal_title"),
+        hideTitle: true, // the collapsible header already reads "Quand partir ?" — don't repeat it
         neutral: true,
         hint: t("form_cal_hint"),
       }),
@@ -1261,23 +1272,23 @@ function repaintFormCalendar(): void {
     const { connOpts, passesVia } = odConnOptsFor(fq, o, d);
     if (!round) {
       cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
-      calOpts = { title: t("form_cal_title") };
+      calOpts = { title: t("form_cal_title"), hideTitle: true };
     } else if (nights === 0) {
       cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
-      calOpts = { title: t("form_cal_title"), count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
+      calOpts = { title: t("form_cal_title"), hideTitle: true, count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
     } else {
       cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
-      calOpts = { title: t("form_cal_title"), count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
+      calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }
   } else if (!round) {
     // Origin only, one-way: the days you can leave (connection-aware; count = destinations).
     cal = reachableCountCalendar(trains, o, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
-    calOpts = { title: t("form_cal_title"), count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+    calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
   } else {
     // Origin only, round / same-day: the days a getaway is possible — the same two-sweep
     // pass runGetaways uses, whose per-day sweeps are memoized, so a repaint is cheap.
     cal = getawayIdeas(trains, o, windowDates, getawayOptsFor(fq)).perDay;
-    calOpts = { title: t("form_cal_title"), count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+    calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
   }
   mount.append(render.calendarEl(cal, calCtx, selected, calOpts));
 }
@@ -2578,8 +2589,30 @@ function runTripSearch(c: RenderCtx): void {
   }
   for (let i = 1; i < retCal.length; i++) retCal[i]!.count = i; // nights = days after the outbound
   gradeNearby(retCal, destination, origin, retDates);
+  // Collapse-by-click for the return calendar, mirroring the outbound one: a FIXED stay
+  // collapses it behind a one-tap "Retour : … · Changer" summary (the return is derived, so
+  // re-showing the whole strip re-asks the date). FLEXIBLE keeps it OPEN — there the calendar
+  // IS the return-length control, so the user must see it to pick the day.
+  const retFlexible = query.stay === "flexible";
+  const retCalPanel = el("div", { class: "cal-panel" }, [retCalHost]);
+  const retCalToggle = el("button", {
+    class: "cal-toggle linklike",
+    type: "button",
+    attrs: { "aria-expanded": String(retFlexible) },
+    on: {
+      click: () => {
+        const opening = retCalPanel.hasAttribute("hidden");
+        retCalPanel.toggleAttribute("hidden", !opening);
+        retCalToggle.setAttribute("aria-expanded", String(opening));
+      },
+    },
+  });
+  const updateRetToggle = (retDate: string): void => {
+    retCalToggle.textContent = t("return_change", { date: formatDate(retDate) });
+  };
+  if (!retFlexible) retCalPanel.setAttribute("hidden", ""); // fixed stay: collapsed by default
   body1.append(
-    el("div", { class: "od-return-cal" }, [retCalHost]),
+    el("div", { class: "od-return-cal" }, retFlexible ? [retCalPanel] : [retCalToggle, retCalPanel]),
     el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]),
   );
   let selectReturn: (retDate: string) => void = () => {};
@@ -2645,19 +2678,26 @@ function runTripSearch(c: RenderCtx): void {
       }),
     );
     renderReturns(retDate);
+    updateRetToggle(retDate); // keep the collapsed summary ("Retour : … · Changer") in step
     if (refocus) retCalHost.querySelector<HTMLElement>(".cal-cell.sel")?.focus();
   };
   selectReturn = (retDate: string): void => {
     // A real user pick (day-click): persist the ACTUAL chosen return so reload / Back /
-    // Share carry it (replaceState) — the initial paint deliberately does not. Picking a
-    // return day also settles the stay onto the matching length (same day / N nights /
-    // Flexible beyond 3) so the "How long?" control stays truthful.
+    // Share carry it (replaceState) — the initial paint deliberately does not. In FLEXIBLE
+    // mode the stay stays "flexible" (the return calendar is the length control), and the
+    // stepper is seeded but hidden; a FIXED stay settles onto the matching length (same day
+    // / N nights / Flexible beyond 3) so the "How long?" control stays truthful.
     odReturnDate = retDate;
     const nights = Math.max(0, dayIndex(retDate) - dayIndex(query.date));
-    query = { ...query, returnDate: retDate, stay: stayFromNights(nights) };
-    // Repaint the stepper to the ACTUAL picked span (setStayNights, not setTripShape, so
-    // an N>3 pick shows the real count rather than a bare "Flexible").
-    formApi.setStayNights(nights);
+    if (retFlexible) {
+      query = { ...query, returnDate: retDate, stay: "flexible" };
+      formApi.setFlexible(nights);
+    } else {
+      query = { ...query, returnDate: retDate, stay: stayFromNights(nights) };
+      // Repaint the stepper to the ACTUAL picked span (setStayNights, not setTripShape, so
+      // an N>3 pick shows the real count rather than a bare "Flexible").
+      formApi.setStayNights(nights);
+    }
     store.updateUrl(query, formSnapshot());
     paintReturn(retDate);
     // The return list updates IN PLACE right where the calendar is — no scroll jump (a
@@ -2883,11 +2923,15 @@ function applyTripShape(shape: TripShape): void {
   repaintFormCalendar(); // the shape now means one-way vs round vs same-day → recolour the days
 }
 
-/** The "r" shortcut toggles the trip type — Aller simple ↔ Aller-retour. Turning the
- *  return on keeps the current nights count (Flexible preserves it); turning it off drops
- *  to a plain one-way. */
+/** The "r" shortcut toggles the trip type — Aller simple ↔ Aller-retour — keeping the
+ *  current nights count. It never lands on Flexible (that's a deliberate choice from the
+ *  nights control), so it toggles to a plain fixed-nights round trip. */
 function cycleTripShape(): void {
-  applyTripShape(formApi.getStayNights() !== null ? "oneway" : "flexible");
+  navStack = [];
+  formApi.toggleRound(); // flip one-way ↔ round trip in place, keeping the nights count
+  query = readQueryFromForm();
+  applyAndRun();
+  repaintFormCalendar(); // the shape now means one-way vs round → recolour the days
 }
 
 /** Run a fresh search from the current form (submit or "g" shortcut). */

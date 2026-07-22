@@ -937,6 +937,11 @@ export function calendarEl(
     /** A short line shown in place of (neutral) or after (normal) the availability legend —
      *  e.g. "pick a departure station…" on the form, or a fallback note. */
     hint?: string;
+    /** Render the heading visually hidden (sr-only) — it stays the grid's accessible label
+     *  (aria-labelledby) but shows no visible text, for when an outer collapsible header
+     *  already names the calendar (the home form's "Quand partir ?"), so the title isn't
+     *  written twice. Results-page calendars omit it and keep the visible <h3>. */
+    hideTitle?: boolean;
   },
 ): HTMLElement {
   const neutral = opts?.neutral === true;
@@ -1065,7 +1070,11 @@ export function calendarEl(
   for (let i = 0; i < 7; i++)
     dowHead.append(el("span", { class: "cal-dow-c", text: refMonday ? ctx.formatWeekday(addDays(refMonday, i)) : "" }));
   return el("section", { class: "calendar" }, [
-    el("h3", { text: opts?.title ?? t("cal_title"), attrs: { id: headingId } }),
+    el("h3", {
+      ...(opts?.hideTitle ? { class: "sr-only" } : {}),
+      text: opts?.title ?? t("cal_title"),
+      attrs: { id: headingId },
+    }),
     dowHead,
     grid,
     el("p", { class: "cal-legend muted", text: legend }),

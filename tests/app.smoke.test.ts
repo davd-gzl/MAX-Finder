@@ -577,6 +577,50 @@ describe("app (jsdom smoke)", () => {
     }
   });
 
+  it("collapses the return calendar by default for a fixed stay (collapse-by-click)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
+    );
+    // Same-day is a FIXED stay: the return is derived, so its calendar collapses behind a
+    // one-tap "Retour : … · Changer" summary (mirroring the outbound calendar).
+    const retStrip = root.querySelector(".od-return-cal");
+    expect(retStrip).not.toBeNull();
+    const toggle = retStrip!.querySelector(".cal-toggle") as HTMLElement | null;
+    expect(toggle).not.toBeNull();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
+    // Tapping the summary reveals the calendar to change the return day.
+    toggle!.click();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("keeps the return calendar open in Flexible mode (the return is picked there)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    // rt=round → Flexible: the return calendar IS the length control, so it stays open with
+    // no collapse toggle.
+    const retStrip = root.querySelector(".od-return-cal");
+    expect(retStrip).not.toBeNull();
+    expect(retStrip!.querySelector(".cal-toggle")).toBeNull();
+    expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
+  });
+
+  it("switches a fixed round trip to Flexible via the nights-control pill", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    // 2-night fixed stay: the Flexible pill is not pressed and the stepper is shown.
+    const flex = root.querySelector(".nights-flex") as HTMLElement | null;
+    expect(flex).not.toBeNull();
+    expect(flex!.getAttribute("aria-pressed")).toBe("false");
+    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).not.toBe("none");
+    flex!.click();
+    // Now Flexible: the pill is pressed, the fixed-nights stepper is hidden, and stay=flex.
+    expect(flex!.getAttribute("aria-pressed")).toBe("true");
+    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).toBe("none");
+    expect(new URLSearchParams(location.search).get("stay")).toBe("flex");
+  });
+
   it("links the calendars: clicking a departure day restarts the return calendar from it", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,

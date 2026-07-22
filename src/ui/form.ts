@@ -160,8 +160,16 @@ export interface FormHandle {
   setTripShape(shape: TripShape): void;
   /** Nights away for the round-trip stepper: `null` = one-way, else 0..N. */
   getStayNights(): number | null;
-  /** Repaint the toggle + stepper: `null` = one-way, else round trip with N nights. */
+  /** Repaint the toggle + stepper: `null` = one-way, else round trip with N nights.
+   *  Setting a concrete count leaves Flexible mode (it's a fixed stay). */
   setStayNights(n: number | null): void;
+  /** Is the round trip in Flexible mode (return picked on the calendar, no fixed nights)? */
+  isFlexible(): boolean;
+  /** Enter Flexible mode (round trip, return chosen on the calendar), optionally seeding the
+   *  internal nights count so the fixed stepper reads the real span if the user leaves it. */
+  setFlexible(n?: number | null): void;
+  /** 'r' shortcut: toggle One-way ↔ round trip, keeping the nights count (never Flexible). */
+  toggleRound(): void;
   getMultiMode(): "plan" | "legs";
   setMultiMode(mode: "plan" | "legs"): void;
   updateFieldVisibility(trip: TripType): void;
@@ -1102,6 +1110,10 @@ export function createForm(props: FormProps): FormHandle {
   // stepping the nights re-runs the search in place — no extra Search tap.
   let roundTrip = false;
   let nights = 1;
+  // Flexible: a round trip whose return you pick on the return calendar (Ulysse-style)
+  // instead of a fixed nights count. The stepper is hidden; the return calendar is the
+  // length control. Only meaningful while roundTrip is on.
+  let flexible = false;
   const NIGHTS_MAX = 10;
   const onewayBtn = el("button", {
     class: "trip-seg",
@@ -1142,9 +1154,20 @@ export function createForm(props: FormProps): FormHandle {
     text: "+",
     attrs: { "aria-label": t("stay_more_nights") },
   }) as HTMLButtonElement;
+  const nightsCtl = el("div", { class: "nights-ctl" }, [nightsMinus, nightsVal, nightsPlus]);
+  // "Flexible" pill beside the stepper: switches the round trip out of fixed-nights mode so
+  // the exact return day is chosen on the return calendar. Pressed = active; tapping it (or
+  // the stepper) toggles back to a fixed stay. Reuses the existing stay_flexible copy.
+  const flexToggle = el("button", {
+    class: "nights-flex",
+    type: "button",
+    text: t("stay_flexible"),
+    attrs: { "aria-pressed": "false", title: t("stay_flexible_hint") },
+  }) as HTMLButtonElement;
   const nightsField = el("div", { class: "nights-field" }, [
     el("span", { class: "nights-label muted", text: t("stay_nights_label") }),
-    el("div", { class: "nights-ctl" }, [nightsMinus, nightsVal, nightsPlus]),
+    nightsCtl,
+    flexToggle,
   ]);
   const nightsLabel = (n: number): string =>
     n <= 0 ? t("stay_sameday") : n === 1 ? t("stay_night_one") : t("stay_night_many", { n });
@@ -1155,6 +1178,11 @@ export function createForm(props: FormProps): FormHandle {
     roundBtn.classList.toggle("active", roundTrip);
     roundBtn.setAttribute("aria-pressed", String(roundTrip));
     nightsField.style.display = roundTrip ? "" : "none";
+    // Flexible hides the stepper (the return calendar is the length control) and lights the
+    // pill; a fixed stay shows the stepper and dims the pill.
+    nightsCtl.style.display = flexible ? "none" : "";
+    flexToggle.classList.toggle("active", flexible);
+    flexToggle.setAttribute("aria-pressed", String(flexible));
     nightsVal.textContent = nightsLabel(nights);
     nightsMinus.disabled = nights <= 0;
     nightsPlus.disabled = nights >= NIGHTS_MAX;
@@ -1163,23 +1191,41 @@ export function createForm(props: FormProps): FormHandle {
     departDate.setFlexVisible(!roundTrip);
     syncShapeThumb();
   };
-  /** The current shape as a TripShape (one-way, or the stay the nights imply). */
-  const currentShape = (): TripShape => (roundTrip ? stayFromNights(nights) : "oneway");
+  /** The current shape as a TripShape: one-way, Flexible (return picked on the calendar),
+   *  or the fixed stay the nights imply. */
+  const currentShape = (): TripShape => (!roundTrip ? "oneway" : flexible ? "flexible" : stayFromNights(nights));
   function setRound(on: boolean): void {
-    if (roundTrip === on) return;
+    // Clicking a segment also leaves Flexible: "Aller-retour" means a plain fixed-nights
+    // round trip, "Aller simple" means one-way — either way the calendar-pick mode ends.
+    if (roundTrip === on && !flexible) return;
     roundTrip = on;
+    flexible = false;
     syncTripShape();
     props.onTripShape(currentShape());
   }
   const stepNights = (delta: number): void => {
+    // Stepping the count is an explicit fixed-stay choice, so it exits Flexible.
+    flexible = false;
     const next = Math.max(0, Math.min(NIGHTS_MAX, nights + delta));
-    if (next === nights) return;
+    if (next === nights) {
+      syncTripShape();
+      props.onTripShape(currentShape());
+      return;
+    }
     nights = next;
+    syncTripShape();
+    props.onTripShape(currentShape());
+  };
+  const setFlex = (on: boolean): void => {
+    if (flexible === on) return;
+    flexible = on;
+    if (on) roundTrip = true; // Flexible is a kind of round trip
     syncTripShape();
     props.onTripShape(currentShape());
   };
   nightsMinus.addEventListener("click", () => stepNights(-1));
   nightsPlus.addEventListener("click", () => stepNights(1));
+  flexToggle.addEventListener("click", () => setFlex(!flexible));
   // The date field and the trip-type control ride together in one row, so the toggle +
   // stepper sit immediately beside the day you're picking (requirement 1).
   const tripShapeField = el("div", { class: "trip-shape-wrap" }, [tripToggle, nightsField]);
@@ -1199,11 +1245,14 @@ export function createForm(props: FormProps): FormHandle {
     attrs: { "aria-hidden": "true" },
     html: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
   });
-  const formCalBody = el("div", { class: "form-cal-body" }, [formCal]);
+  // Collapsed by default: the picked date shows in the header, and one tap opens the month
+  // to change it — so the form stays short on a phone (the compact date pill above is the
+  // always-there entry). Same collapse-by-click pattern as the results calendars.
+  const formCalBody = el("div", { class: "form-cal-body", attrs: { hidden: "" } }, [formCal]);
   const formCalToggle = el("button", {
     class: "form-cal-toggle",
     type: "button",
-    attrs: { "aria-expanded": "true" },
+    attrs: { "aria-expanded": "false" },
     on: {
       click: () => {
         const open = formCalBody.hasAttribute("hidden");
@@ -1219,7 +1268,7 @@ export function createForm(props: FormProps): FormHandle {
     ]),
     formCalChevron,
   ]);
-  const formCalBlock = el("div", { class: "form-cal-block" }, [formCalToggle, formCalBody]);
+  const formCalBlock = el("div", { class: "form-cal-block is-collapsed" }, [formCalToggle, formCalBody]);
   const region = el("select", { class: "input" }, [
     optionEl("", t("region_any"), true),
     ...props.regions.map((r) => optionEl(r, r, false)),
@@ -1583,10 +1632,13 @@ export function createForm(props: FormProps): FormHandle {
     setTripShape: (shape) => {
       if (shape === "oneway") {
         roundTrip = false;
+        flexible = false;
       } else if (shape === "flexible") {
-        roundTrip = true; // Flexible has no fixed length: keep the current nights count.
+        roundTrip = true; // Flexible has no fixed length: the return calendar is the control.
+        flexible = true;
       } else {
         roundTrip = true;
+        flexible = false;
         const n = stayNights(shape); // sameday → 0, n1/n2/n3 → 1/2/3
         if (n != null) nights = n;
       }
@@ -1594,12 +1646,28 @@ export function createForm(props: FormProps): FormHandle {
     },
     getStayNights: () => (roundTrip ? nights : null),
     setStayNights: (n) => {
+      // A concrete nights count is a fixed stay, so it leaves Flexible.
+      flexible = false;
       if (n === null) {
         roundTrip = false;
       } else {
         roundTrip = true;
         nights = Math.max(0, Math.min(NIGHTS_MAX, n));
       }
+      syncTripShape();
+    },
+    isFlexible: () => roundTrip && flexible,
+    setFlexible: (n) => {
+      roundTrip = true;
+      flexible = true;
+      if (n != null) nights = Math.max(0, Math.min(NIGHTS_MAX, n));
+      syncTripShape();
+    },
+    toggleRound: () => {
+      // 'r' shortcut: One-way ↔ round trip, keeping the internal nights count. It never
+      // targets Flexible (that's a deliberate choice from the nights control).
+      roundTrip = !roundTrip;
+      flexible = false;
       syncTripShape();
     },
     getMultiMode: () => multiMode,

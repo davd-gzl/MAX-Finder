@@ -720,6 +720,7 @@ a {
 .nights-field {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 .nights-label {
@@ -766,6 +767,39 @@ a {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   border-inline: 1px solid var(--border);
+}
+/* "Flexible" pill beside the stepper: pick the exact return day on the return calendar
+   instead of a fixed nights count. Pressed (active) = calendar-pick mode; matches the app's
+   rounded controls with a comfortable ≥40px tap height and never truncates at 390px. */
+.nights-flex {
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.nights-flex:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.nights-flex.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nights-flex {
+    transition: none;
+  }
 }
 /* On phones the toggle fills the row; the stepper keeps its comfortable tap targets and
    wraps under it. Text stays intact at ≤390px (zero truncation). */

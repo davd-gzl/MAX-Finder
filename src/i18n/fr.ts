@@ -317,6 +317,7 @@ export const fr = {
   stay_n2_aria: "2 nuits",
   stay_n3_aria: "3 nuits",
   stay_flexible: "Flexible",
+  stay_flexible_hint: "Choisir la date de retour sur le calendrier",
   // Nights stepper (shown for a round trip): label + the value text (0 → "Journée",
   // 1 → "1 nuit", N → "N nuits") + the −/+ button aria-labels.
   stay_nights_label: "Durée sur place",
@@ -328,6 +329,7 @@ export const fr = {
   act_book_ret: "Réserver le retour",
   trip_book_note: "Chaque trajet se réserve séparément sur SNCF Connect.",
   outbound_change: "Départ : {date} · Changer",
+  return_change: "Retour : {date} · Changer",
   mode_trip_label: "Type de trajet",
   daytrip_cal_hours: "{h} h sur place",
   cal_legend_hours: "nombre = heures sur place",
