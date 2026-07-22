@@ -342,4 +342,7 @@ export const zh: Dict = {
   form_cal_title: "何时出发？",
   form_cal_hint: "选择出发车站即可查看可用的日期。",
   form_cal_departed: "出发：{date}",
+  form_cal_flex_hint: "先选去程，再选返程",
+  form_cal_range: "去程：{from} → 返程：{to}",
+  form_cal_range_await: "去程：{from} — 选择返程",
 };

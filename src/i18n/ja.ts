@@ -342,4 +342,7 @@ export const ja: Dict = {
   form_cal_title: "いつ出発？",
   form_cal_hint: "出発駅を選ぶと空いている日が表示されます。",
   form_cal_departed: "出発：{date}",
+  form_cal_flex_hint: "往路を選び、次に復路を選択",
+  form_cal_range: "往路：{from} → 復路：{to}",
+  form_cal_range_await: "往路：{from} — 復路を選択",
 };

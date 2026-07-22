@@ -892,6 +892,7 @@ function buildSavedTrip(outbound: Journey, inbound?: Journey): store.SavedTrip {
 
 function syncFormFromQuery(): void {
   setSurpriseMsg(""); // a navigation clears any stale "surprise" notice
+  formRangeAwait = false; // a fresh sync ends any in-progress Flexible range pick
   tripType = tripTypeForQuery(query);
   // On the Multi tab, restore the surface the URL was serialized from: explicit legs
   // only ever come from the legs editor, while cities / a start / a finish only travel
@@ -935,8 +936,9 @@ function syncFormFromQuery(): void {
   refs.onlyNight.checked = Boolean(query.onlyNight);
   // The trip-type control mirrors the query: no stay → one-way (stepper hidden); a fixed
   // stay → round trip with N nights, taken from the concrete return span when present else
-  // from the stay choice; Flexible → the calendar-pick mode (stepper hidden, return
-  // calendar open), seeded with the concrete span so a switch to fixed reads the real count.
+  // from the stay choice; Flexible → the calendar-pick mode (stepper inert-but-in-place, the
+  // Trip-tab range calendar is the length control), seeded with the concrete span so a switch
+  // to fixed reads the real count.
   // These setters repaint the control WITHOUT firing a change event.
   if (query.stay === undefined) {
     formApi.setStayNights(null);
@@ -1204,6 +1206,11 @@ function refreshInPlace(reveal = false): void {
 
 // --- reactive home-form calendar --------------------------------------------
 
+// Flexible Trip-tab range picker: are we AWAITING the return tap (a departure was just
+// tapped)? Starts false so the FIRST tap sets a fresh departure even when the form already
+// carries one from a deep link / prior state; a departure tap arms it, the return tap (or a
+// shape change / navigation) clears it. See pickFormRange.
+let formRangeAwait = false;
 let formCalTimer = 0;
 /** Debounced repaint: origin typing fires per keystroke, and the origin-only round-trip
  *  sweep is the one heavy path — coalesce bursts so it runs once the value settles. */
@@ -1241,15 +1248,29 @@ function repaintFormCalendar(): void {
   const d = resolveStation(refs.destination.value);
   const nights = formApi.getStayNights(); // null = one-way, else 0..N
   const round = nights !== null;
+  // Flexible → the inline month becomes a departure→return RANGE picker (requirement 2):
+  // `selected` is the departure, `query.returnDate` (in window, on/after it) the return.
+  // No return yet ⇒ awaiting the second tap. Other shapes keep the single-date picker.
+  const flexRange = formApi.isFlexible();
   const selected = refs.date.value || query.date;
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+  const rangeEnd = flexRange && query.returnDate && query.returnDate >= selected ? query.returnDate : undefined;
+  const rangeOpt = flexRange ? { end: rangeEnd, awaiting: formRangeAwait } : undefined;
   // A query snapshot read purely to derive the SAME options the eventual search will use.
   const fq = readQueryFromForm();
 
-  // Keep the collapsed-header summary in step with the picked day.
-  refs.formCalPicked.textContent = selected ? t("form_cal_departed", { date: formatDate(selected) }) : "";
+  // Keep the collapsed-header summary in step with the picked day — in Flexible it spells
+  // out the two endpoints ("Aller: … → Retour: …") or prompts for the return.
+  if (flexRange) {
+    const dep = selected ? formatDate(selected) : "";
+    refs.formCalPicked.textContent = rangeEnd
+      ? t("form_cal_range", { from: dep, to: formatDate(rangeEnd) })
+      : t("form_cal_range_await", { from: dep });
+  } else {
+    refs.formCalPicked.textContent = selected ? t("form_cal_departed", { date: formatDate(selected) }) : "";
+  }
 
-  const calCtx: RenderCtx = { ...ctx(), onSelectDay: pickFormDay };
+  const calCtx: RenderCtx = { ...ctx(), onSelectDay: flexRange ? pickFormRange : pickFormDay };
   clear(mount);
 
   // Neutral month before an origin is chosen — plain, tappable, never a dead grid.
@@ -1273,10 +1294,12 @@ function repaintFormCalendar(): void {
     if (!round) {
       cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
       calOpts = { title: t("form_cal_title"), hideTitle: true };
-    } else if (nights === 0) {
+    } else if (nights === 0 && !flexRange) {
       cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
     } else {
+      // Flexible always shows round-trip availability (its return span is picked here),
+      // regardless of the inert stepper's seed count.
       cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }
@@ -1289,6 +1312,11 @@ function repaintFormCalendar(): void {
     // pass runGetaways uses, whose per-day sweeps are memoized, so a repaint is cheap.
     cal = getawayIdeas(trains, o, windowDates, getawayOptsFor(fq)).perDay;
     calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+  }
+  // In Flexible, overlay the departure→return range + the two-step prompt onto whichever
+  // availability calendar was built above.
+  if (rangeOpt && calOpts) {
+    calOpts = { ...calOpts, range: rangeOpt, hint: t("form_cal_flex_hint") };
   }
   mount.append(render.calendarEl(cal, calCtx, selected, calOpts));
 }
@@ -1309,6 +1337,44 @@ function pickFormDay(date: string): void {
     if (sameRoute && queryIsRenderable(query)) refreshInPlace();
     else applyAndRun();
   }
+  repaintFormCalendar();
+}
+
+/**
+ * A day tapped on the Flexible Trip-tab calendar, which is a departure→return RANGE picker
+ * (requirement 2). The phase is derived from `query.returnDate`: with no return yet the
+ * calendar is AWAITING the second tap, so a tap on/after the departure sets the return
+ * (query.returnDate) with stay "flexible" and — if the route is complete — runs the
+ * flexible round trip; a tap before the departure just restarts. Any tap once the range is
+ * complete restarts from a new departure. The two taps stay on the form, so the range is
+ * built inline before any navigation, and a third tap begins a fresh range.
+ */
+function pickFormRange(date: string): void {
+  const out = refs.date.value || query.date;
+  if (formRangeAwait && date >= out) {
+    // Second tap ≥ departure → the return: complete the range and run the flexible trip.
+    formRangeAwait = false;
+    query = { ...query, returnDate: date };
+    const fq = readQueryFromForm(); // reads query.returnDate → carries it as the flexible return
+    if (fq.origin && fq.destination) {
+      const sameRoute =
+        query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
+      query = fq;
+      if (sameRoute && queryIsRenderable(query)) refreshInPlace();
+      else applyAndRun();
+    } else {
+      query = fq; // incomplete route: just stage the range, nothing to render yet
+    }
+    repaintFormCalendar();
+    return;
+  }
+  // First tap (or a restart, or a tap before an armed departure) → the departure: stage it,
+  // drop any prior return, and arm for the return tap. Stays on the form so the range is
+  // completed inline.
+  formRangeAwait = true;
+  refs.date.value = date;
+  refs.departDate.setDate(date);
+  query = { ...query, date, returnDate: undefined };
   repaintFormCalendar();
 }
 
@@ -2685,7 +2751,7 @@ function runTripSearch(c: RenderCtx): void {
     // A real user pick (day-click): persist the ACTUAL chosen return so reload / Back /
     // Share carry it (replaceState) — the initial paint deliberately does not. In FLEXIBLE
     // mode the stay stays "flexible" (the return calendar is the length control), and the
-    // stepper is seeded but hidden; a FIXED stay settles onto the matching length (same day
+    // stepper is seeded but inert; a FIXED stay settles onto the matching length (same day
     // / N nights / Flexible beyond 3) so the "How long?" control stays truthful.
     odReturnDate = retDate;
     const nights = Math.max(0, dayIndex(retDate) - dayIndex(query.date));
@@ -2917,6 +2983,7 @@ function switchMultiMode(mode: "plan" | "legs"): void {
  */
 function applyTripShape(shape: TripShape): void {
   navStack = [];
+  formRangeAwait = false; // changing the shape ends any in-progress Flexible range pick
   formApi.setTripShape(shape); // repaint the control (a click already did; the shortcut hasn't)
   query = readQueryFromForm();
   applyAndRun();
@@ -2928,6 +2995,7 @@ function applyTripShape(shape: TripShape): void {
  *  nights control), so it toggles to a plain fixed-nights round trip. */
 function cycleTripShape(): void {
   navStack = [];
+  formRangeAwait = false; // 'r' leaves Flexible → end any in-progress range pick
   formApi.toggleRound(); // flip one-way ↔ round trip in place, keeping the nights count
   query = readQueryFromForm();
   applyAndRun();

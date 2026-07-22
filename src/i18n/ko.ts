@@ -343,4 +343,7 @@ export const ko: Dict = {
   form_cal_title: "언제 떠날까요?",
   form_cal_hint: "출발역을 선택하면 이용 가능한 날짜가 표시됩니다.",
   form_cal_departed: "출발: {date}",
+  form_cal_flex_hint: "가는 날을 고른 뒤 오는 날을 선택",
+  form_cal_range: "가는 날: {from} → 오는 날: {to}",
+  form_cal_range_await: "가는 날: {from} — 오는 날 선택",
 };

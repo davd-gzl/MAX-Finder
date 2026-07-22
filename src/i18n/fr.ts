@@ -358,6 +358,10 @@ export const fr = {
   form_cal_title: "Quand partir ?",
   form_cal_hint: "Choisissez une gare de départ pour voir les jours disponibles.",
   form_cal_departed: "Départ : {date}",
+  // Flexible: the inline calendar becomes a departure→return range picker.
+  form_cal_flex_hint: "Choisissez l'aller, puis le retour",
+  form_cal_range: "Aller : {from} → Retour : {to}",
+  form_cal_range_await: "Aller : {from} — choisissez le retour",
 };
 
 export type Dict = typeof fr;

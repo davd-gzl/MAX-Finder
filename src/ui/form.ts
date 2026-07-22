@@ -1114,9 +1114,9 @@ export function createForm(props: FormProps): FormHandle {
   // stepping the nights re-runs the search in place — no extra Search tap.
   let roundTrip = false;
   let nights = 1;
-  // Flexible: a round trip whose return you pick on the return calendar (Ulysse-style)
-  // instead of a fixed nights count. The stepper is hidden; the return calendar is the
-  // length control. Only meaningful while roundTrip is on.
+  // Flexible: a round trip whose return you pick on the calendar (Ulysse-style) instead of
+  // a fixed nights count. The stepper stays in place but goes inert (dimmed); the Trip-tab
+  // range calendar is the length control. Only meaningful while roundTrip is on.
   let flexible = false;
   const NIGHTS_MAX = 10;
   const onewayBtn = el("button", {
@@ -1184,14 +1184,16 @@ export function createForm(props: FormProps): FormHandle {
     roundBtn.classList.toggle("active", roundTrip);
     roundBtn.setAttribute("aria-pressed", String(roundTrip));
     nightsField.style.display = roundTrip ? "" : "none";
-    // Flexible hides the stepper (the return calendar is the length control) and lights the
-    // pill; a fixed stay shows the stepper and dims the pill.
-    nightsCtl.style.display = flexible ? "none" : "";
+    // Flexible keeps the fixed-nights stepper IN PLACE but inert (dimmed), so toggling it
+    // never moves the "Durée sur place" label or reflows the row (requirement 1: no layout
+    // jump). The calendar range is the length control while Flexible is on; the pill lights.
+    nightsCtl.classList.toggle("is-inert", flexible);
     flexToggle.classList.toggle("active", flexible);
     flexToggle.setAttribute("aria-pressed", String(flexible));
     nightsVal.textContent = nightsLabel(nights);
-    nightsMinus.disabled = nights <= 0;
-    nightsPlus.disabled = nights >= NIGHTS_MAX;
+    // The −/+ buttons go inert with the stepper in Flexible; otherwise clamp at the ends.
+    nightsMinus.disabled = flexible || nights <= 0;
+    nightsPlus.disabled = flexible || nights >= NIGHTS_MAX;
     // The possible-days / return calendars ARE the flexibility surface once a return is
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(!roundTrip);

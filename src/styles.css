@@ -763,6 +763,13 @@ a {
   opacity: 0.4;
   cursor: default;
 }
+/* Flexible keeps the stepper in place but inert (dimmed), so toggling Flexible never
+   moves the label or reflows the row — the footprint is identical whether it's on or off
+   (only the Flexible pill lights up). */
+.nights-ctl.is-inert {
+  opacity: 0.45;
+  pointer-events: none;
+}
 .nights-val {
   display: inline-flex;
   align-items: center;
@@ -2103,6 +2110,23 @@ a {
   outline: 2px solid var(--text);
   outline-offset: 1px;
 }
+/* Departure→return range on the Flexible Trip-tab calendar: the days between the two
+   picked endpoints (which keep the .sel outline) get a soft accent fill; .preview is the
+   live hover band while the return is being chosen. A non-.ok day in range still reads
+   as part of the span, so the accent fill wins over the plain "no" look. */
+.cal-cell.range,
+.cal-cell.preview {
+  /* A clearly stronger tint than .ok (accent-soft ≈ 13%), so the departure→return span
+     reads as a distinct connected band between the two solid endpoints (Ulysse-style),
+     not just more available days. */
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  font-weight: 680;
+}
+.cal-cell.preview {
+  border-color: var(--accent);
+}
 .cal-legend {
   margin: 0.3rem 0 0;
   font-size: 0.78rem;
@@ -3305,7 +3329,7 @@ select.input::-ms-expand {
   color: var(--text);
   font-family: var(--font-mono);
 }
-.cal-cell:not(.ok):not(.near):not(.near-both):not(.sel) {
+.cal-cell:not(.ok):not(.near):not(.near-both):not(.sel):not(.range):not(.preview) {
   color: var(--muted);
   opacity: 0.5;
 }
@@ -3317,6 +3341,21 @@ select.input::-ms-expand {
   border-style: solid;
   border-color: transparent;
   color: var(--brand-ink);
+}
+/* Departure→return range band: a clearly stronger tint than .ok (accent-soft), so the
+   span between the two solid endpoints reads as a distinct connected band (Ulysse-style),
+   even on a non-available day. */
+.cal-cell.range,
+.cal-cell.preview {
+  background: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  border-style: solid;
+  border-color: transparent;
+  color: var(--brand-ink);
+  font-weight: 680;
+  opacity: 1;
+}
+.cal-cell.preview {
+  border-color: var(--accent);
 }
 .cal-cell.sel {
   background: var(--btn);
