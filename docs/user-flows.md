@@ -17,17 +17,22 @@ search (`deriveMode` in `src/app.ts`; dispatch in `renderSearch`).
 | **Multi-city** (`multi`) | legs or cities | `tour` | a multi-stop tour |
 | **Ideas** (`ideas`) | From | `best` | best destinations, ranked |
 
-The **"How long?" / stay control** sits beside the date — a wrapping chip row that IS the
-whole trip-type choice, framed by time at destination: **Just going · Same day · 1 night ·
-2 · 3 · Flexible** (FR: Juste l'aller · Journée · 1 nuit · 2 · 3 · Flexible). *Just going* =
-a plain one-way (no return); *Same day* = a day trip (metric = hours on site); *N nights* =
-a round trip with that fixed stay (the return is auto-derived as departure + N, adjustable
-on the return calendar); *Flexible* = a round trip whose return you pick on the return
-calendar. Day-vs-round is self-evident from the pick — there is no separate day/round
-toggle, and no glossary blurb. `r` steps through the chips; `1/2/3` switch tabs. Picking a
-chip re-runs in place (no second Search tap when origin + destination + date are set).
-Legacy `?rt=day` / `?rt=round` / `?rdate=` deep links still resolve (rt=day or rdate==date →
-Same day; a later rdate → the matching nights, or Flexible beyond 3).
+The **trip-type control** sits beside the date: an **`Aller simple` / `Aller-retour`**
+(one-way / round trip) segmented toggle — the same sliding-pill style as the main tabs.
+When *Aller-retour* is on, a **nights stepper** appears — `[ − ] N [ + ]` with a "Durée sur
+place" label — where **0 = "Journée"** (a same-day round trip, metric = hours on site) and
+**N = N nights** at the destination (the return is derived as departure + N, adjustable on
+the return calendar). The stepper is hidden for one-way. `r` toggles one-way ↔ round trip;
+`1/2/3` switch tabs. Toggling or stepping re-runs in place (no second Search tap when
+origin + destination + date are set). Legacy `?rt=day` / `?rt=round` / `?rdate=` deep links
+still resolve (rt=day or rdate==date → round trip, stepper on 0; a later rdate → the matching
+nights). Internally the stay maps to the same `StayChoice` model (`sameday`/`n1..n3`, or an
+explicit return date beyond 3 nights).
+
+**Max correspondances** (0 / 1 / 2 / 3 / no limit) is a **main-form field**, not buried in
+Advanced. **Night trains are included by default.** On the results screen, once a specific
+date is chosen the possible-days calendar is **collapsed by default** (one tap to reveal
+other dates); it stays expanded only during discovery (no exact date/destination yet).
 
 ## Trip tab
 
