@@ -116,6 +116,23 @@ The audit found everything traces to **3 root causes**:
    names; `refreshInPlace` saves/restores `window.scrollY` but results live in
    `.drawer-scroll`, so a date/chip tap updates silently below the fold.
 
+### Refined build direction (David, latest)
+
+**The possible-days calendar stays — but hides by default once a date is chosen.**
+- Seeing all possible departure dates on a calendar is genuinely useful, *especially with
+  no arrival chosen* (discovery: you're picking where to go, and the calendar of feasible
+  days is valuable). So it is never deleted.
+- But if you've just selected a date, **hide it by default** (collapsed, one tap to
+  reveal/change) so it doesn't feel like the date was asked twice.
+- Net: date selected → calendar collapsed by default (expandable to change the day / see
+  all possible dates); no destination / discovery → calendar shown (it's the useful tool).
+
+**Ticket flow = the multi-legs pattern (David likes it).** Select a time (outbound), then
+select a time (return), and it **combines into one full travel-flow recap**, exactly like
+the multi-city legs view. So don't fight the accordion — make the round trip use the same
+"pick each leg's time → combine → see the whole trip" flow the multi-legs already has, and
+end on a combined recap/booking screen.
+
 ### Round-trip verdict: MERGE (matches David's direction)
 
 Day trip is literally a 0-night round trip. Collapse the segments to **One-way / Round
