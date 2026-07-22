@@ -598,21 +598,28 @@ export function getawayCityRowEl(
   trip: Getaway,
   ctx: RenderCtx,
   stat: { days: number; windowDays: number },
-  opts: { metric?: string } = {},
+  opts: { metric?: string; openTo?: string } = {},
 ): HTMLElement {
-  const origin = trip.outbound.origin;
-  const route: RoutePair = { origin, destination: trip.destination };
+  // Normal getaway: the card names `trip.destination` (where you go) and opens the route
+  // origin → destination. REVERSE discovery (opts.openTo set): `trip.destination` is the
+  // discovered ORIGIN we're listing, and the route opens that origin → the fixed target
+  // the user typed (openTo) — so a destination-only round trip lists "where can I come
+  // from" and tapping opens the real O → D trip.
+  const named = trip.destination; // the station shown on the card
+  const routeOrigin = opts.openTo != null ? named : trip.outbound.origin;
+  const routeDest = opts.openTo != null ? opts.openTo : trip.destination;
+  const route: RoutePair = { origin: routeOrigin, destination: routeDest };
   const summary = t("stat_day_month", { day: stat.days, month: stat.windowDays });
   const main = el(
     "button",
     {
       class: "dest-main",
       type: "button",
-      attrs: { "aria-label": `${ctx.label(trip.destination)} — ${opts.metric ?? summary}` },
-      on: { click: () => ctx.onOpenRoute(origin, trip.destination) },
+      attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? summary}` },
+      on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest) },
     },
     [
-      stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
+      stationNameEl("dest-name", named, ctx.label(named)),
       el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
         // The mode's headline metric (hours on site / nights away) leads, so places
         // compare on what the mode is about; the days/window chip follows.
@@ -627,7 +634,7 @@ export function getawayCityRowEl(
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
-  return el("article", { class: "group-card", dataset: { station: trip.destination } }, [
+  return el("article", { class: "group-card", dataset: { station: named } }, [
     el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
   ]);
 }

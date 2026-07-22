@@ -52,9 +52,22 @@ await page.waitForFunction(
 );
 await new Promise((r) => setTimeout(r, 500));
 
-const html = await page.evaluate(() => "<!doctype html>\n" + document.documentElement.outerHTML);
+let html = await page.evaluate(() => "<!doctype html>\n" + document.documentElement.outerHTML);
 await browser.close();
 server.close();
+
+// The segmented-control sliding pills (.mode-tab-thumb) are positioned by JS from the
+// LIVE layout (offsetLeft/Width), so the inline styles captured here are pinned to the
+// prerender viewport — on a phone that bakes a too-wide pill (e.g. 353px on a ~320px
+// control) that then visibly jumps/animates into place when the app hydrates ("first
+// screen looks buggy on load"). Strip the baked geometry AND the has-thumb / animate-thumb
+// flags so the static paint shows the plain active segment (highlighted by its CSS
+// fallback background); hydration re-adds the pill, correctly placed for the real
+// viewport, with no initial animation.
+html = html
+  .replace(/(<span class="mode-tab-thumb"[^>]*?)\s+style="[^"]*"/g, "$1")
+  .replace(/(class="[^"]*?)\s+has-thumb\b/g, "$1")
+  .replace(/(class="[^"]*?)\s+animate-thumb\b/g, "$1");
 
 const failures = [];
 if (html.length < 20000) failures.push(`prerendered HTML is only ${html.length} bytes`);

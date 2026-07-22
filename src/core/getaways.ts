@@ -1,5 +1,5 @@
 import type { MaxTrain, Journey, CalendarDay } from "../types";
-import { findJourneys, reachableJourneys, latestReturns, journeyArriveAbs, type ConnectionOptions } from "./connections";
+import { findJourneys, reachableJourneys, latestReturns, reachableInto, journeyArriveAbs, type ConnectionOptions } from "./connections";
 import { stationsOnDate } from "./best";
 import { addDays } from "../util/time";
 
@@ -208,6 +208,50 @@ export function getawaysAcrossWindow(
     perDay.push({ date, available: count > 0, count });
   }
   return { trips: [...byDest.values()].sort(sortGetaways), perDay, datesByDest };
+}
+
+/**
+ * REVERSE round-trip discovery: "I want to reach `destination` and come back — from
+ * where can I round-trip to it?". The mirror of {@link getawayIdeas}: instead of a fixed
+ * origin fanning out to destinations, this fixes the DESTINATION and finds every ORIGIN
+ * that has a feasible free-MAX round trip O → destination → O (same-day or an N-night
+ * stay) starting each day in `dates`. Candidate origins are the stations that can reach
+ * `destination` that day ({@link reachableInto}); each is scored with the tested
+ * {@link bestGetawayTo} in the O → destination direction. The result is a
+ * {@link GetawaySweep} whose trips are RELABELLED so `.destination` names the discovered
+ * ORIGIN (the station listed on each card, its outbound still O → destination), and whose
+ * per-day counts / `datesByDest` are keyed by that origin — so the existing getaway list
+ * and calendar render it directly. `accept` optionally filters origins.
+ */
+export function reverseGetawayIdeas(
+  trains: MaxTrain[],
+  destination: string,
+  dates: string[],
+  opts: GetawayOptions = {},
+  accept: (origin: string) => boolean = () => true,
+): GetawaySweep {
+  const byOrigin = new Map<string, Getaway>();
+  const datesByDest = new Map<string, string[]>(); // keyed by the discovered origin
+  const perDay: CalendarDay[] = [];
+  for (const date of dates) {
+    // Stations that can reach the destination on this day are the only candidate origins.
+    const candidates = reachableInto(trains, destination, date, opts);
+    const startable = new Set<string>();
+    for (const origin of candidates.keys()) {
+      if (origin === destination || !accept(origin)) continue;
+      const g = bestGetawayTo(trains, origin, destination, date, opts);
+      if (!g) continue;
+      startable.add(origin);
+      // Relabel so `.destination` names the ORIGIN we're listing (its outbound is still
+      // origin → destination), letting the standard getaway row/calendar render it.
+      const relabeled: Getaway = { ...g, destination: origin };
+      const cur = byOrigin.get(origin);
+      if (!cur || betterGetaway(relabeled, cur)) byOrigin.set(origin, relabeled);
+    }
+    for (const origin of startable) pushDate(datesByDest, origin, date);
+    perDay.push({ date, available: startable.size > 0, count: startable.size });
+  }
+  return { trips: [...byOrigin.values()].sort(sortGetaways), perDay, datesByDest };
 }
 
 /**

@@ -3111,6 +3111,17 @@ select.input::-ms-expand {
 .has-thumb > .mode-tab-thumb {
   opacity: 1;
 }
+/* Before the JS thumb is placed (the prerendered static paint, or any pre-hydration
+   frame) the active segment would otherwise have no fill — the pill IS the highlight.
+   Give the active segment a matching surface background until `.has-thumb` takes over,
+   so the first paint shows a correct, non-broken highlight instead of a bare label. */
+.mode-tabs:not(.has-thumb) > .mode-tab.active,
+.trip-toggle:not(.has-thumb) > .trip-seg.active,
+.multi-switch:not(.has-thumb) > .multi-tab.active {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(27, 38, 32, 0.08);
+}
 .animate-thumb > .mode-tab-thumb {
   transition:
     transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),

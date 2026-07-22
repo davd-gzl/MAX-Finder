@@ -1647,7 +1647,7 @@ export function createForm(props: FormProps): FormHandle {
       } else {
         roundTrip = true;
         flexible = false;
-        const n = stayNights(shape); // sameday → 0, n1/n2/n3 → 1/2/3
+        const n = stayNights(shape); // sameday → 0, `n${N}` → N (any N)
         if (n != null) nights = n;
       }
       syncTripShape();

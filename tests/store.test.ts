@@ -1,6 +1,41 @@
 import { describe, it, expect } from "vitest";
 import type { SearchQuery } from "../src/types";
 import { queryToParams, queryFromParams } from "../src/state/store";
+import { stayFromNights, stayNights } from "../src/core/roundtrip";
+
+describe("stay choice: fixed N nights are decoupled from Flexible (bug: stepper stuck at 4)", () => {
+  it("stayFromNights maps ANY N>3 to a FIXED n-night stay, never Flexible", () => {
+    expect(stayFromNights(0)).toBe("sameday");
+    expect(stayFromNights(1)).toBe("n1");
+    expect(stayFromNights(3)).toBe("n3");
+    // The old bug: stayFromNights(4) returned "flexible", which the form then read as
+    // Flexible mode and disabled the stepper. A fixed 4-night stay must stay fixed.
+    expect(stayFromNights(4)).toBe("n4");
+    expect(stayFromNights(7)).toBe("n7");
+    expect(stayFromNights(10)).toBe("n10");
+    for (let n = 4; n <= 10; n++) expect(stayFromNights(n)).not.toBe("flexible");
+  });
+
+  it("stayNights inverts a fixed N-night stay for any N", () => {
+    expect(stayNights("sameday")).toBe(0);
+    expect(stayNights("n4")).toBe(4);
+    expect(stayNights("n10")).toBe(10);
+    expect(stayNights("flexible")).toBeNull();
+  });
+
+  it("serializes a fixed N>3 stay to the URL and parses it back unchanged (not Flexible)", () => {
+    for (const stay of ["n4", "n5", "n7", "n10"] as const) {
+      const params = queryToParams({ mode: "od", date: "2026-06-25", card: "jeune", maxConnections: 1, stay } as SearchQuery);
+      expect(params.get("stay")).toBe(stay.slice(1)); // n4 → "4"
+      const back = queryFromParams(params, "2026-06-25");
+      expect(back.stay).toBe(stay); // round-trips as the SAME fixed stay, not "flexible"
+    }
+    // Flexible still serializes as flex.
+    const flex = queryToParams({ mode: "od", date: "2026-06-25", card: "jeune", maxConnections: 1, stay: "flexible" } as SearchQuery);
+    expect(flex.get("stay")).toBe("flex");
+    expect(queryFromParams(flex, "2026-06-25").stay).toBe("flexible");
+  });
+});
 
 describe("URL deep-link round-trip", () => {
   it("preserves every field through serialize -> parse", () => {

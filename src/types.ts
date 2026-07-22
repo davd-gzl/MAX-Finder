@@ -8,11 +8,16 @@ export type SearchMode = "from" | "to" | "od" | "best" | "tour";
 
 /**
  * The "How long?" / stay choice — the whole trip-type control. `"sameday"` is a day
- * trip (hours on site); `"n1"`/`"n2"`/`"n3"` are round trips with that many nights;
- * `"flexible"` is a round trip whose return you pick on the return calendar. (One-way
- * is the absence of a stay, i.e. `SearchQuery.stay === undefined`.)
+ * trip (hours on site); `` `n${N}` `` (n1, n2, … n10 …) is a FIXED round trip with
+ * that many nights; `"flexible"` is a round trip whose return you pick on the return
+ * calendar. (One-way is the absence of a stay, i.e. `SearchQuery.stay === undefined`.)
+ *
+ * A fixed N-night stay is deliberately decoupled from Flexible: any N (not just 1–3)
+ * is a fixed stay, so the nights stepper is usable across its whole range and never
+ * collapses a long fixed stay into Flexible mode. Only the Flexible pill sets
+ * `"flexible"`.
  */
-export type StayChoice = "sameday" | "n1" | "n2" | "n3" | "flexible";
+export type StayChoice = "sameday" | "flexible" | `n${number}`;
 
 /**
  * A raw record as published by the SNCF `tgvmax` Open Data dataset.
