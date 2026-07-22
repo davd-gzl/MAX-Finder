@@ -639,6 +639,19 @@ describe("app (jsdom smoke)", () => {
     expect(retStrip).not.toBeNull();
     expect(retStrip!.querySelector(".cal-toggle")).toBeNull();
     expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
+    // Bug regression: the RETURN LEG accordion (Leg 2) must itself start OPEN in Flexible —
+    // if it were collapsed (like a fixed stay), the return calendar would sit at zero height
+    // inside it and be untappable on touch ("can't select the return date in Flexible on
+    // mobile"). It is only reachable/tappable when the leg is expanded.
+    const returnLeg = retStrip!.closest(".mc-result");
+    expect(returnLeg).not.toBeNull();
+    expect(returnLeg!.classList.contains("mc-collapsed")).toBe(false);
+    // A fixed round trip, by contrast, keeps Leg 2 collapsed until an outbound is picked.
+    const fixed = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    const fixedReturnLeg = fixed.querySelectorAll(".mc-result")[1];
+    expect(fixedReturnLeg?.classList.contains("mc-collapsed")).toBe(true);
   });
 
   it("switches a fixed round trip to Flexible via the nights-control pill", () => {
