@@ -309,9 +309,11 @@ await scenario(
     assert(["1 night", "1 nuit"].includes(stepperText), `nights stepper should read one night (got '${stepperText}')`);
     // Two-leg accordion (Aller / Retour), each a collapsible .mc-result section.
     assert((await $count(page, ".mc-result")) === 2, "expected a two-leg accordion (outbound + return)");
-    // The return calendar is shown; the outbound one is collapsed behind a toggle.
-    assert((await $count(page, ".cal-grid")) >= 1, "expected the return availability calendar");
-    assert((await $count(page, ".cal-toggle")) >= 1, "expected the collapsed outbound-calendar toggle");
+    // Both possible-days calendars (outbound + return) are collapse-by-click: for a FIXED
+    // 1-night stay each is collapsed behind its own "Départ / Retour : … · Changer" toggle,
+    // so at least two calendar grids and two toggles exist in the DOM.
+    assert((await $count(page, ".cal-grid")) >= 2, "expected the outbound + return availability calendars");
+    assert((await $count(page, ".cal-toggle")) >= 2, "expected both collapsed-calendar toggles");
   },
 );
 

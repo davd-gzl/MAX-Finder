@@ -87,13 +87,15 @@ describe("app (jsdom smoke)", () => {
     // Only reachable via a connection (Bordeaux) that day.
     expect(root.querySelector(".chip-via")).not.toBeNull();
     expect(text).toContain("Bordeaux");
-    // The 30-day route availability calendar is rendered.
-    const routeCal = root.querySelector(".cal-grid");
+    // The 30-day route availability calendar is rendered in the RESULTS panel. (The Trip
+    // tab's form now also carries a reactive availability calendar as its date picker, so
+    // these assertions scope to `.results` to target the results strip specifically.)
+    const routeCal = root.querySelector(".results .cal-grid");
     expect(routeCal).not.toBeNull();
     expect(routeCal!.querySelectorAll(".cal-cell").length).toBe(30);
     // A one-way exact-trip shows no "come back?" section — only the round trip does.
     expect(root.querySelector(".od-return")).toBeNull();
-    expect(root.querySelectorAll(".cal-grid").length).toBe(1);
+    expect(root.querySelectorAll(".results .cal-grid").length).toBe(1);
   });
 
   it("shows the outbound + return availability calendars together for a round-trip deep-link", () => {
@@ -106,8 +108,8 @@ describe("app (jsdom smoke)", () => {
     const retStrip = root.querySelector(".od-return-cal");
     expect(retStrip).not.toBeNull();
     expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
-    // Two calendar strips visible at once: outbound + return.
-    expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
+    // Two calendar strips visible at once in the results: outbound + return.
+    expect(root.querySelectorAll(".results .cal-grid").length).toBeGreaterThanOrEqual(2);
     // The return TRAIN list sits in its own section below.
     expect(root.querySelector(".od-return")).not.toBeNull();
   });
@@ -517,7 +519,7 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
     // Outbound + return availability strips together, and the return train list below.
     expect(root.querySelector(".od-return-cal .cal-grid")).not.toBeNull();
-    expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
+    expect(root.querySelectorAll(".results .cal-grid").length).toBeGreaterThanOrEqual(2);
     expect(root.querySelector(".od-return")).not.toBeNull();
     // Both legs render as the multi-city accordion stepper (two ✓-collapsible legs).
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
@@ -573,6 +575,50 @@ describe("app (jsdom smoke)", () => {
       expect(p.get("stay")).toBeTruthy();
       expect(p.get("rdate")).toBeTruthy();
     }
+  });
+
+  it("collapses the return calendar by default for a fixed stay (collapse-by-click)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
+    );
+    // Same-day is a FIXED stay: the return is derived, so its calendar collapses behind a
+    // one-tap "Retour : … · Changer" summary (mirroring the outbound calendar).
+    const retStrip = root.querySelector(".od-return-cal");
+    expect(retStrip).not.toBeNull();
+    const toggle = retStrip!.querySelector(".cal-toggle") as HTMLElement | null;
+    expect(toggle).not.toBeNull();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
+    // Tapping the summary reveals the calendar to change the return day.
+    toggle!.click();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("keeps the return calendar open in Flexible mode (the return is picked there)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    // rt=round → Flexible: the return calendar IS the length control, so it stays open with
+    // no collapse toggle.
+    const retStrip = root.querySelector(".od-return-cal");
+    expect(retStrip).not.toBeNull();
+    expect(retStrip!.querySelector(".cal-toggle")).toBeNull();
+    expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
+  });
+
+  it("switches a fixed round trip to Flexible via the nights-control pill", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    // 2-night fixed stay: the Flexible pill is not pressed and the stepper is shown.
+    const flex = root.querySelector(".nights-flex") as HTMLElement | null;
+    expect(flex).not.toBeNull();
+    expect(flex!.getAttribute("aria-pressed")).toBe("false");
+    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).not.toBe("none");
+    flex!.click();
+    // Now Flexible: the pill is pressed, the fixed-nights stepper is hidden, and stay=flex.
+    expect(flex!.getAttribute("aria-pressed")).toBe("true");
+    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).toBe("none");
+    expect(new URLSearchParams(location.search).get("stay")).toBe("flex");
   });
 
   it("links the calendars: clicking a departure day restarts the return calendar from it", () => {

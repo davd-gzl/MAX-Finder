@@ -305,6 +305,7 @@ export const es: Dict = {
   stay_n2_aria: "2 noches",
   stay_n3_aria: "3 noches",
   stay_flexible: "Flexible",
+  stay_flexible_hint: "Elige la fecha de vuelta en el calendario",
   stay_nights_label: "Tiempo en destino",
   stay_night_one: "1 noche",
   stay_night_many: "{n} noches",
@@ -314,6 +315,7 @@ export const es: Dict = {
   act_book_ret: "Reservar la vuelta",
   trip_book_note: "Cada trayecto se reserva por separado en SNCF Connect.",
   outbound_change: "Salida: {date} · Cambiar",
+  return_change: "Vuelta: {date} · Cambiar",
   mode_trip_label: "Tipo de viaje",
   daytrip_cal_hours: "{h} h en destino",
   cal_legend_hours: "número = horas en destino",
@@ -338,4 +340,7 @@ export const es: Dict = {
   glossary_roundtrip: "Ida y vuelta: ir y volver en días distintos (noches fuera).",
   glossary_daytrip: "En el día: ir y volver el mismo día (horas en destino).",
   senior_weekend_return_warn: "MAX SENIOR es solo entre semana — tu vuelta cae en fin de semana y no puede reservarse gratis.",
+  form_cal_title: "¿Cuándo salir?",
+  form_cal_hint: "Elige una estación de salida para ver qué días hay disponibles.",
+  form_cal_departed: "Salida: {date}",
 };

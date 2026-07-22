@@ -304,6 +304,7 @@ export const nl: Dict = {
   stay_n2_aria: "2 nachten",
   stay_n3_aria: "3 nachten",
   stay_flexible: "Flexibel",
+  stay_flexible_hint: "Kies de terugreisdatum in de kalender",
   stay_nights_label: "Tijd ter plaatse",
   stay_night_one: "1 nacht",
   stay_night_many: "{n} nachten",
@@ -313,6 +314,7 @@ export const nl: Dict = {
   act_book_ret: "Terugreis boeken",
   trip_book_note: "Elke rit wordt apart geboekt op SNCF Connect.",
   outbound_change: "Vertrek: {date} · Wijzigen",
+  return_change: "Terugreis: {date} · Wijzigen",
   mode_trip_label: "Type reis",
   daytrip_cal_hours: "{h} u ter plaatse",
   cal_legend_hours: "getal = uren ter plaatse",
@@ -337,4 +339,7 @@ export const nl: Dict = {
   glossary_roundtrip: "Retour: heen en terug op verschillende dagen (nachten weg).",
   glossary_daytrip: "Dagtrip: heen en terug op dezelfde dag (uren ter plaatse).",
   senior_weekend_return_warn: "MAX SENIOR geldt alleen doordeweeks — je terugreis valt in het weekend en is niet gratis te boeken.",
+  form_cal_title: "Wanneer vertrekken?",
+  form_cal_hint: "Kies een vertrekstation om te zien welke dagen beschikbaar zijn.",
+  form_cal_departed: "Vertrek: {date}",
 };

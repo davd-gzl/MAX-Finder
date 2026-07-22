@@ -305,6 +305,7 @@ export const ko: Dict = {
   stay_n2_aria: "2박",
   stay_n3_aria: "3박",
   stay_flexible: "유연하게",
+  stay_flexible_hint: "달력에서 돌아오는 날짜 선택",
   stay_nights_label: "현지 체류 기간",
   stay_night_one: "1박",
   stay_night_many: "{n}박",
@@ -314,6 +315,7 @@ export const ko: Dict = {
   act_book_ret: "오는 편 예약",
   trip_book_note: "각 구간은 SNCF Connect에서 따로 예약합니다.",
   outbound_change: "출발: {date} · 변경",
+  return_change: "돌아오기: {date} · 변경",
   mode_trip_label: "여행 유형",
   daytrip_cal_hours: "현지 {h}시간",
   cal_legend_hours: "숫자 = 현지 체류 시간",
@@ -338,4 +340,7 @@ export const ko: Dict = {
   glossary_roundtrip: "왕복: 다른 날에 갔다가 돌아오기(숙박).",
   glossary_daytrip: "당일치기: 같은 날 갔다가 돌아오기(현지 체류 시간).",
   senior_weekend_return_warn: "MAX SENIOR는 평일 전용입니다 — 돌아오는 날이 주말이라 무료 예약이 안 됩니다.",
+  form_cal_title: "언제 떠날까요?",
+  form_cal_hint: "출발역을 선택하면 이용 가능한 날짜가 표시됩니다.",
+  form_cal_departed: "출발: {date}",
 };

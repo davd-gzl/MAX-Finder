@@ -304,6 +304,7 @@ export const ja: Dict = {
   stay_n2_aria: "2泊",
   stay_n3_aria: "3泊",
   stay_flexible: "自由",
+  stay_flexible_hint: "カレンダーで復路の日付を選択",
   stay_nights_label: "滞在期間",
   stay_night_one: "1泊",
   stay_night_many: "{n}泊",
@@ -313,6 +314,7 @@ export const ja: Dict = {
   act_book_ret: "復路を予約",
   trip_book_note: "各区間は SNCF Connect で個別に予約します。",
   outbound_change: "出発：{date} · 変更",
+  return_change: "復路：{date} · 変更",
   mode_trip_label: "旅行タイプ",
   daytrip_cal_hours: "現地 {h} 時間",
   cal_legend_hours: "数字 = 現地滞在時間",
@@ -337,4 +339,7 @@ export const ja: Dict = {
   glossary_roundtrip: "往復：別の日に行って戻る（宿泊あり）。",
   glossary_daytrip: "日帰り：同じ日に行って戻る（現地滞在時間）。",
   senior_weekend_return_warn: "MAX SENIOR は平日限定です — 復路が週末のため無料予約できません。",
+  form_cal_title: "いつ出発？",
+  form_cal_hint: "出発駅を選ぶと空いている日が表示されます。",
+  form_cal_departed: "出発：{date}",
 };

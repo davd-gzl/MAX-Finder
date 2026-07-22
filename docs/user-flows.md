@@ -22,12 +22,43 @@ The **trip-type control** sits beside the date: an **`Aller simple` / `Aller-ret
 When *Aller-retour* is on, a **nights stepper** appears — `[ − ] N [ + ]` with a "Durée sur
 place" label — where **0 = "Journée"** (a same-day round trip, metric = hours on site) and
 **N = N nights** at the destination (the return is derived as departure + N, adjustable on
-the return calendar). The stepper is hidden for one-way. `r` toggles one-way ↔ round trip;
-`1/2/3` switch tabs. Toggling or stepping re-runs in place (no second Search tap when
-origin + destination + date are set). Legacy `?rt=day` / `?rt=round` / `?rdate=` deep links
-still resolve (rt=day or rdate==date → round trip, stepper on 0; a later rdate → the matching
-nights). Internally the stay maps to the same `StayChoice` model (`sameday`/`n1..n3`, or an
-explicit return date beyond 3 nights).
+the return calendar). Beside the stepper is a **"Flexible" pill**: tapping it switches the
+round trip out of fixed-nights mode so you pick the **exact return day on the return
+calendar** (Ulysse-style) — the stepper is hidden while Flexible is active, the pill reads
+pressed, and the form's stay becomes `flexible`. Tapping the stepper or a segment leaves
+Flexible again. The stepper (and the pill) are hidden for one-way. `r` toggles one-way ↔
+round trip (keeping the nights count, never Flexible); `1/2/3` switch tabs. Toggling,
+stepping, or picking Flexible re-runs in place (no second Search tap when origin +
+destination + date are set). Legacy `?rt=day` / `?rt=round` / `?rdate=` deep links still
+resolve (rt=day or rdate==date → round trip, stepper on 0; a later rdate → the matching
+nights; `rt=round` or an rdate more than 3 nights out → Flexible). Internally the stay maps
+to the `StayChoice` model (`sameday`/`n1..n3`/`flexible`); Flexible carries its explicit
+return date on `query.returnDate` (URL `stay=flex` + `rdate`).
+
+The **Trip tab's date picker is a live availability calendar on the form itself**
+(`repaintFormCalendar` in `src/app.ts`, painted into `refs.formCalendar` via
+`render.calendarEl`). It sits under the date + trip-shape row behind a one-tap
+**"When to leave?"** header (which also shows the picked departure) and is **collapsed by
+default** so the form stays short on a phone — one tap opens the month to change the day.
+The header names the calendar once (the in-body `<h3>` is rendered `sr-only` via
+`calendarEl`'s `hideTitle`, so "When to leave?" isn't written twice). It **recomputes whenever origin,
+destination, the Aller simple / Aller-retour toggle, or the nights stepper change**, so a
+green day always means *a trip is possible that day* for the current choice:
+
+| State | Builder (reused) | Green means |
+|-------|------------------|-------------|
+| no origin yet | — (neutral month) | any day, tappable — with a "pick a departure station" hint |
+| origin + dest, one-way | `availabilityCalendar` | a departure exists that day (count = trains) |
+| origin + dest, same day (0 nights) | `dayTripCalendar` | a same-day there-and-back works (count = hours on site) |
+| origin + dest, N nights | `roundTripCalendar` | an N-night round trip is feasible (count = nights) |
+| origin only, one-way | `reachableCountCalendar` | you can leave that day (count = destinations) |
+| origin only, round / same day | `getawayIdeas().perDay` | a getaway is possible that day (count = destinations) |
+
+Tapping a green day sets the departure (`query.date` + the form's date field); with both
+endpoints filled it also shows/refreshes that day's trip in place. It reuses the same option
+helpers (`odConnOptsFor` / `getawayOptsFor`) as the real search, so the per-day journey
+sweeps hit the warm memo caches; origin typing is debounced. The compact date pill above it
+stays as the exact-date / ±flex keyboard entry for power users.
 
 **Max correspondances** (0 / 1 / 2 / 3 / no limit) is a **main-form field**, not buried in
 Advanced. **Night trains are included by default.** On the results screen, once a specific
@@ -50,8 +81,11 @@ other dates); it stays expanded only during discovery (no exact date/destination
    - **Leg 2 Return** opens (gently revealed only if below the fold — a calendar tap never
      scrolls the drawer up) — a return calendar whose **first cell is the same day** (hours
      on site), later cells are nights at the destination, pre-selected to the stay's return.
-     A fixed N-night stay derives the return with no second question; Flexible picks it here.
-     Pick a return →
+     For a **fixed** N-night stay the return is derived with no second question, so its
+     calendar is **collapsed by default** behind a "Return: <date> · Change" toggle (same
+     `.cal-collapsible` / `.cal-toggle` / `.cal-panel` pattern as the outbound one). In
+     **Flexible** mode the return calendar **stays open** (it is the return-length control):
+     tapping a day sets `query.returnDate` and keeps the stay `flexible`. Pick a return →
    - **Trip modal** = booking recap: an unmistakable per-leg action — "Book the outbound" /
      "Book the return" (each deep-links SNCF Connect; a connecting leg opens the step modal)
      — plus Save the whole trip. Back inside the accordion re-opens the outbound before it

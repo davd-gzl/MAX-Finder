@@ -305,6 +305,7 @@ export const de: Dict = {
   stay_n2_aria: "2 Nächte",
   stay_n3_aria: "3 Nächte",
   stay_flexible: "Flexibel",
+  stay_flexible_hint: "Rückreisedatum im Kalender wählen",
   stay_nights_label: "Zeit vor Ort",
   stay_night_one: "1 Nacht",
   stay_night_many: "{n} Nächte",
@@ -314,6 +315,7 @@ export const de: Dict = {
   act_book_ret: "Rückfahrt buchen",
   trip_book_note: "Jede Fahrt wird separat auf SNCF Connect gebucht.",
   outbound_change: "Abfahrt: {date} · Ändern",
+  return_change: "Rückfahrt: {date} · Ändern",
   mode_trip_label: "Reiseart",
   daytrip_cal_hours: "{h} Std. vor Ort",
   cal_legend_hours: "Zahl = Stunden vor Ort",
@@ -338,4 +340,7 @@ export const de: Dict = {
   glossary_roundtrip: "Hin- und Rückfahrt: hin und zurück an verschiedenen Tagen (Nächte vor Ort).",
   glossary_daytrip: "Tagesausflug: hin und zurück am selben Tag (Stunden vor Ort).",
   senior_weekend_return_warn: "MAX SENIOR gilt nur werktags — Ihre Rückfahrt fällt auf ein Wochenende und ist nicht kostenlos buchbar.",
+  form_cal_title: "Wann losfahren?",
+  form_cal_hint: "Wählen Sie einen Abfahrtsbahnhof, um verfügbare Tage zu sehen.",
+  form_cal_departed: "Abfahrt: {date}",
 };

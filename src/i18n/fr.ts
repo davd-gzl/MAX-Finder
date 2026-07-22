@@ -317,6 +317,7 @@ export const fr = {
   stay_n2_aria: "2 nuits",
   stay_n3_aria: "3 nuits",
   stay_flexible: "Flexible",
+  stay_flexible_hint: "Choisir la date de retour sur le calendrier",
   // Nights stepper (shown for a round trip): label + the value text (0 → "Journée",
   // 1 → "1 nuit", N → "N nuits") + the −/+ button aria-labels.
   stay_nights_label: "Durée sur place",
@@ -328,6 +329,7 @@ export const fr = {
   act_book_ret: "Réserver le retour",
   trip_book_note: "Chaque trajet se réserve séparément sur SNCF Connect.",
   outbound_change: "Départ : {date} · Changer",
+  return_change: "Retour : {date} · Changer",
   mode_trip_label: "Type de trajet",
   daytrip_cal_hours: "{h} h sur place",
   cal_legend_hours: "nombre = heures sur place",
@@ -352,6 +354,10 @@ export const fr = {
   glossary_roundtrip: "Aller-retour : là-bas et retour un autre jour (nuits sur place).",
   glossary_daytrip: "Aller-retour dans la journée : là-bas et retour le même jour (heures sur place).",
   senior_weekend_return_warn: "MAX SENIOR est valable en semaine — votre retour tombe un week-end et ne peut pas être réservé gratuitement.",
+  // The reactive availability calendar on the home form (the Trip tab's date picker).
+  form_cal_title: "Quand partir ?",
+  form_cal_hint: "Choisissez une gare de départ pour voir les jours disponibles.",
+  form_cal_departed: "Départ : {date}",
 };
 
 export type Dict = typeof fr;

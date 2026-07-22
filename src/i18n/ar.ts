@@ -304,6 +304,7 @@ export const ar: Dict = {
   stay_n2_aria: "ليلتان",
   stay_n3_aria: "3 ليالٍ",
   stay_flexible: "مرن",
+  stay_flexible_hint: "اختر تاريخ العودة من التقويم",
   stay_nights_label: "مدة الإقامة",
   stay_night_one: "ليلة واحدة",
   stay_night_many: "{n} ليالٍ",
@@ -313,6 +314,7 @@ export const ar: Dict = {
   act_book_ret: "احجز الإياب",
   trip_book_note: "يُحجز كل مقطع على حدة عبر SNCF Connect.",
   outbound_change: "المغادرة: {date} · تغيير",
+  return_change: "العودة: {date} · تغيير",
   mode_trip_label: "نوع الرحلة",
   daytrip_cal_hours: "{h} ساعة هناك",
   cal_legend_hours: "الرقم = ساعات هناك",
@@ -337,4 +339,7 @@ export const ar: Dict = {
   glossary_roundtrip: "ذهاب وإياب: الذهاب والعودة في أيام مختلفة (مبيت).",
   glossary_daytrip: "رحلة يومية: الذهاب والعودة في نفس اليوم (ساعات المكوث).",
   senior_weekend_return_warn: "MAX SENIOR صالحة أيام الأسبوع فقط — عودتك في نهاية الأسبوع ولا يمكن حجزها مجانًا.",
+  form_cal_title: "متى تسافر؟",
+  form_cal_hint: "اختر محطة انطلاق لعرض الأيام المتاحة.",
+  form_cal_departed: "المغادرة: {date}",
 };
