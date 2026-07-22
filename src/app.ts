@@ -1098,6 +1098,16 @@ function proposedReturn(depart: string): string {
 }
 
 function applyAndRun(): void {
+  // If we're leaving the bare home/form page — no query in the URL and no form snapshot on
+  // the entry yet — stamp it (same URL, we only add state) with the staged form so a
+  // browser Back returns with the departure/destination/filters still filled instead of a
+  // wiped form ("even if you come back it gets deleted"). Guard on BOTH: an entry with a
+  // query in its URL owns a real page (a deep-linked or prior search) whose form Back must
+  // restore verbatim — stamping it with the form we're switching TO would corrupt it. The
+  // results entry pushed below carries its own snapshot for Forward.
+  if (!store.urlHasQuery() && !formStateFrom(history.state)) {
+    history.replaceState(formSnapshot(), "", location.href);
+  }
   // Push a browser history entry so the native Back button returns to the prior page,
   // stashing a snapshot of the live form on the entry so a gesture-Back / popstate can
   // restore the exact form that produced this page instead of wiping it (state

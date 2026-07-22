@@ -36,9 +36,11 @@ other dates); it stays expanded only during discovery (no exact date/destination
 
 ## Trip tab
 
-1. **From + To, One-way** → exact one-way trip (`runOdSearch`). A 30-day availability
-   calendar for the route + the selected day's train list. Tap a green day to move; tap a
-   train to book (direct → deep link; connecting → step-by-step).
+1. **From + To, One-way** → exact one-way trip (`runOdSearch`). The 30-day availability
+   calendar is **collapsed by default** behind a "Departure: <date> · Change" toggle (the
+   date is already chosen; the strip only re-appears on tap), above the selected day's train
+   list. Tap a green day to move; tap a train to book (direct → deep link; connecting →
+   step-by-step).
 2. **From + To, a stay chosen** → the round-trip flow (`runTripSearch`). Two-leg accordion,
    with linked calendars:
    - **Leg 1 Outbound** — possible-days calendar collapsed as "Departure: <date> · Change"
