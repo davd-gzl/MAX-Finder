@@ -23,9 +23,11 @@ When *Aller-retour* is on, a **nights stepper** appears — `[ − ] N [ + ]` wi
 place" label — where **0 = "Journée"** (a same-day round trip, metric = hours on site) and
 **N = N nights** at the destination (the return is derived as departure + N, adjustable on
 the return calendar). Beside the stepper is a **"Flexible" pill**: tapping it switches the
-round trip out of fixed-nights mode so you pick the **exact return day on the return
-calendar** (Ulysse-style) — the stepper is hidden while Flexible is active, the pill reads
-pressed, and the form's stay becomes `flexible`. Tapping the stepper or a segment leaves
+round trip out of fixed-nights mode so you pick the **exact departure and return on the
+Trip-tab calendar** (Ulysse-style). While Flexible is active the fixed-nights stepper stays
+**in place but inert (dimmed, buttons disabled)** rather than being removed — so toggling
+Flexible never moves the "Durée sur place" label or reflows the row (no layout jump); only
+the pill lights up. The form's stay becomes `flexible`. Tapping the stepper or a segment leaves
 Flexible again. The stepper (and the pill) are hidden for one-way. `r` toggles one-way ↔
 round trip (keeping the nights count, never Flexible); `1/2/3` switch tabs. Toggling,
 stepping, or picking Flexible re-runs in place (no second Search tap when origin +
@@ -59,6 +61,20 @@ endpoints filled it also shows/refreshes that day's trip in place. It reuses the
 helpers (`odConnOptsFor` / `getawayOptsFor`) as the real search, so the per-day journey
 sweeps hit the warm memo caches; origin typing is debounced. The compact date pill above it
 stays as the exact-date / ±flex keyboard entry for power users.
+
+**In Flexible mode the same inline calendar becomes a departure→return RANGE picker**
+(`pickFormRange`, driven by `calendarEl`'s `range` option). The **first tap sets the
+departure** and arms the calendar for the return (`formRangeAwait`); the **next tap on/after
+it sets the return** — `query.returnDate` with `stay: "flexible"` — and (route complete) runs
+the flexible round trip in place, while an earlier tap just restarts. A **third tap begins a
+fresh range**. The days between the two picked endpoints (both `.sel`) get a `.range` band,
+and while the return is being chosen hovering previews the pending span (`.preview`).
+Availability is shown exactly as the single-date calendar (round-trip feasibility). The
+collapsed header spells out the two endpoints ("Aller: … → Retour: …", or a "choose the
+return" prompt); `syncFormFromQuery` restores the highlighted range from `stay=flex` +
+`rdate`. Fixed-nights and one-way modes keep the single-date departure picker; only Flexible
+turns on range selection. The results-page return calendar still handles the return too —
+this only adds the pick on the **first page**.
 
 **Max correspondances** (0 / 1 / 2 / 3 / no limit) is a **main-form field**, not buried in
 Advanced. **Night trains are included by default.** On the results screen, once a specific

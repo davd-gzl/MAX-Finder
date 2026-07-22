@@ -342,4 +342,7 @@ export const pt: Dict = {
   form_cal_title: "Quando partir?",
   form_cal_hint: "Escolha uma estação de partida para ver os dias disponíveis.",
   form_cal_departed: "Partida: {date}",
+  form_cal_flex_hint: "Escolha a ida e depois a volta",
+  form_cal_range: "Ida: {from} → Volta: {to}",
+  form_cal_range_await: "Ida: {from} — escolha a volta",
 };

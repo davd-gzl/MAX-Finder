@@ -942,6 +942,11 @@ export function calendarEl(
      *  already names the calendar (the home form's "Quand partir ?"), so the title isn't
      *  written twice. Results-page calendars omit it and keep the visible <h3>. */
     hideTitle?: boolean;
+    /** Departure→return RANGE overlay (the Flexible Trip-tab picker): `selected` is the
+     *  departure; `end` the picked return. Both endpoints read selected and the days
+     *  strictly between are highlighted as a range. `awaiting` (departure chosen, no return
+     *  yet) turns on a live hover preview of the pending range so the two-step is legible. */
+    range?: { end?: string; awaiting?: boolean };
   },
 ): HTMLElement {
   const neutral = opts?.neutral === true;
@@ -984,13 +989,35 @@ export function calendarEl(
     dest.setAttribute("tabindex", "0");
     dest.focus();
   });
+  // While the return is being picked (departure chosen, awaiting the second tap), hovering a
+  // day previews the pending departure→return band, so the two-step range reads clearly.
+  if (opts?.range?.awaiting && selected) {
+    const out = selected;
+    grid.addEventListener("mouseover", (e) => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cal-cell");
+      const hover = cell?.getAttribute("data-date");
+      if (!hover) return;
+      for (const c of grid.querySelectorAll<HTMLElement>(".cal-cell")) {
+        const cd = c.getAttribute("data-date");
+        c.classList.toggle("preview", Boolean(cd) && cd! > out && cd! <= hover);
+      }
+    });
+    grid.addEventListener("mouseleave", () => {
+      for (const c of grid.querySelectorAll<HTMLElement>(".cal-cell")) c.classList.remove("preview");
+    });
+  }
   const first = days[0]?.date ?? "";
   const leading = first ? (new Date(`${first}T00:00:00`).getDay() + 6) % 7 : 0;
   for (let i = 0; i < leading; i++) grid.append(el("span", { class: "cal-blank", attrs: { "aria-hidden": "true" } }));
   let anyNearby = false;
   let anyBoth = false;
+  // Departure→return range overlay (Flexible Trip-tab picker): both endpoints read
+  // selected, the days strictly between get a `range` band.
+  const rangeEnd = opts?.range?.end;
   for (const d of days) {
-    const sel = d.date === selected ? " sel" : "";
+    const sel = d.date === selected || (rangeEnd !== undefined && d.date === rangeEnd) ? " sel" : "";
+    const inRange =
+      opts?.range && selected && rangeEnd && d.date > selected && d.date < rangeEnd ? " range" : "";
     // Four states: free seat on the exact route (ok); reachable by substituting one
     // endpoint with a nearby station (near); only by substituting both ends
     // (near-both); or nothing (no). The last two are radius-search only. NB: these
@@ -1025,7 +1052,7 @@ export function calendarEl(
     const cell = el(
       "button",
       {
-        class: `cal-cell ${state}${sel}`,
+        class: `cal-cell ${state}${sel}${inRange}`,
         type: "button",
         title: label,
         attrs: {
@@ -1035,6 +1062,7 @@ export function calendarEl(
           "aria-label": label,
           role: "gridcell",
           tabindex: "-1",
+          "data-date": d.date,
           ...(sel ? { "aria-current": "date" } : {}),
         },
         on: { click: () => ctx.onSelectDay(d.date) },

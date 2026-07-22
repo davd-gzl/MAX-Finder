@@ -355,4 +355,7 @@ export const en: Dict = {
   form_cal_title: "When to leave?",
   form_cal_hint: "Choose a departure station to see which days are available.",
   form_cal_departed: "Departure: {date}",
+  form_cal_flex_hint: "Pick the outbound, then the return",
+  form_cal_range: "Departure: {from} → Return: {to}",
+  form_cal_range_await: "Departure: {from} — pick the return",
 };

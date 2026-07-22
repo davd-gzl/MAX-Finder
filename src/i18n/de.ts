@@ -343,4 +343,7 @@ export const de: Dict = {
   form_cal_title: "Wann losfahren?",
   form_cal_hint: "Wählen Sie einen Abfahrtsbahnhof, um verfügbare Tage zu sehen.",
   form_cal_departed: "Abfahrt: {date}",
+  form_cal_flex_hint: "Erst die Hinfahrt, dann die Rückfahrt wählen",
+  form_cal_range: "Hin: {from} → Rück: {to}",
+  form_cal_range_await: "Hin: {from} — Rückfahrt wählen",
 };

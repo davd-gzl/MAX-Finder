@@ -342,4 +342,7 @@ export const nl: Dict = {
   form_cal_title: "Wanneer vertrekken?",
   form_cal_hint: "Kies een vertrekstation om te zien welke dagen beschikbaar zijn.",
   form_cal_departed: "Vertrek: {date}",
+  form_cal_flex_hint: "Kies de heenreis, dan de terugreis",
+  form_cal_range: "Heen: {from} → Terug: {to}",
+  form_cal_range_await: "Heen: {from} — kies de terugreis",
 };

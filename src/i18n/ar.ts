@@ -342,4 +342,7 @@ export const ar: Dict = {
   form_cal_title: "متى تسافر؟",
   form_cal_hint: "اختر محطة انطلاق لعرض الأيام المتاحة.",
   form_cal_departed: "المغادرة: {date}",
+  form_cal_flex_hint: "اختر الذهاب ثم العودة",
+  form_cal_range: "الذهاب: {from} ← العودة: {to}",
+  form_cal_range_await: "الذهاب: {from} — اختر العودة",
 };

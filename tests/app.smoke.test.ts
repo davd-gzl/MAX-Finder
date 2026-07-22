@@ -609,16 +609,92 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
     );
-    // 2-night fixed stay: the Flexible pill is not pressed and the stepper is shown.
+    // 2-night fixed stay: the Flexible pill is not pressed and the stepper is active.
     const flex = root.querySelector(".nights-flex") as HTMLElement | null;
     expect(flex).not.toBeNull();
     expect(flex!.getAttribute("aria-pressed")).toBe("false");
-    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).not.toBe("none");
+    expect((root.querySelector(".nights-ctl") as HTMLElement).classList.contains("is-inert")).toBe(false);
     flex!.click();
-    // Now Flexible: the pill is pressed, the fixed-nights stepper is hidden, and stay=flex.
+    // Now Flexible: the pill is pressed and stay=flex.
     expect(flex!.getAttribute("aria-pressed")).toBe("true");
-    expect((root.querySelector(".nights-ctl") as HTMLElement).style.display).toBe("none");
     expect(new URLSearchParams(location.search).get("stay")).toBe("flex");
+  });
+
+  it("keeps the nights stepper IN PLACE (inert, not removed) when Flexible toggles — no reflow", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,
+    );
+    const wrap = root.querySelector(".nights-field") as HTMLElement;
+    const ctl = root.querySelector(".nights-ctl") as HTMLElement;
+    const label = root.querySelector(".nights-label") as HTMLElement;
+    const flex = root.querySelector(".nights-flex") as HTMLElement;
+    const steps = Array.from(root.querySelectorAll<HTMLButtonElement>(".nights-step"));
+    // Fixed stay: the stepper is present, active, and its buttons are live.
+    expect(ctl.style.display).not.toBe("none");
+    expect(ctl.classList.contains("is-inert")).toBe(false);
+    expect(steps.some((b) => !b.disabled)).toBe(true);
+    // The "Durée sur place" label and the stepper are in the DOM before the toggle.
+    expect(label.isConnected).toBe(true);
+    const stepCountBefore = steps.length;
+    flex.click(); // → Flexible
+    // The stepper is STILL present (never removed → no layout jump), just inert/dimmed,
+    // and its −/+ buttons are disabled. The label hasn't moved (same field, same order).
+    expect(ctl.isConnected).toBe(true);
+    expect(ctl.style.display).not.toBe("none");
+    expect(ctl.classList.contains("is-inert")).toBe(true);
+    expect(root.querySelectorAll(".nights-step").length).toBe(stepCountBefore);
+    expect(Array.from(root.querySelectorAll<HTMLButtonElement>(".nights-step")).every((b) => b.disabled)).toBe(true);
+    // Label + controls keep their order inside .nights-field (label first, then controls).
+    expect(wrap.firstElementChild).toBe(label);
+    // Back to a fixed stay: the stepper is live again.
+    flex.click();
+    expect((root.querySelector(".nights-ctl") as HTMLElement).classList.contains("is-inert")).toBe(false);
+  });
+
+  it("Flexible turns the Trip-tab calendar into a departure→return range picker", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
+    );
+    // rt=round → Flexible. Open the inline "Quand partir ?" calendar on the form.
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
+    const cellFor = (day: number): HTMLElement | undefined =>
+      Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell")).find((c) => Number(dayOf(c)) === day);
+    // First tap = the departure (28). No return yet, so it's the sole selected endpoint
+    // and no day carries the range band yet (staged inline, no navigation).
+    cellFor(28)!.click();
+    expect(cellFor(28)!.classList.contains("sel")).toBe(true);
+    expect(Array.from(block.querySelectorAll(".form-cal-body .cal-cell.range")).length).toBe(0);
+    // Second tap on a LATER day = the return (30): sets rdate and highlights the in-between.
+    cellFor(30)!.click();
+    const params = new URLSearchParams(location.search);
+    expect(params.get("stay")).toBe("flex");
+    expect(params.get("date")).toBe("2026-06-28");
+    expect(params.get("rdate")).toBe("2026-06-30");
+    // The days strictly between the endpoints carry the range band; 29 is in range.
+    expect(cellFor(29)!.classList.contains("range")).toBe(true);
+    // Both endpoints read selected.
+    expect(cellFor(28)!.classList.contains("sel")).toBe(true);
+    expect(cellFor(30)!.classList.contains("sel")).toBe(true);
+  });
+
+  it("restores the Flexible range from the query on sync (stay=flex + rdate)", () => {
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=flex&rdate=2026-06-28`,
+    );
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
+    const cellFor = (day: number): HTMLElement | undefined =>
+      Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell")).find((c) => Number(dayOf(c)) === day);
+    // The stored range (25 → 28) is repainted: both ends selected, the middle days banded.
+    expect(cellFor(25)!.classList.contains("sel")).toBe(true);
+    expect(cellFor(28)!.classList.contains("sel")).toBe(true);
+    expect(cellFor(26)!.classList.contains("range")).toBe(true);
+    expect(cellFor(27)!.classList.contains("range")).toBe(true);
+    // The collapsed header spells out both endpoints.
+    expect((root.querySelector(".form-cal-picked") as HTMLElement).textContent).toContain("→");
   });
 
   it("links the calendars: clicking a departure day restarts the return calendar from it", () => {
