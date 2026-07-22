@@ -944,6 +944,10 @@ export function createForm(props: FormProps): FormHandle {
     // The reactive availability calendar is the Trip tab's date picker only — other tabs
     // date their trips differently (per-leg, per-tour-plan, or the Ideas day strip).
     formCalBlock.style.display = simple ? "" : "none";
+    // On the Trip tab the calendar IS the date picker, so the separate "DATE" field is
+    // redundant and hidden (departDate still backs query.date under the hood). Other tabs
+    // keep it as their date input.
+    dateField.style.display = simple ? "none" : "";
     // Destination is an endpoint in single trips and the optional finish in a tour plan.
     destinationField.style.display = single || plan ? "" : "none";
     destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
@@ -1164,10 +1168,12 @@ export function createForm(props: FormProps): FormHandle {
     text: t("stay_flexible"),
     attrs: { "aria-pressed": "false", title: t("stay_flexible_hint") },
   }) as HTMLButtonElement;
+  // Stepper + Flexible pill share one control group so they stay on the SAME line (the
+  // label sits to their left, or wraps above them together as a unit on a narrow phone).
+  const nightsControls = el("div", { class: "nights-controls" }, [nightsCtl, flexToggle]);
   const nightsField = el("div", { class: "nights-field" }, [
     el("span", { class: "nights-label muted", text: t("stay_nights_label") }),
-    nightsCtl,
-    flexToggle,
+    nightsControls,
   ]);
   const nightsLabel = (n: number): string =>
     n <= 0 ? t("stay_sameday") : n === 1 ? t("stay_night_one") : t("stay_night_many", { n });
