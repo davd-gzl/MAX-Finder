@@ -133,7 +133,29 @@ the multi-city legs view. So don't fight the accordion — make the round trip u
 "pick each leg's time → combine → see the whole trip" flow the multi-legs already has, and
 end on a combined recap/booking screen.
 
-### Round-trip verdict: MERGE (matches David's direction)
+### SUPERSEDED after testing — a single "How long?" control + linked calendars
+
+David tested the fully-merged single-return-calendar flow and it was NOT intuitive: you
+couldn't easily choose how long to stay, and explaining day-vs-round in a text blurb was a
+smell. New confirmed direction (this supersedes the MERGE section below):
+
+- **One "How long?" control** up front is the whole choice: **Same day · 1 night · 2 · 3 ·
+  Flexible**. Same day = day trip (hours on site); N nights = round trip with that stay;
+  Flexible = pick the return day on the return calendar. This replaces the One-way/Round-trip
+  segments' day-vs-round ambiguity with an explicit, intuitive stay length. (One-way stays a
+  separate choice — e.g. the tab / a "one-way" option.)
+- **Departure calendar** (Ulysse-style): pick when to go and see how many options each day
+  has (availability count per day). Selectable early.
+- **Linked calendars**: clicking a departure day **updates the return calendar to start from
+  that day** (departure + N nights, or a full return calendar when Flexible). "Click the
+  first cell, it updates the other."
+- **Delete the "Aller-retour ou journée ?" glossary blurb** — the control makes it
+  self-evident; make the distinction real in the UI, not in explanatory text.
+- Also fix: French field labels / select options that clip on mobile (wrap them — ZERO
+  truncation), and losing departure/destination when navigating back (persist form state
+  across popstate / browser-back, not just the in-app back button).
+
+### Round-trip verdict: MERGE (matches David's direction) — SUPERSEDED, see above
 
 Day trip is literally a 0-night round trip. Collapse the segments to **One-way / Round
 trip**. Ask the **departure date once** (form). Build **one return calendar starting at
