@@ -284,23 +284,25 @@ await scenario(
 );
 
 // 10. Legacy od + rdate deep-link opens the Trip tab with the ROUND-TRIP segment on —
-//     the trip-shape control (One-way / Day trip / Round trip) sits by the date, and a
-//     later return date resolves to the Round trip segment. Both legs render as a
-//     two-step accordion (outbound possible-days calendar + return-day calendar).
+//     the trip-shape control is now One-way / Round trip (day trip merged in as the
+//     same-day return), so a later return date resolves to the Round trip segment
+//     (the 2nd button). Both legs render as a two-step accordion; the outbound
+//     possible-days calendar is collapsed by default, the return calendar shown.
 await scenario(
   "deep-link: od + rdate opens the Trip tab with the Round-trip segment on",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${RT_DATE}&rdate=${RT_DATE2}`,
   async (page) => {
     assert((await activeTrip(page)) === "simple", "active tab should be 'simple' (Trip)");
-    // The 3-segment control's third button (Round trip) must read as pressed.
+    // The 2-segment control's second button (Round trip) must read as pressed.
     const roundOn = await page
-      .$eval(".trip-shape .seg-btn:nth-of-type(3)", (el) => el.getAttribute("aria-pressed") === "true")
+      .$eval(".trip-shape .seg-btn:nth-of-type(2)", (el) => el.getAttribute("aria-pressed") === "true")
       .catch(() => false);
     assert(roundOn, "Round-trip segment should be pressed");
     // Two-leg accordion (Aller / Retour), each a collapsible .mc-result section.
     assert((await $count(page, ".mc-result")) === 2, "expected a two-leg accordion (outbound + return)");
-    // Both legs' availability calendars are visible together (outbound + return strips).
-    assert((await $count(page, ".cal-grid")) >= 2, "expected two calendar strips (outbound + return)");
+    // The return calendar is shown; the outbound one is collapsed behind a toggle.
+    assert((await $count(page, ".cal-grid")) >= 1, "expected the return availability calendar");
+    assert((await $count(page, ".cal-toggle")) >= 1, "expected the collapsed outbound-calendar toggle");
   },
 );
 

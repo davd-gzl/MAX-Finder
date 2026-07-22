@@ -425,13 +425,15 @@ describe("app (jsdom smoke)", () => {
     expect(seg!.closest(".date-row")).toBeTruthy();
     expect(seg!.closest(".advanced")).toBeNull();
     const btns = Array.from(seg!.querySelectorAll("button"));
-    expect(btns.length).toBe(3);
-    // One-way is the baseline; a single click on Day trip switches (no settings trip).
+    // Two segments now: One-way / Round trip. A same-day return is the 0-night case of a
+    // round trip (picked from the return calendar), not a third segment.
+    expect(btns.length).toBe(2);
+    // One-way is the baseline; a single click on Round trip switches (no settings trip).
     expect(seg!.querySelector("button.active")?.textContent).toContain("One-way");
-    (btns.find((b) => b.textContent?.includes("Day trip")) as HTMLElement).click();
-    expect(seg!.querySelector("button.active")?.textContent).toContain("Day trip");
+    (btns.find((b) => b.textContent?.includes("Round trip")) as HTMLElement).click();
+    expect(seg!.querySelector("button.active")?.textContent).toContain("Round trip");
     expect(
-      (btns.find((b) => b.textContent?.includes("Day trip")) as HTMLElement).getAttribute("aria-pressed"),
+      (btns.find((b) => b.textContent?.includes("Round trip")) as HTMLElement).getAttribute("aria-pressed"),
     ).toBe("true");
   });
 
@@ -465,12 +467,9 @@ describe("app (jsdom smoke)", () => {
     // The page compares PLACES: one row per city, no per-leg times.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&rt=1`);
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
-    // Discovery defaults to "this weekend"; widen it to the month to compare all places.
-    const monthChip = Array.from(root.querySelectorAll(".win-chip")).find((b) =>
-      b.textContent?.includes("This month"),
-    ) as HTMLElement;
-    expect(monthChip).toBeTruthy();
-    monthChip.click();
+    // No casual window-preset chips: discovery uses the form's date + the sweep's nights
+    // range, scanning from the chosen departure onward (efficiency over "this weekend").
+    expect(root.querySelector(".win-chip")).toBeNull();
     expect(root.querySelectorAll(".group-card").length).toBeGreaterThan(0);
     expect(root.querySelector(".daytrip-card")).toBeNull();
   });
@@ -488,20 +487,26 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
   });
 
-  it("shows a DAY-TRIP as a distinct mode with hours-on-site, not nights", () => {
+  it("merges day trip into round trip: legacy rt=day lights Round trip, one return calendar starting same-day", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
     );
-    // The Day-trip segment is lit and the outbound calendar's metric is hours on site.
-    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Day trip");
-    const legend = Array.from(root.querySelectorAll(".calendar .cal-legend"))
-      .map((n) => n.textContent ?? "")
-      .join(" ");
-    expect(legend).toContain("hours on site");
-    expect(legend).not.toContain("nights away");
-    // Two accordion legs; the glossary line defines both terms under the calendar.
+    // Legacy rt=day is no longer a distinct mode — it resolves to the Round trip segment
+    // (a day trip is the 0-night case of a round trip).
+    expect(root.querySelector(".trip-shape button.active")?.textContent).toContain("Round trip");
+    // ONE return calendar, and its FIRST cell is the OUTBOUND day (same-day = 0 nights),
+    // not the day after — so tapping it gives a same-day trip with no separate mode.
+    const retCells = root.querySelectorAll(".od-return-cal .cal-cell");
+    expect(retCells.length).toBeGreaterThan(0);
+    expect(retCells[0]!.querySelector(".cal-day")?.textContent).toBe("25");
+    // Two accordion legs, and the glossary line still defines the two outcomes.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
     expect(root.querySelector(".glossary")).not.toBeNull();
+    // The possible-days (outbound) calendar is collapsed by default once a date is chosen:
+    // a one-tap "change departure" summary with the calendar panel hidden beside it.
+    const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
+    expect(leg1.querySelector(".cal-toggle")).not.toBeNull();
+    expect(leg1.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
   });
 
   it("collapses the outbound leg to a ✓ summary when a train is picked (accordion)", () => {

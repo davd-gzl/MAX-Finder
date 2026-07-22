@@ -255,6 +255,11 @@ export function journeyEl(
     /** A date chip in the card head — set when a flexible-date list mixes days, so
      * each proposition says which day it's for. */
     dateLabel?: string;
+    /** Render the book affordance as a clear labelled primary ("Book this leg") instead
+     * of the bare arrow — used on the confirmation/booking recap where each leg's action
+     * should be explicit. A direct train deep-links straight; a connecting one opens the
+     * per-train step modal. */
+    bookLabel?: string;
   } = {},
 ): HTMLElement {
   const saveable = opts.saveable !== false;
@@ -284,6 +289,18 @@ export function journeyEl(
         },
         [icon(I.arrow)],
       )
+    : opts.bookLabel
+    ? connecting
+      ? el(
+          "button",
+          { class: "btn btn-primary book-leg", type: "button", text: opts.bookLabel, on: { click: () => ctx.onBookSteps(j) } },
+        )
+      : el("a", {
+          class: "btn btn-primary book-leg",
+          href: ctx.bookUrl(j.origin, j.destination, j.date, j.legs[0]?.depart),
+          attrs: { target: "_blank", rel: "noopener noreferrer" },
+          text: opts.bookLabel,
+        })
     : connecting
     ? el(
         "button",
@@ -318,6 +335,9 @@ export function journeyEl(
     el("div", { class: "journey-book" }, [bookBtn]),
   ]);
   if (opts.selected) article.classList.add("is-selected");
+  // The labelled "Book this leg" primary needs room to sit and wrap (zero truncation) —
+  // widen the ticket stub for it instead of squeezing text into the arrow column.
+  if (opts.bookLabel) article.classList.add("has-book-leg");
 
   const scope = (): HTMLElement | null => opts.group ?? article.parentElement;
   function select(cls: "is-active" | "is-selected"): void {
@@ -906,7 +926,7 @@ export function calendarEl(
   days: CalendarDay[],
   ctx: RenderCtx,
   selected?: string,
-  opts?: { title?: string; count?: (n: number) => string; showCount?: boolean; countLegend?: string },
+  opts?: { title?: string; count?: (n: number, day: CalendarDay) => string; showCount?: boolean; countLegend?: string },
 ): HTMLElement {
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
   const showCount = opts?.showCount !== false;
@@ -976,12 +996,12 @@ export function calendarEl(
       {
         class: `cal-cell ${state}${sel}`,
         type: "button",
-        title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
+        title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`,
         attrs: {
           // The per-cell metric (hours on site / nights / destinations) is the point of
           // the strip, so it must be IN the accessible name — the visual count badge is
           // aria-hidden, so an AT user would otherwise hear only "available" on every cell.
-          "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count) : status}`,
+          "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`,
           role: "gridcell",
           tabindex: "-1",
           ...(sel ? { "aria-current": "date" } : {}),
@@ -1086,10 +1106,10 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   } else {
     summary = t("trip_summary_oneway", { date: ctx.formatDate(outbound.date), dur: formatDuration(totalTravel) });
   }
-  // Build the container first so both legs can share it as their selection group:
-  // clicking one leg highlights it and clears the other, even though they sit in
-  // separate sections. `onPick` is a no-op — the highlight is the whole point, and
-  // it avoids journeyEl's default click (which would scroll to the map behind the modal).
+  // This is the booking/confirmation screen: each leg carries a clear "Book this leg"
+  // primary (a direct train deep-links straight; a connecting one opens the per-train step
+  // modal) and clicking the card body books it too (`bookOnClick`). No highlight-only
+  // no-op — the whole point here is to book, not to re-select.
   // The trip's date(s) — important when the row that opened this came from a
   // flexible search (the start day varies). One-ways already show the date in the
   // summary, so this is just for round trips.
@@ -1099,7 +1119,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
       : ctx.formatDate(outbound.date)
     : null;
   const view = el("div", { class: "trip-view" });
-  const pickOpts = { saveable: false, group: view, onPick: () => {}, hideMap: true };
+  const pickOpts = { saveable: false, bookOnClick: true, bookLabel: t("act_book_leg_this"), hideMap: true };
   view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
     ...(dateLine ? [el("p", { class: "trip-dates", text: dateLine })] : []),
