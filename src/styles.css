@@ -2116,10 +2116,13 @@ a {
    as part of the span, so the accent fill wins over the plain "no" look. */
 .cal-cell.range,
 .cal-cell.preview {
-  background: var(--accent-soft);
+  /* A clearly stronger tint than .ok (accent-soft ≈ 13%), so the departure→return span
+     reads as a distinct connected band between the two solid endpoints (Ulysse-style),
+     not just more available days. */
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  font-weight: 640;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  font-weight: 680;
 }
 .cal-cell.preview {
   border-color: var(--accent);
@@ -3339,13 +3342,16 @@ select.input::-ms-expand {
   border-color: transparent;
   color: var(--brand-ink);
 }
-/* Departure→return range band reads as part of the span even on a non-available day. */
+/* Departure→return range band: a clearly stronger tint than .ok (accent-soft), so the
+   span between the two solid endpoints reads as a distinct connected band (Ulysse-style),
+   even on a non-available day. */
 .cal-cell.range,
 .cal-cell.preview {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 26%, var(--surface));
   border-style: solid;
   border-color: transparent;
   color: var(--brand-ink);
+  font-weight: 680;
   opacity: 1;
 }
 .cal-cell.preview {
