@@ -338,4 +338,7 @@ export const ko: Dict = {
   glossary_roundtrip: "왕복: 다른 날에 갔다가 돌아오기(숙박).",
   glossary_daytrip: "당일치기: 같은 날 갔다가 돌아오기(현지 체류 시간).",
   senior_weekend_return_warn: "MAX SENIOR는 평일 전용입니다 — 돌아오는 날이 주말이라 무료 예약이 안 됩니다.",
+  form_cal_title: "언제 떠날까요?",
+  form_cal_hint: "출발역을 선택하면 이용 가능한 날짜가 표시됩니다.",
+  form_cal_departed: "출발: {date}",
 };

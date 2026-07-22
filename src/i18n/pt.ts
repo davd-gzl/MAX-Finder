@@ -337,4 +337,7 @@ export const pt: Dict = {
   glossary_roundtrip: "Ida e volta: ir e voltar em dias diferentes (noites fora).",
   glossary_daytrip: "Bate-volta: ir e voltar no mesmo dia (horas no destino).",
   senior_weekend_return_warn: "MAX SENIOR é só em dias úteis — a sua volta cai no fim de semana e não pode ser reservada de graça.",
+  form_cal_title: "Quando partir?",
+  form_cal_hint: "Escolha uma estação de partida para ver os dias disponíveis.",
+  form_cal_departed: "Partida: {date}",
 };

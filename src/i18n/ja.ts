@@ -337,4 +337,7 @@ export const ja: Dict = {
   glossary_roundtrip: "往復：別の日に行って戻る（宿泊あり）。",
   glossary_daytrip: "日帰り：同じ日に行って戻る（現地滞在時間）。",
   senior_weekend_return_warn: "MAX SENIOR は平日限定です — 復路が週末のため無料予約できません。",
+  form_cal_title: "いつ出発？",
+  form_cal_hint: "出発駅を選ぶと空いている日が表示されます。",
+  form_cal_departed: "出発：{date}",
 };

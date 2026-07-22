@@ -29,6 +29,29 @@ still resolve (rt=day or rdate==date → round trip, stepper on 0; a later rdate
 nights). Internally the stay maps to the same `StayChoice` model (`sameday`/`n1..n3`, or an
 explicit return date beyond 3 nights).
 
+The **Trip tab's date picker is a live availability calendar on the form itself**
+(`repaintFormCalendar` in `src/app.ts`, painted into `refs.formCalendar` via
+`render.calendarEl`). It sits under the date + trip-shape row behind a one-tap
+**"When to leave?"** header (which also shows the picked departure and collapses the month so
+the form never grows unusably long on a phone). It **recomputes whenever origin,
+destination, the Aller simple / Aller-retour toggle, or the nights stepper change**, so a
+green day always means *a trip is possible that day* for the current choice:
+
+| State | Builder (reused) | Green means |
+|-------|------------------|-------------|
+| no origin yet | — (neutral month) | any day, tappable — with a "pick a departure station" hint |
+| origin + dest, one-way | `availabilityCalendar` | a departure exists that day (count = trains) |
+| origin + dest, same day (0 nights) | `dayTripCalendar` | a same-day there-and-back works (count = hours on site) |
+| origin + dest, N nights | `roundTripCalendar` | an N-night round trip is feasible (count = nights) |
+| origin only, one-way | `reachableCountCalendar` | you can leave that day (count = destinations) |
+| origin only, round / same day | `getawayIdeas().perDay` | a getaway is possible that day (count = destinations) |
+
+Tapping a green day sets the departure (`query.date` + the form's date field); with both
+endpoints filled it also shows/refreshes that day's trip in place. It reuses the same option
+helpers (`odConnOptsFor` / `getawayOptsFor`) as the real search, so the per-day journey
+sweeps hit the warm memo caches; origin typing is debounced. The compact date pill above it
+stays as the exact-date / ±flex keyboard entry for power users.
+
 **Max correspondances** (0 / 1 / 2 / 3 / no limit) is a **main-form field**, not buried in
 Advanced. **Night trains are included by default.** On the results screen, once a specific
 date is chosen the possible-days calendar is **collapsed by default** (one tap to reveal

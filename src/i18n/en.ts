@@ -350,4 +350,7 @@ export const en: Dict = {
   glossary_roundtrip: "Round trip: there and back on different days (nights away).",
   glossary_daytrip: "Day trip: there and back the same day (hours on site).",
   senior_weekend_return_warn: "MAX SENIOR is weekday-only — your return lands on a weekend and can't be booked free.",
+  form_cal_title: "When to leave?",
+  form_cal_hint: "Choose a departure station to see which days are available.",
+  form_cal_departed: "Departure: {date}",
 };

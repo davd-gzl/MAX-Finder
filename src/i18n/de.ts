@@ -338,4 +338,7 @@ export const de: Dict = {
   glossary_roundtrip: "Hin- und Rückfahrt: hin und zurück an verschiedenen Tagen (Nächte vor Ort).",
   glossary_daytrip: "Tagesausflug: hin und zurück am selben Tag (Stunden vor Ort).",
   senior_weekend_return_warn: "MAX SENIOR gilt nur werktags — Ihre Rückfahrt fällt auf ein Wochenende und ist nicht kostenlos buchbar.",
+  form_cal_title: "Wann losfahren?",
+  form_cal_hint: "Wählen Sie einen Abfahrtsbahnhof, um verfügbare Tage zu sehen.",
+  form_cal_departed: "Abfahrt: {date}",
 };

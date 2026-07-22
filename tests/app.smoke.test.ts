@@ -87,13 +87,15 @@ describe("app (jsdom smoke)", () => {
     // Only reachable via a connection (Bordeaux) that day.
     expect(root.querySelector(".chip-via")).not.toBeNull();
     expect(text).toContain("Bordeaux");
-    // The 30-day route availability calendar is rendered.
-    const routeCal = root.querySelector(".cal-grid");
+    // The 30-day route availability calendar is rendered in the RESULTS panel. (The Trip
+    // tab's form now also carries a reactive availability calendar as its date picker, so
+    // these assertions scope to `.results` to target the results strip specifically.)
+    const routeCal = root.querySelector(".results .cal-grid");
     expect(routeCal).not.toBeNull();
     expect(routeCal!.querySelectorAll(".cal-cell").length).toBe(30);
     // A one-way exact-trip shows no "come back?" section — only the round trip does.
     expect(root.querySelector(".od-return")).toBeNull();
-    expect(root.querySelectorAll(".cal-grid").length).toBe(1);
+    expect(root.querySelectorAll(".results .cal-grid").length).toBe(1);
   });
 
   it("shows the outbound + return availability calendars together for a round-trip deep-link", () => {
@@ -106,8 +108,8 @@ describe("app (jsdom smoke)", () => {
     const retStrip = root.querySelector(".od-return-cal");
     expect(retStrip).not.toBeNull();
     expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
-    // Two calendar strips visible at once: outbound + return.
-    expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
+    // Two calendar strips visible at once in the results: outbound + return.
+    expect(root.querySelectorAll(".results .cal-grid").length).toBeGreaterThanOrEqual(2);
     // The return TRAIN list sits in its own section below.
     expect(root.querySelector(".od-return")).not.toBeNull();
   });
@@ -517,7 +519,7 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".mode-tab.active")?.getAttribute("data-trip")).toBe("simple");
     // Outbound + return availability strips together, and the return train list below.
     expect(root.querySelector(".od-return-cal .cal-grid")).not.toBeNull();
-    expect(root.querySelectorAll(".cal-grid").length).toBeGreaterThanOrEqual(2);
+    expect(root.querySelectorAll(".results .cal-grid").length).toBeGreaterThanOrEqual(2);
     expect(root.querySelector(".od-return")).not.toBeNull();
     // Both legs render as the multi-city accordion stepper (two ✓-collapsible legs).
     expect(root.querySelectorAll(".mc-result").length).toBe(2);

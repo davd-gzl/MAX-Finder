@@ -784,6 +784,71 @@ a {
   }
 }
 
+/* ---- reactive home-form availability calendar (the Trip tab's date picker) ----
+   Full-width band under the date + trip-shape row. A one-tap header (title + picked date)
+   collapses the month so the form never grows unusably long on a phone; the calendar
+   itself reuses .calendar / .cal-grid, so it fits 390px and reads cleanly with zero
+   truncation. */
+.form-cal-block {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.form-cal-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.form-cal-toggle:hover {
+  border-color: var(--accent);
+}
+.form-cal-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.form-cal-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.form-cal-picked {
+  /* The picked date must never clip — it wraps under the title on a narrow form. */
+  white-space: normal;
+}
+.form-cal-chevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.form-cal-toggle[aria-expanded="false"] .form-cal-chevron {
+  transform: rotate(-90deg);
+}
+.form-cal-body[hidden] {
+  display: none;
+}
+/* The calendar sits flush inside the block (its own .calendar border provides the frame). */
+.form-cal-mount .calendar {
+  margin-top: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .form-cal-chevron {
+    transition: none;
+  }
+}
+
 /* ---- discovery window presets (this weekend / next 7 days / this month) ---- */
 /* ---- collapsible outbound "possible days" calendar (collapsed once a date is chosen).
    A one-tap summary reveals the calendar to switch the departure / scan availability. ---- */
@@ -1983,6 +2048,15 @@ a {
   border-color: color-mix(in srgb, var(--nearby2) 40%, var(--border));
   border-style: dotted;
   font-weight: 680;
+}
+/* Neutral cell (home-form calendar before an origin is chosen): a plain, inviting,
+   tappable day — normal text (not the muted "unavailable" look), no colour claim. */
+.cal-cell.neutral {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.cal-cell.neutral:hover {
+  border-color: var(--accent);
 }
 .cal-cell.sel {
   outline: 2px solid var(--text);

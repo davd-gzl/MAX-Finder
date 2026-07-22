@@ -337,4 +337,7 @@ export const ar: Dict = {
   glossary_roundtrip: "ذهاب وإياب: الذهاب والعودة في أيام مختلفة (مبيت).",
   glossary_daytrip: "رحلة يومية: الذهاب والعودة في نفس اليوم (ساعات المكوث).",
   senior_weekend_return_warn: "MAX SENIOR صالحة أيام الأسبوع فقط — عودتك في نهاية الأسبوع ولا يمكن حجزها مجانًا.",
+  form_cal_title: "متى تسافر؟",
+  form_cal_hint: "اختر محطة انطلاق لعرض الأيام المتاحة.",
+  form_cal_departed: "المغادرة: {date}",
 };

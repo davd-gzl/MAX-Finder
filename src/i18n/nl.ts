@@ -337,4 +337,7 @@ export const nl: Dict = {
   glossary_roundtrip: "Retour: heen en terug op verschillende dagen (nachten weg).",
   glossary_daytrip: "Dagtrip: heen en terug op dezelfde dag (uren ter plaatse).",
   senior_weekend_return_warn: "MAX SENIOR geldt alleen doordeweeks — je terugreis valt in het weekend en is niet gratis te boeken.",
+  form_cal_title: "Wanneer vertrekken?",
+  form_cal_hint: "Kies een vertrekstation om te zien welke dagen beschikbaar zijn.",
+  form_cal_departed: "Vertrek: {date}",
 };

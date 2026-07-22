@@ -957,6 +957,7 @@ function syncFormFromQuery(): void {
   refs.maxLegDuration.value = query.maxLegDurationMin != null ? String(query.maxLegDurationMin) : "";
   refs.minLegDuration.value = query.minLegDurationMin != null ? String(query.minLegDurationMin) : "";
   formApi.updateFieldVisibility(tripType);
+  repaintFormCalendar(); // the route/shape/date just changed — repaint the home-form calendar
 }
 
 function readQueryFromForm(): SearchQuery {
@@ -1189,6 +1190,115 @@ function refreshInPlace(reveal = false): void {
     window.scrollTo({ top: scrollY });
   }
   if (restoreCalFocus) refs.results.querySelector<HTMLElement>(".cal-cell.sel")?.focus({ preventScroll: true });
+}
+
+// --- reactive home-form calendar --------------------------------------------
+
+let formCalTimer = 0;
+/** Debounced repaint: origin typing fires per keystroke, and the origin-only round-trip
+ *  sweep is the one heavy path — coalesce bursts so it runs once the value settles. */
+function scheduleFormCalRepaint(): void {
+  if (formCalTimer) clearTimeout(formCalTimer);
+  formCalTimer = setTimeout(() => {
+    formCalTimer = 0;
+    repaintFormCalendar();
+  }, 140) as unknown as number;
+}
+
+/**
+ * Paint the Trip-tab home form's availability calendar for the CURRENT controls, so a
+ * green day always means "a trip is possible that day" for the chosen shape:
+ *  - no origin            → a neutral, tappable month + a "pick a departure station" hint;
+ *  - origin+dest, one-way → availabilityCalendar (a departure exists), as runOdSearch;
+ *  - origin+dest, same day → dayTripCalendar (a there-and-back-same-day works);
+ *  - origin+dest, N nights → roundTripCalendar (an N-night round trip is feasible);
+ *  - origin only, one-way  → reachableCountCalendar (the days you can leave);
+ *  - origin only, round/day → getawayIdeas().perDay (days a getaway is possible).
+ * The option helpers (odConnOptsFor / getawayOptsFor) are the SAME ones the real search
+ * uses, so the per-day journey sweeps hit the warm memo caches instead of recomputing.
+ */
+function repaintFormCalendar(): void {
+  const mount = refs?.formCalendar;
+  if (!mount || !deps) return;
+  // Only the Trip tab uses the reactive calendar as its picker; clear it elsewhere so no
+  // stale grid lingers (the block is display:none on the other tabs anyway).
+  if (tripType !== "simple") {
+    clear(mount);
+    return;
+  }
+  const { trains } = deps;
+  const o = resolveStation(refs.origin.value);
+  const d = resolveStation(refs.destination.value);
+  const nights = formApi.getStayNights(); // null = one-way, else 0..N
+  const round = nights !== null;
+  const selected = refs.date.value || query.date;
+  const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
+  // A query snapshot read purely to derive the SAME options the eventual search will use.
+  const fq = readQueryFromForm();
+
+  // Keep the collapsed-header summary in step with the picked day.
+  refs.formCalPicked.textContent = selected ? t("form_cal_departed", { date: formatDate(selected) }) : "";
+
+  const calCtx: RenderCtx = { ...ctx(), onSelectDay: pickFormDay };
+  clear(mount);
+
+  // Neutral month before an origin is chosen — plain, tappable, never a dead grid.
+  if (!o) {
+    const neutralDays: CalendarDay[] = windowDates.map((date) => ({ date, available: false, count: 0 }));
+    mount.append(
+      render.calendarEl(neutralDays, calCtx, selected, {
+        title: t("form_cal_title"),
+        neutral: true,
+        hint: t("form_cal_hint"),
+      }),
+    );
+    return;
+  }
+
+  let cal: CalendarDay[];
+  let calOpts: Parameters<typeof render.calendarEl>[3];
+  if (d) {
+    const { connOpts, passesVia } = odConnOptsFor(fq, o, d);
+    if (!round) {
+      cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
+      calOpts = { title: t("form_cal_title") };
+    } else if (nights === 0) {
+      cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
+      calOpts = { title: t("form_cal_title"), count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
+    } else {
+      cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
+      calOpts = { title: t("form_cal_title"), count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
+    }
+  } else if (!round) {
+    // Origin only, one-way: the days you can leave (connection-aware; count = destinations).
+    cal = reachableCountCalendar(trains, o, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
+    calOpts = { title: t("form_cal_title"), count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+  } else {
+    // Origin only, round / same-day: the days a getaway is possible — the same two-sweep
+    // pass runGetaways uses, whose per-day sweeps are memoized, so a repaint is cheap.
+    cal = getawayIdeas(trains, o, windowDates, getawayOptsFor(fq)).perDay;
+    calOpts = { title: t("form_cal_title"), count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+  }
+  mount.append(render.calendarEl(cal, calCtx, selected, calOpts));
+}
+
+/**
+ * A day tapped on the home-form calendar: set the departure (query.date + the form's date
+ * field), then — if the route is complete — show/refresh that day's trip in place, so the
+ * calendar doubles as a working picker. An incomplete route just stages the date.
+ */
+function pickFormDay(date: string): void {
+  refs.date.value = date;
+  refs.departDate.setDate(date);
+  const fq = readQueryFromForm();
+  if (fq.origin && fq.destination) {
+    const sameRoute =
+      query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
+    query = fq;
+    if (sameRoute && queryIsRenderable(query)) refreshInPlace();
+    else applyAndRun();
+  }
+  repaintFormCalendar();
 }
 
 // --- search execution -------------------------------------------------------
@@ -2745,6 +2855,7 @@ function switchTab(next: TripType): void {
   formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
   applyAndRun();
+  repaintFormCalendar(); // show/hide + repaint the Trip-tab calendar for the new tab
 }
 
 /**
@@ -2769,6 +2880,7 @@ function applyTripShape(shape: TripShape): void {
   formApi.setTripShape(shape); // repaint the control (a click already did; the shortcut hasn't)
   query = readQueryFromForm();
   applyAndRun();
+  repaintFormCalendar(); // the shape now means one-way vs round vs same-day → recolour the days
 }
 
 /** The "r" shortcut toggles the trip type — Aller simple ↔ Aller-retour. Turning the
@@ -3298,6 +3410,13 @@ function buildLayout(root: HTMLElement): void {
     tripList: shell.tripList,
     card: shell.cardSelect,
   };
+  // Keep the reactive home-form calendar in step as the route is typed (staged — this
+  // never runs a search, only repaints the "which days are possible" grid). Debounced on
+  // input, immediate on a committed value (a datalist pick / blur).
+  for (const inp of [refs.origin, refs.destination]) {
+    inp.addEventListener("input", scheduleFormCalRepaint);
+    inp.addEventListener("change", () => repaintFormCalendar());
+  }
   mapPromise = null;
   mapInstance = null;
   renderFavorites();
@@ -3341,7 +3460,9 @@ function setMobileForm(open: boolean): void {
   if (!rootRef) return;
   const apply = (): void => {
     rootRef.dataset.mform = open ? "form" : "results";
-    if (!open) {
+    if (open) {
+      repaintFormCalendar(); // the sheet is (re)opening — make sure its calendar is current
+    } else {
       updateSearchBar();
       updateRailMetrics();
       requestAnimationFrame(() => mapInstance?.invalidate());

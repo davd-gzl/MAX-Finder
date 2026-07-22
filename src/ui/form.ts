@@ -80,6 +80,12 @@ export interface FormRefs {
   onlyNightField: HTMLElement;
   /** The trip-type control wrapper: the Aller simple / Aller-retour toggle + nights stepper. */
   tripShapeField: HTMLElement;
+  /** Mount point for the reactive availability calendar (the Trip tab's live date picker);
+   *  the controller paints `render.calendarEl` into it and repaints on control changes. */
+  formCalendar: HTMLElement;
+  /** The picked-date summary shown in the calendar block's header (kept in sync by the
+   *  controller when the departure date changes). */
+  formCalPicked: HTMLElement;
   via: HTMLInputElement;
   originField: HTMLElement;
   destinationField: HTMLElement;
@@ -927,6 +933,9 @@ export function createForm(props: FormProps): FormHandle {
     originField.style.display = legs ? "none" : "";
     // The date + trip-shape row hides together in the legs editor (each leg is dated).
     dateRow.style.display = legs ? "none" : "";
+    // The reactive availability calendar is the Trip tab's date picker only — other tabs
+    // date their trips differently (per-leg, per-tour-plan, or the Ideas day strip).
+    formCalBlock.style.display = simple ? "" : "none";
     // Destination is an endpoint in single trips and the optional finish in a tour plan.
     destinationField.style.display = single || plan ? "" : "none";
     destination.placeholder = plan ? t("tour_end_ph") : single ? t("ph_anywhere") : "";
@@ -1175,6 +1184,42 @@ export function createForm(props: FormProps): FormHandle {
   // stepper sit immediately beside the day you're picking (requirement 1).
   const tripShapeField = el("div", { class: "trip-shape-wrap" }, [tripToggle, nightsField]);
   const dateRow = el("div", { class: "date-row" }, [dateField, tripShapeField]);
+
+  // The reactive availability calendar: the Trip tab's primary date picker. It lives on
+  // the FORM (not just the results) and repaints whenever the route or the trip-shape
+  // controls change, so a green day always means "a trip is possible that day" for the
+  // CURRENT choice (one-way / round trip / same day). The controller paints it into
+  // `formCal` via render.calendarEl and keeps `formCalPicked` in step; the compact
+  // date-field pill above stays as the exact-date / ±flex keyboard entry (power users).
+  // A one-tap header collapses it so the form never grows unusably long on a phone.
+  const formCal = el("div", { class: "form-cal-mount" });
+  const formCalPicked = el("span", { class: "form-cal-picked muted small" });
+  const formCalChevron = el("span", {
+    class: "form-cal-chevron",
+    attrs: { "aria-hidden": "true" },
+    html: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
+  });
+  const formCalBody = el("div", { class: "form-cal-body" }, [formCal]);
+  const formCalToggle = el("button", {
+    class: "form-cal-toggle",
+    type: "button",
+    attrs: { "aria-expanded": "true" },
+    on: {
+      click: () => {
+        const open = formCalBody.hasAttribute("hidden");
+        formCalBody.toggleAttribute("hidden", !open);
+        formCalToggle.setAttribute("aria-expanded", String(open));
+        formCalToggle.parentElement?.classList.toggle("is-collapsed", !open);
+      },
+    },
+  }, [
+    el("span", { class: "form-cal-heading" }, [
+      el("span", { class: "form-cal-title", text: t("form_cal_title") }),
+      formCalPicked,
+    ]),
+    formCalChevron,
+  ]);
+  const formCalBlock = el("div", { class: "form-cal-block" }, [formCalToggle, formCalBody]);
   const region = el("select", { class: "input" }, [
     optionEl("", t("region_any"), true),
     ...props.regions.map((r) => optionEl(r, r, false)),
@@ -1432,6 +1477,7 @@ export function createForm(props: FormProps): FormHandle {
     odFields,
     odHint,
     dateRow,
+    formCalBlock,
     endDateField,
     regionField,
     legsBlock,
@@ -1487,6 +1533,8 @@ export function createForm(props: FormProps): FormHandle {
     onlyNight,
     onlyNightField,
     tripShapeField,
+    formCalendar: formCal,
+    formCalPicked,
     via,
     originField,
     destinationField,

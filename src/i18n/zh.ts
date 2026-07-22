@@ -337,4 +337,7 @@ export const zh: Dict = {
   glossary_roundtrip: "往返：不同日子去与回（在外过夜）。",
   glossary_daytrip: "当天往返：同一天去与回（当地停留时数）。",
   senior_weekend_return_warn: "MAX SENIOR 仅限工作日——您的返程在周末，无法免费预订。",
+  form_cal_title: "何时出发？",
+  form_cal_hint: "选择出发车站即可查看可用的日期。",
+  form_cal_departed: "出发：{date}",
 };

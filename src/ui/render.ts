@@ -926,10 +926,22 @@ export function calendarEl(
   days: CalendarDay[],
   ctx: RenderCtx,
   selected?: string,
-  opts?: { title?: string; count?: (n: number, day: CalendarDay) => string; showCount?: boolean; countLegend?: string },
+  opts?: {
+    title?: string;
+    count?: (n: number, day: CalendarDay) => string;
+    showCount?: boolean;
+    countLegend?: string;
+    /** Render every cell as a plain, tappable day (no available/unavailable colouring) —
+     *  the neutral state used on the home form before a departure station is chosen. */
+    neutral?: boolean;
+    /** A short line shown in place of (neutral) or after (normal) the availability legend —
+     *  e.g. "pick a departure station…" on the form, or a fallback note. */
+    hint?: string;
+  },
 ): HTMLElement {
+  const neutral = opts?.neutral === true;
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
-  const showCount = opts?.showCount !== false;
+  const showCount = opts?.showCount !== false && !neutral;
   // What the per-cell number means (trains on a route, or destinations per day).
   const countLegend = opts?.countLegend ?? t("cal_legend_count");
   const headingId = `cal-h-${++uidSeq}`;
@@ -979,29 +991,43 @@ export function calendarEl(
     // (near-both); or nothing (no). The last two are radius-search only. NB: these
     // class names are calendar-local — "near" not "nearby", which is the results
     // section's class and would leak its margin onto the cells.
-    const nearby = !d.available && Boolean(d.nearby);
-    const both = !d.available && !d.nearby && Boolean(d.nearbyBoth);
+    const nearby = !neutral && !d.available && Boolean(d.nearby);
+    const both = !neutral && !d.available && !d.nearby && Boolean(d.nearbyBoth);
     if (nearby) anyNearby = true;
     if (both) anyBoth = true;
-    const state = d.available ? "ok" : nearby ? "near" : both ? "near-both" : "no";
-    const status = d.available
-      ? t("cal_available")
-      : nearby
-        ? t("cal_nearby")
-        : both
-          ? t("cal_nearby_both")
-          : t("cal_unavailable");
+    const state = neutral
+      ? "neutral"
+      : d.available
+        ? "ok"
+        : nearby
+          ? "near"
+          : both
+            ? "near-both"
+            : "no";
+    const status = neutral
+      ? ctx.formatDate(d.date)
+      : d.available
+        ? t("cal_available")
+        : nearby
+          ? t("cal_nearby")
+          : both
+            ? t("cal_nearby_both")
+            : t("cal_unavailable");
+    // A neutral cell is just a tappable day — its label is the date alone (no "— status").
+    const label = neutral
+      ? ctx.formatDate(d.date)
+      : `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`;
     const cell = el(
       "button",
       {
         class: `cal-cell ${state}${sel}`,
         type: "button",
-        title: `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`,
+        title: label,
         attrs: {
           // The per-cell metric (hours on site / nights / destinations) is the point of
           // the strip, so it must be IN the accessible name — the visual count badge is
           // aria-hidden, so an AT user would otherwise hear only "available" on every cell.
-          "aria-label": `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`,
+          "aria-label": label,
           role: "gridcell",
           tabindex: "-1",
           ...(sel ? { "aria-current": "date" } : {}),
@@ -1023,12 +1049,17 @@ export function calendarEl(
   (grid.querySelector<HTMLElement>(".cal-cell.sel") ??
     grid.querySelector<HTMLElement>(".cal-cell.ok") ??
     grid.querySelector<HTMLElement>(".cal-cell"))?.setAttribute("tabindex", "0");
-  const legend = [
-    t("cal_legend"),
-    ...(showCount ? [countLegend] : []),
-    ...(anyNearby ? [t("cal_legend_nearby")] : []),
-    ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
-  ].join(" · ");
+  // Neutral: the hint stands alone (no colour legend). Otherwise the availability legend,
+  // with any hint appended after it.
+  const legend = neutral
+    ? (opts?.hint ?? "")
+    : [
+        t("cal_legend"),
+        ...(showCount ? [countLegend] : []),
+        ...(anyNearby ? [t("cal_legend_nearby")] : []),
+        ...(anyBoth ? [t("cal_legend_nearby_both")] : []),
+        ...(opts?.hint ? [opts.hint] : []),
+      ].join(" · ");
   const dowHead = el("div", { class: "cal-dow-head", attrs: { "aria-hidden": "true" } });
   const refMonday = first ? addDays(first, -leading) : "";
   for (let i = 0; i < 7; i++)

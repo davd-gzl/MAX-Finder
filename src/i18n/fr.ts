@@ -352,6 +352,10 @@ export const fr = {
   glossary_roundtrip: "Aller-retour : là-bas et retour un autre jour (nuits sur place).",
   glossary_daytrip: "Aller-retour dans la journée : là-bas et retour le même jour (heures sur place).",
   senior_weekend_return_warn: "MAX SENIOR est valable en semaine — votre retour tombe un week-end et ne peut pas être réservé gratuitement.",
+  // The reactive availability calendar on the home form (the Trip tab's date picker).
+  form_cal_title: "Quand partir ?",
+  form_cal_hint: "Choisissez une gare de départ pour voir les jours disponibles.",
+  form_cal_departed: "Départ : {date}",
 };
 
 export type Dict = typeof fr;
