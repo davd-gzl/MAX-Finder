@@ -4,15 +4,20 @@ import { stayFromNights } from "../core/roundtrip";
 import { dayIndex } from "../util/time";
 import { isLang, detectLang, type Lang } from "../i18n";
 
-/** URL token for a stay choice (compact + stable): stay=day|1|2|3|flex. */
-const STAY_TO_PARAM: Record<StayChoice, string> = {
-  sameday: "day",
-  n1: "1",
-  n2: "2",
-  n3: "3",
-  flexible: "flex",
-};
-const PARAM_TO_STAY: Record<string, StayChoice> = { day: "sameday", "1": "n1", "2": "n2", "3": "n3", flex: "flexible" };
+/** URL token for a stay choice (compact + stable): stay=day|<N>|flex, where <N> is the
+ *  fixed nights count for a `` `n${N}` `` stay (any N). */
+function stayToParam(stay: StayChoice): string {
+  if (stay === "sameday") return "day";
+  if (stay === "flexible") return "flex";
+  return stay.slice(1); // "n2" → "2", "n10" → "10"
+}
+/** Parse a stay URL token back to a StayChoice, or undefined if unrecognized. */
+function paramToStay(v: string): StayChoice | undefined {
+  if (v === "day") return "sameday";
+  if (v === "flex") return "flexible";
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 1 ? `n${Math.floor(n)}` : undefined;
+}
 
 export type Theme = "light" | "dark" | "auto";
 export type ViewMode = "list" | "map";
@@ -253,7 +258,7 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   // The "How long?" stay choice is the canonical round-trip input: stay=day|1|2|3|flex.
   // (For an exact route the concrete return day also travels as rdate above, so a shared
   // link opens on the right return.) Legacy rt=round / rt=1 / rt=day still read below.
-  if (q.stay) p.set("stay", STAY_TO_PARAM[q.stay]);
+  if (q.stay) p.set("stay", stayToParam(q.stay));
   if (q.nights != null && q.nights > 0) p.set("nights", String(q.nights));
   if (q.flexNights) p.set("fn", "1");
   if (q.stayMinHours != null && q.stayMinHours > 0) p.set("stayh", String(q.stayMinHours));
@@ -322,7 +327,7 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
     // Stay choice: the explicit stay=… param wins. Legacy links carry it as rt=… and/or
     // rdate: rt=day → same day, a concrete rdate on/after the outbound → the matching
-    // fixed nights (or Flexible beyond 3), and a bare rt=round / rt=1 → Flexible.
+    // fixed N-night stay, and a bare rt=round / rt=1 → Flexible.
     stay: parseStay(p),
     nights: Number.isFinite(nights) && nights >= 1 ? Math.min(3, Math.floor(nights)) : undefined,
     flexNights: p.get("fn") === "1" || undefined,
@@ -341,14 +346,17 @@ function parseSort(raw: string | null): SortKey | undefined {
 /**
  * Resolve the "How long?" stay choice from a URL. The explicit `stay` token wins; a
  * legacy link is read from `rt` + `rdate`: `rt=day` is a same-day trip, a concrete
- * `rdate` on/after the outbound maps to the matching fixed nights (Flexible beyond 3),
+ * `rdate` on/after the outbound maps to the matching fixed N-night stay,
  * and a bare `rt=round` / `rt=1` (no rdate) is Flexible. Returns undefined for a plain
  * one-way. (An out-of-window date is re-clamped in app.ts, which re-derives the stay
  * from the carried rdate then, so this only needs the raw params.)
  */
 function parseStay(p: URLSearchParams): StayChoice | undefined {
   const explicit = p.get("stay");
-  if (explicit && explicit in PARAM_TO_STAY) return PARAM_TO_STAY[explicit];
+  if (explicit) {
+    const parsed = paramToStay(explicit);
+    if (parsed) return parsed;
+  }
   const rt = p.get("rt");
   const rdate = p.get("rdate");
   const date = p.get("date");

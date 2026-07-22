@@ -8,7 +8,7 @@ import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../
 import { availabilityCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
-import { getaways, getawayIdeas, getawaysAcrossWindow, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
+import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -858,6 +858,20 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
   it("respects the minimum time on site", () => {
     const trips = getaways(data, "PARIS (intramuros)", "2026-07-01", { maxConnections: 0, minOnSiteMin: 240 });
     expect(trips.map((t) => t.destination)).toEqual(["ARRAS"]); // Reims' 2 h window is now too short
+  });
+
+  it("reverseGetawayIdeas: a round trip with only a destination lists the origins you can round-trip FROM", () => {
+    // Reverse discovery for the destination ARRAS: PARIS can round-trip PARIS→ARRAS→PARIS
+    // (out 09:00, back 22:00), so PARIS is a valid reverse origin. Each trip is relabelled
+    // so `.destination` names the discovered ORIGIN, its outbound still origin→ARRAS.
+    const sweep = reverseGetawayIdeas(data, "ARRAS", ["2026-07-01"], { maxConnections: 0, minOnSiteMin: 60 });
+    expect(sweep.trips.map((t) => t.destination)).toContain("PARIS (intramuros)");
+    const paris = sweep.trips.find((t) => t.destination === "PARIS (intramuros)")!;
+    expect(paris.outbound.origin).toBe("PARIS (intramuros)");
+    expect(paris.outbound.destination).toBe("ARRAS"); // the real trip is PARIS → ARRAS
+    expect(paris.back.destination).toBe("PARIS (intramuros)"); // and ARRAS → PARIS back
+    expect(sweep.perDay[0]!.available).toBe(true);
+    expect(sweep.perDay[0]!.count).toBeGreaterThanOrEqual(1);
   });
 
   it("dayTripCalendar: green only when a real same-day there-and-back exists, count = hours on site", () => {

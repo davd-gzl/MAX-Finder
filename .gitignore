@@ -10,3 +10,6 @@ coverage/
 *.keystore
 *.jks
 keystore.b64
+
+# transient debug/repro scripts
+scripts/_*.mjs

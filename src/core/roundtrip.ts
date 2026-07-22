@@ -9,29 +9,21 @@ import { absoluteMinute } from "../util/time";
  * getaway options, and the URL round-tripping.
  */
 export function stayNights(stay: StayChoice): number | null {
-  switch (stay) {
-    case "sameday":
-      return 0;
-    case "n1":
-      return 1;
-    case "n2":
-      return 2;
-    case "n3":
-      return 3;
-    case "flexible":
-      return null;
-  }
+  if (stay === "sameday") return 0;
+  if (stay === "flexible") return null;
+  // `` `n${N}` `` — a fixed N-night stay, for ANY N (n1, n2, … n10 …).
+  const n = Number(stay.slice(1));
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : null;
 }
 
-/** The stay choice implied by a concrete night count: 0 → same day, 1/2/3 → that many
- *  nights, anything longer → flexible (no fixed chip covers it). Used to resolve a
- *  legacy `rdate` / a carried return date back onto the stay control. */
+/** The stay choice implied by a concrete night count: 0 → same day, N → a FIXED N-night
+ *  stay (`` `n${N}` ``) for ANY N. This never returns `"flexible"` — a fixed stay is
+ *  decoupled from Flexible mode, so a long stay stays a fixed stay (Flexible comes only
+ *  from the pill). Used to resolve a legacy `rdate` / a carried return date onto the stay
+ *  control, and to serialize the nights stepper. */
 export function stayFromNights(nights: number): StayChoice {
   if (nights <= 0) return "sameday";
-  if (nights === 1) return "n1";
-  if (nights === 2) return "n2";
-  if (nights === 3) return "n3";
-  return "flexible";
+  return `n${Math.floor(nights)}`;
 }
 
 function stayMinutes(outbound: Journey, inbound: Journey): number {

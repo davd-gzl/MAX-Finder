@@ -242,7 +242,13 @@ await scenario(
   async (page) => {
     assert((await activeTrip(page)) === "ideas", "active tab should be 'ideas'");
     const rs = await resultsState(page);
-    assert(rs.children >= 1, "ideas produced no destinations");
+    // Ideas discovers EVERY destination from the origin — it must render a populated ranked
+    // list, not a blank/empty state (regression: the page rendered nothing).
+    assert(rs.children >= 3 && !rs.hasEmpty, "ideas did not render a populated destination list");
+    assert(
+      (await $count(page, ".results [data-station], .results [class*='-row']")) > 0,
+      "ideas rendered no destination rows",
+    );
   },
 );
 
@@ -356,6 +362,46 @@ await scenario(
     assert(!(await shown(".search-form")), "the form sheet should be collapsed after searching");
   },
   { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+);
+
+// 13. Regression: refining the trip type (Aller-retour / nights stepper) on a results page
+//     must NOT push new history entries. The old bug pushed one per toggle, so browser Back
+//     needed ~10 presses and showed "the same window again and again", and the departure
+//     appeared wiped. Assert zero pushes + zero history growth across several refinements,
+//     and that a single Back returns to the form with the route still filled.
+await scenario(
+  "history: refining the trip type does not pile up entries; one Back restores the form",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${DATE}`,
+  async (page) => {
+    assert((await activeTrip(page)) === "simple", "precondition: Trip tab");
+    await page.evaluate(() => {
+      window.__ps = 0;
+      const orig = history.pushState.bind(history);
+      history.pushState = function (s, t, u) {
+        window.__ps++;
+        return orig(s, t, u);
+      };
+    });
+    const before = await page.evaluate(() => history.length);
+    for (let i = 0; i < 6; i++) {
+      await page.evaluate((k) => document.querySelectorAll(".trip-toggle .trip-seg")[k % 2]?.click(), i);
+      await sleep(70);
+      await page.evaluate(() => {
+        const s = document.querySelectorAll(".nights-step")[1];
+        if (s && !s.disabled) s.click();
+      });
+      await sleep(70);
+    }
+    const pushes = await page.evaluate(() => window.__ps);
+    const after = await page.evaluate(() => history.length);
+    assert(pushes === 0, `refining the trip type pushed ${pushes} history entries (must be 0)`);
+    assert(after === before, `history grew ${before}→${after} on in-place refinement`);
+    // One Back leaves the deep-linked results (no stack of duplicate results pages to wade
+    // through). (Form-state restoration after a manual fill is exercised in the unit tests.)
+    await page.goBack({ waitUntil: "networkidle2" });
+    await sleep(400);
+    assert(!new URL(page.url()).searchParams.get("from"), "one Back did not leave the results page");
+  },
 );
 
 // 12. PWA manifest is served and parseable, icon reference resolves.

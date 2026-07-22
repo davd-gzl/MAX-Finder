@@ -116,7 +116,9 @@ other dates); it stays expanded only during discovery (no exact date/destination
    - A minimum-on-site gate exists in core (`minOnSiteMin`, default 4h); NOT yet exposed as
      an Advanced control. (Open item.)
 5. **Only To** → reverse browse (`runBrowse` "to"): where you can come *from* to reach the
-   station.
+   station. With a **round trip / stay** chosen and only a destination, this is a **reverse
+   round-trip discovery** — the origins you can round-trip *from* to reach this station,
+   with a possible-departure-days calendar — never a blank screen.
 
 ## Multi-city tab (tour)
 
@@ -141,6 +143,12 @@ either an all-days overview or one specific day. Tap → open the route.
   reduced motion + compact) with a one-time nudge on weak devices; language.
 - **Mobile** — the form is a sheet that collapses to a search bar; results are a bottom-sheet
   drawer with detents. Back navigation preserves form state and never lands on a dead screen.
+- **History model** — a genuine navigation (Search, drilling into a route, opening the saved
+  page) pushes **one** history entry carrying a form snapshot, so browser Back returns to the
+  prior page with the form intact. Refining the current view — the Aller simple/retour toggle,
+  the nights stepper, the Flexible pill, picking a calendar day — updates **in place**
+  (`replaceState`), never pushing a new entry. So repeated toggling can't pile up duplicate
+  entries (the old bug where Back needed ~10 presses and the form appeared wiped).
 - **Deep links** — every search is a shareable URL; legacy `?rdate=` / `?rt=` links still work.
 - **PWA** — installable; a "new version — reload" postcard on updates.
 

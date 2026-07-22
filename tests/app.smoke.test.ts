@@ -454,6 +454,42 @@ describe("app (jsdom smoke)", () => {
     expect((minus as HTMLButtonElement).disabled).toBe(true); // can't go below 0 nights
   });
 
+  it("steps the nights freely past 3 and back down — a fixed stay never flips to Flexible (bug: stuck at 4)", () => {
+    const root = setup("");
+    const wrap = root.querySelector(".trip-shape-wrap")!;
+    root.querySelectorAll<HTMLElement>(".trip-toggle .trip-seg")[1]!.click(); // Round trip
+    const [minus, plus] = Array.from(wrap.querySelectorAll<HTMLElement>(".nights-ctl .nights-step"));
+    const val = () => wrap.querySelector(".nights-val")!.textContent;
+    const flex = wrap.querySelector<HTMLElement>(".nights-flex")!;
+    // Step up well past 3 (the old cap where stayFromNights flipped to "flexible").
+    for (let i = 0; i < 4; i++) plus!.click(); // 1 → 5
+    expect(val()).toBe("5 nights");
+    // Crucially, the stepper stays USABLE — neither the −/+ buttons nor the mode flip to
+    // Flexible (the old bug disabled both at 4 nights via stay="flexible").
+    expect((minus as HTMLButtonElement).disabled).toBe(false);
+    expect((plus as HTMLButtonElement).disabled).toBe(false);
+    expect(flex.getAttribute("aria-pressed")).toBe("false");
+    expect(new URLSearchParams(location.search).get("stay")).toBe("5"); // a fixed 5-night stay, not "flex"
+    // And it steps back DOWN freely from 5.
+    minus!.click();
+    expect(val()).toBe("4 nights");
+    minus!.click();
+    expect(val()).toBe("3 nights");
+    expect(new URLSearchParams(location.search).get("stay")).toBe("3");
+  });
+
+  it("a round trip with only a destination runs reverse discovery, not a blank screen (bug)", () => {
+    // Destination filled, origin empty, a stay chosen → the reverse round-trip finder:
+    // "where can you round-trip FROM to reach this station?" — never the old dead prompt.
+    const root = setup(`?mode=to&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=1`);
+    const title = root.querySelector("#results-title")?.textContent ?? "";
+    expect(title).toMatch(/reach/i); // "Where can you round-trip from to reach Lyon?"
+    expect(title).toContain("Lyon");
+    // A real screen (calendar / list / valid empty state), and NOT the "add a departure" hint.
+    expect(root.querySelector(".results")!.childElementCount).toBeGreaterThan(0);
+    expect(root.textContent ?? "").not.toContain("Add a departure to see where you can go and come back.");
+  });
+
   it("toggling to Round trip runs it in place — no second Search tap", () => {
     // Origin + destination + date are already set, so flipping to a round trip is the only
     // decision left: it must render the round trip straight away (minimise clicks).

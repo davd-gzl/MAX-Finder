@@ -56,6 +56,13 @@ export function qs<T extends HTMLElement = HTMLElement>(sel: string, root: Paren
 export function optionEl(value: string, label: string, selected: boolean): HTMLElement {
   const o = el("option", { value, text: label }) as HTMLOptionElement;
   o.selected = selected;
+  // Also set the DEFAULT selection: `.selected` is a live property that does NOT
+  // serialize to markup, so a prerendered <select> captured via outerHTML would lose
+  // which option is chosen and paint its FIRST option until hydration re-applied the
+  // value (e.g. connections flashing "Direct only" → "1 change max" on load). The
+  // `defaultSelected` property reflects to the `selected` ATTRIBUTE, so the prerendered
+  // static paint shows the right option and matches the hydrated form.
+  o.defaultSelected = selected;
   return o;
 }
 
