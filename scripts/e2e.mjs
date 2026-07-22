@@ -283,21 +283,27 @@ await scenario(
   },
 );
 
-// 10. Legacy od + rdate deep-link opens the Trip tab with the ROUND-TRIP segment on —
-//     the trip-shape control is now One-way / Round trip (day trip merged in as the
-//     same-day return), so a later return date resolves to the Round trip segment
-//     (the 2nd button). Both legs render as a two-step accordion; the outbound
-//     possible-days calendar is collapsed by default, the return calendar shown.
+// 10. Legacy od + rdate deep-link opens the Trip tab with the matching STAY chip on —
+//     the trip-type control is now a "How long?" chip row framed by time at the
+//     destination: Just going · Same day · 1 night · 2 · 3 · Flexible (buttons 1–6).
+//     RT_DATE2 is RT_DATE + 1 day, so a return-the-next-day link resolves to the
+//     "1 night" chip (the 3rd button). Both legs still render as a two-step accordion;
+//     the outbound possible-days calendar is collapsed by default, the return shown.
 await scenario(
-  "deep-link: od + rdate opens the Trip tab with the Round-trip segment on",
+  "deep-link: od + rdate opens the Trip tab with the '1 night' stay chip on",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(L)}&date=${RT_DATE}&rdate=${RT_DATE2}`,
   async (page) => {
     assert((await activeTrip(page)) === "simple", "active tab should be 'simple' (Trip)");
-    // The 2-segment control's second button (Round trip) must read as pressed.
-    const roundOn = await page
-      .$eval(".trip-shape .seg-btn:nth-of-type(2)", (el) => el.getAttribute("aria-pressed") === "true")
+    // Return the next day = 1 night → the 3rd chip (oneway·sameday·n1·…) reads pressed,
+    // and "Just going" (the 1st chip) must NOT be pressed.
+    const oneNightOn = await page
+      .$eval(".trip-shape .seg-btn:nth-of-type(3)", (el) => el.getAttribute("aria-pressed") === "true")
       .catch(() => false);
-    assert(roundOn, "Round-trip segment should be pressed");
+    const onewayOff = await page
+      .$eval(".trip-shape .seg-btn:nth-of-type(1)", (el) => el.getAttribute("aria-pressed") !== "true")
+      .catch(() => false);
+    assert(oneNightOn, "'1 night' stay chip should be pressed for a next-day return");
+    assert(onewayOff, "'Just going' chip should not be pressed when a return is set");
     // Two-leg accordion (Aller / Retour), each a collapsible .mc-result section.
     assert((await $count(page, ".mc-result")) === 2, "expected a two-leg accordion (outbound + return)");
     // The return calendar is shown; the outbound one is collapsed behind a toggle.

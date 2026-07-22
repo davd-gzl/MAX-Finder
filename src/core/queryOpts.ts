@@ -8,6 +8,7 @@ import type { FilterOptions } from "./search";
 import type { ConnectionOptions } from "./connections";
 import type { GetawayOptions } from "./getaways";
 import { HUB_STATIONS, OVERNIGHT_MAX_CONNECTION_MIN } from "../config";
+import { stayNights } from "./roundtrip";
 
 /** Filter options (time window, night rules, duration cap) for a query. */
 export function filterOptsFor(q: SearchQuery): FilterOptions {
@@ -41,12 +42,21 @@ export function odConnOptsFor(
   return { connOpts, passesVia: (j) => !viaId || j.hubs.includes(viaId) };
 }
 
-/** Connection options for the getaway / round-trip-discovery searches. */
+/** Connection options for the getaway / round-trip-discovery searches, keyed off the
+ *  "How long?" stay choice: same-day is nights 0, a fixed N-night stay pins that many
+ *  nights, and Flexible keeps the longest feasible stay up to 3 nights. */
 export function getawayOptsFor(q: SearchQuery): GetawayOptions {
   return {
     maxConnections: q.maxConnections,
     ...filterOptsFor(q),
-    // Round trip keeps the longest feasible stay up to 3 nights; day trip is nights 0.
-    ...(q.tripShape === "roundtrip" ? { nights: 3, flexibleNights: true } : {}),
+    ...stayGetawayOpts(q.stay),
   };
+}
+
+/** The nights / flexibility part of the getaway options for a stay choice. */
+function stayGetawayOpts(stay: SearchQuery["stay"]): { nights?: number; flexibleNights?: boolean } {
+  if (!stay) return {};
+  const nights = stayNights(stay);
+  // Flexible (null) keeps the longest feasible stay up to 3 nights; a fixed stay pins it.
+  return nights == null ? { nights: 3, flexibleNights: true } : { nights };
 }

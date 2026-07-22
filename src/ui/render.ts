@@ -1119,23 +1119,30 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
       : ctx.formatDate(outbound.date)
     : null;
   const view = el("div", { class: "trip-view" });
-  const pickOpts = { saveable: false, bookOnClick: true, bookLabel: t("act_book_leg_this"), hideMap: true };
+  // Each leg carries its OWN unmistakable book action, so the traveller is never left
+  // wondering how to get the ticket: a round trip books the outbound with "Book the
+  // outbound" and the return with "Book the return" (each a separate SNCF Connect search —
+  // a through-ticket can't be deep-linked), a one-way just "Book this trip".
+  const legBook = (label: string) => ({ saveable: false, bookOnClick: true, bookLabel: label, hideMap: true });
   view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
     ...(dateLine ? [el("p", { class: "trip-dates", text: dateLine })] : []),
     el("p", { class: "muted trip-summary", text: summary }),
     el("section", { class: "trip-leg" }, [
       ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),
-      journeyEl(outbound, ctx, pickOpts),
+      journeyEl(outbound, ctx, legBook(round ? t("act_book_out") : t("act_book_leg_this"))),
     ]),
     ...(inbound
       ? [
           el("section", { class: "trip-leg" }, [
             el("h3", { class: "trip-leg-title", text: t("rt_inbound") }),
-            journeyEl(inbound, ctx, pickOpts),
+            journeyEl(inbound, ctx, legBook(t("act_book_ret"))),
           ]),
         ]
       : []),
+    // A round trip books leg by leg — say so, so the two book buttons don't read as a
+    // choice of one or the other.
+    ...(inbound ? [el("p", { class: "trip-book-note muted small", text: t("trip_book_note") })] : []),
     // Save the trip + a travel guide for the destination city (what to do once there).
     el("div", { class: "trip-view-actions" }, [
       tripSaveBtn(outbound, ctx, inbound),

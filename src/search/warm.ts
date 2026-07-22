@@ -32,7 +32,7 @@ export function warmForQuery(trains: MaxTrain[], query: SearchQuery, today: stri
   try {
     if (query.mode === "od" && query.origin && query.destination) {
       const { connOpts } = odConnOptsFor(query, query.origin, query.destination);
-      if (query.tripShape === "roundtrip") {
+      if (query.stay) {
         // Leg 1 (outbound possible-days) + the return-direction availability, and the
         // same-day (0-night) feasibility the return calendar's first cell needs.
         roundTripCalendar(trains, query.origin, query.destination, window, connOpts);
@@ -42,7 +42,7 @@ export function warmForQuery(trains: MaxTrain[], query: SearchQuery, today: stri
         availabilityCalendar(trains, query.origin, query.destination, window, connOpts);
       }
     } else if (query.mode === "from" && query.origin) {
-      if (query.tripShape) {
+      if (query.stay) {
         getawayIdeas(trains, query.origin, window, getawayOptsFor(query));
       } else {
         const dates = browseWindow(query, today);

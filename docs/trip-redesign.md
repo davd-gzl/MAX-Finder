@@ -116,6 +116,26 @@ The audit found everything traces to **3 root causes**:
    names; `refreshInPlace` saves/restores `window.scrollY` but results live in
    `.drawer-scroll`, so a date/chip tap updates silently below the fold.
 
+### Ticket flow refinement (David, brainstorm — "something like that")
+
+- A **direct / one-way trip** is booked from the **right-side button** (the arrow/book button),
+  NOT a whole-card tap — as it was originally. Don't make the whole card book.
+- After you **select** a one-way ticket, it **collapses to a small summary** and prompts
+  **"Do you want to come back?"** — tap yes and it extends into a round trip (adds the return
+  step / return calendar). This makes one-way → round trip ONE continuous flow: you always
+  start by picking your outbound, then optionally add the return.
+- David likes selecting the **precise return date directly** on the calendar in round trip —
+  keep the linked-calendar direct date pick.
+- To refine on the REAL screen after the current build lands (concrete > abstract).
+
+### Booking must be OBVIOUS (David: "this is really cool but how can I access my ticket?")
+
+Once both legs are chosen (✓ Aller / ✓ Retour recap), the only booking affordance is a bare
+`>` arrow — users don't know it books. Give each leg a clear labelled action ("Réserver
+l'aller" / "Réserver le retour", i.e. Book this leg) that deep-links to SNCF Connect, and/or
+a prominent combined "Réserver" — so getting the ticket is unmistakable. This is the ticket
+flow the audit flagged (#4).
+
 ### Refined build direction (David, latest)
 
 **The possible-days calendar stays — but hides by default once a date is chosen.**
@@ -133,7 +153,78 @@ the multi-city legs view. So don't fight the accordion — make the round trip u
 "pick each leg's time → combine → see the whole trip" flow the multi-legs already has, and
 end on a combined recap/booking screen.
 
-### Round-trip verdict: MERGE (matches David's direction)
+### SHIPPED — the "How long?" stay control + linked calendars (this section's spec)
+
+Implemented the spec below. What landed:
+
+- **"How long?" stay control** (`src/ui/form.ts`, `TripShape = "oneway" | StayChoice`): a
+  wrapping chip row **Just going · Same day · 1 night · 2 · 3 · Flexible** (duration/intent
+  framing, not "one-way / round trip" jargon — David's refinement), beside the date. It is
+  the whole trip-type choice; `query.stay: StayChoice` replaces the old `tripShape` flag.
+  `r` steps through the chips. The glossary blurb is deleted everywhere.
+- **Linked calendars** (`runTripSearch`): clicking a departure day restarts the return
+  calendar from it (fixed stay → departure + N; else same-day-first); the return is
+  auto-derived for a fixed stay and adjustable on the calendar.
+- **No scroll-up on a calendar tap**: `revealElement()` only ever scrolls DOWN to genuinely
+  below-fold new content; the return-day pick updates in place; `updateUrl` preserves the
+  history-state form snapshot.
+- **Obvious booking**: per-leg "Book the outbound" / "Book the return" in the trip recap
+  (`render.tripViewEl`) + a "booked separately" note.
+- **Efficient results**: results title tightened + hidden on mobile (the search bar carries
+  the route/dates), glossary removed.
+- **Step-wise Back** (`activeStepBack`): Back re-opens the outbound (and walks the multi-city
+  legs) before exiting the flow; integrated with `goBack` + Escape.
+- **State preservation**: a form snapshot rides each history entry (`store.pushUrl/updateUrl`
+  `state`), restored on `popstate`; the saved page pushes an entry so gesture-Back closes it.
+- **Zero truncation (FR ≤360px)**: advanced field labels wrap; long-value selects
+  (connections, region, type) span the full grid width; the stay chips wrap.
+- **Minimise clicks**: picking a stay chip re-runs in place (no second Search tap); the
+  outbound calendar mirrors the form date (never re-asked); a one-way list books on tap.
+  Core round-trip decision path ≈ 5 taps: stay chip → outbound → return → Book outbound →
+  Book return (each leg is a separate SNCF Connect search; a through-ticket can't be
+  deep-linked). Accepting the pre-highlighted defaults collapses outbound + return to one
+  tap each.
+
+Original spec (kept for the record):
+
+### SUPERSEDED after testing — a single "How long?" control + linked calendars
+
+David tested the fully-merged single-return-calendar flow and it was NOT intuitive: you
+couldn't easily choose how long to stay, and explaining day-vs-round in a text blurb was a
+smell. New confirmed direction (this supersedes the MERGE section below):
+
+- **One "How long?" control** up front is the whole choice: **Same day · 1 night · 2 · 3 ·
+  Flexible**. Same day = day trip (hours on site); N nights = round trip with that stay;
+  Flexible = pick the return day on the return calendar. This replaces the One-way/Round-trip
+  segments' day-vs-round ambiguity with an explicit, intuitive stay length. (One-way stays a
+  separate choice — e.g. the tab / a "one-way" option.)
+- **Departure calendar** (Ulysse-style): pick when to go and see how many options each day
+  has (availability count per day). Selectable early.
+- **Linked calendars**: clicking a departure day **updates the return calendar to start from
+  that day** (departure + N nights, or a full return calendar when Flexible). "Click the
+  first cell, it updates the other."
+- **Delete the "Aller-retour ou journée ?" glossary blurb** — the control makes it
+  self-evident; make the distinction real in the UI, not in explanatory text.
+- Also fix: French field labels / select options that clip on mobile (wrap them — ZERO
+  truncation), and losing departure/destination when navigating back (persist form state
+  across popstate / browser-back, not just the in-app back button).
+- **Step-wise back inside multi-step flows.** In the round-trip accordion, pressing Back
+  after selecting the outbound must return to STEP 1 (re-open / change the outbound), not
+  exit the whole flow. Audit for similar cases (multi-city legs, any accordion/stepper) and
+  make Back walk the steps backward before leaving the flow.
+- **No scroll-up on a calendar tap** (David: "clicking on a date on the calendar scrolls
+  up, why?"). Tapping a calendar day must update the results IN PLACE without jerking the
+  page/drawer up. The current `refreshInPlace` scroll-restore / `revealResults` / focus logic
+  causes a jump — a calendar tap should keep the calendar where it is; only gently reveal
+  genuinely-new content (e.g. the return leg the first time it appears), never scroll up.
+- **Efficient results screen** (David: "this screen is not efficient"). The results view
+  wastes vertical space: the big heading DUPLICATES the collapsed search bar (both read
+  "Paris ⇄ Lyon · dates"), and the "Aller-retour ou journée ?" blurb + guide link + "Départ
+  · Changer" push the first train far down. Drop the duplicated heading (the search bar
+  already carries it, or make one of them minimal), delete the glossary blurb, and tighten
+  the chrome so an actual train is visible with little/no scrolling.
+
+### Round-trip verdict: MERGE (matches David's direction) — SUPERSEDED, see above
 
 Day trip is literally a 0-night round trip. Collapse the segments to **One-way / Round
 trip**. Ask the **departure date once** (form). Build **one return calendar starting at

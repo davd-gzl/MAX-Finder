@@ -1,6 +1,18 @@
-import type { SearchQuery, SearchMode, CardType, Journey, SortKey, TripLeg } from "../types";
+import type { SearchQuery, SearchMode, CardType, Journey, SortKey, TripLeg, StayChoice } from "../types";
 import type { Tour } from "../core/tour";
+import { stayFromNights } from "../core/roundtrip";
+import { dayIndex } from "../util/time";
 import { isLang, detectLang, type Lang } from "../i18n";
+
+/** URL token for a stay choice (compact + stable): stay=day|1|2|3|flex. */
+const STAY_TO_PARAM: Record<StayChoice, string> = {
+  sameday: "day",
+  n1: "1",
+  n2: "2",
+  n3: "3",
+  flexible: "flex",
+};
+const PARAM_TO_STAY: Record<string, StayChoice> = { day: "sameday", "1": "n1", "2": "n2", "3": "n3", flex: "flexible" };
 
 export type Theme = "light" | "dark" | "auto";
 export type ViewMode = "list" | "map";
@@ -238,10 +250,10 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.minLegDurationMin != null && q.minLegDurationMin > 0) p.set("legdurmin", String(q.minLegDurationMin));
   if (q.maxSpanDays != null && q.maxSpanDays > 0) p.set("span", String(q.maxSpanDays));
   if (q.radiusKm != null && q.radiusKm > 0) p.set("rad", String(q.radiusKm));
-  // Trip shape is the canonical round-trip input: rt=round. A same-day return is the
-  // 0-night case (carried by rdate === date), not a separate value. Legacy links used
-  // rt=1 / rt=day — both still read below as a round trip.
-  if (q.tripShape) p.set("rt", "round");
+  // The "How long?" stay choice is the canonical round-trip input: stay=day|1|2|3|flex.
+  // (For an exact route the concrete return day also travels as rdate above, so a shared
+  // link opens on the right return.) Legacy rt=round / rt=1 / rt=day still read below.
+  if (q.stay) p.set("stay", STAY_TO_PARAM[q.stay]);
   if (q.nights != null && q.nights > 0) p.set("nights", String(q.nights));
   if (q.flexNights) p.set("fn", "1");
   if (q.stayMinHours != null && q.stayMinHours > 0) p.set("stayh", String(q.stayMinHours));
@@ -308,12 +320,10 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     maxSpanDays: Number.isFinite(span) && span > 0 ? Math.min(14, Math.floor(span)) : undefined,
     // od-only search radius (km) for nearby paid-connection alternatives.
     radiusKm: Number.isFinite(rad) && rad > 0 ? Math.min(300, Math.floor(rad)) : undefined,
-    // Trip shape: rt=round → round trip; legacy rt=1 / rt=day both resolve to a round
-    // trip (rt=day = the 0-night, same-day case, which the return calendar now covers).
-    // A carried `rdate` from an older link is resolved into a shape in app.ts
-    // (queryFromUrl), where the outbound date is known.
-    tripShape:
-      p.get("rt") === "round" || p.get("rt") === "1" || p.get("rt") === "day" ? "roundtrip" : undefined,
+    // Stay choice: the explicit stay=… param wins. Legacy links carry it as rt=… and/or
+    // rdate: rt=day → same day, a concrete rdate on/after the outbound → the matching
+    // fixed nights (or Flexible beyond 3), and a bare rt=round / rt=1 → Flexible.
+    stay: parseStay(p),
     nights: Number.isFinite(nights) && nights >= 1 ? Math.min(3, Math.floor(nights)) : undefined,
     flexNights: p.get("fn") === "1" || undefined,
     stayMinHours: Number.isFinite(stayh) && stayh >= 1 ? Math.min(12, Math.floor(stayh)) : undefined,
@@ -326,6 +336,28 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
 /** Validate a URL sort value against the known keys (undefined = the default rank). */
 function parseSort(raw: string | null): SortKey | undefined {
   return raw && (SORT_KEYS as readonly string[]).includes(raw) ? (raw as SortKey) : undefined;
+}
+
+/**
+ * Resolve the "How long?" stay choice from a URL. The explicit `stay` token wins; a
+ * legacy link is read from `rt` + `rdate`: `rt=day` is a same-day trip, a concrete
+ * `rdate` on/after the outbound maps to the matching fixed nights (Flexible beyond 3),
+ * and a bare `rt=round` / `rt=1` (no rdate) is Flexible. Returns undefined for a plain
+ * one-way. (An out-of-window date is re-clamped in app.ts, which re-derives the stay
+ * from the carried rdate then, so this only needs the raw params.)
+ */
+function parseStay(p: URLSearchParams): StayChoice | undefined {
+  const explicit = p.get("stay");
+  if (explicit && explicit in PARAM_TO_STAY) return PARAM_TO_STAY[explicit];
+  const rt = p.get("rt");
+  const rdate = p.get("rdate");
+  const date = p.get("date");
+  if (rdate && date && isValidIsoDate(rdate) && isValidIsoDate(date) && rdate >= date) {
+    return stayFromNights(dayIndex(rdate) - dayIndex(date));
+  }
+  if (rt === "day") return "sameday";
+  if (rt === "round" || rt === "1") return "flexible";
+  return undefined;
 }
 
 // A crafted `legs` param must never crash the render: an unbounded leg list runs
@@ -358,13 +390,20 @@ function parseLegs(raw: string | null): TripLeg[] | undefined {
   return legs.length > 0 ? legs : undefined;
 }
 
-export function updateUrl(q: SearchQuery): void {
-  history.replaceState(null, "", `${location.pathname}?${queryToParams(q).toString()}`);
+export function updateUrl(q: SearchQuery, state?: unknown): void {
+  // Preserve whatever state the current entry already holds (e.g. a form snapshot) when
+  // the caller doesn't pass one — an incidental in-place update (a calendar tap) must not
+  // wipe the snapshot a later gesture-Back would restore from.
+  history.replaceState(state === undefined ? history.state : state, "", `${location.pathname}?${queryToParams(q).toString()}`);
 }
 
-/** Push a new history entry, so the browser Back button returns to the prior page. */
-export function pushUrl(q: SearchQuery): void {
-  history.pushState(null, "", `${location.pathname}?${queryToParams(q).toString()}`);
+/**
+ * Push a new history entry, so the browser Back button returns to the prior page.
+ * `state` is stored on the entry (we stash a form snapshot there) so a gesture-Back /
+ * popstate can restore the exact form that produced the page instead of wiping it.
+ */
+export function pushUrl(q: SearchQuery, state: unknown = null): void {
+  history.pushState(state, "", `${location.pathname}?${queryToParams(q).toString()}`);
 }
 
 export function urlHasQuery(): boolean {

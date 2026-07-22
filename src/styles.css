@@ -663,6 +663,10 @@ a {
 .trip-shape {
   position: relative;
   display: inline-flex;
+  /* The "How long?" control is a WRAPPING chip row (Just going · Same day · 1 night · 2 ·
+     3 · Flexible): it wraps onto as many lines as it needs so no chip is ever truncated
+     (zero-truncation rule), rather than a fixed-width segmented control. */
+  flex-wrap: wrap;
   gap: 0.2rem;
   padding: 5px;
   background: var(--chip);
@@ -697,21 +701,21 @@ a {
     transition: none;
   }
 }
-/* On phones the three localized labels (e.g. FR "Aller-retour dans la journée") are far
-   wider than the viewport, clipping the Round-trip segment and scrolling the page
-   sideways. Let the control fill the row and its segments share it + wrap their text so
-   it never exceeds the form card width. */
+/* On phones the "How long?" chips fill the row and wrap onto multiple lines rather than
+   scrolling sideways or clipping — the chip text stays intact at ≤360px (zero
+   truncation). Each chip sizes to its own content; the row simply wraps. */
 @media (max-width: 520px) {
   .trip-shape {
     display: flex;
     width: 100%;
-    gap: 0.15rem;
+    gap: 0.25rem;
+    justify-content: flex-start;
   }
   .seg-btn {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
     white-space: normal;
-    padding: 0.45rem 0.4rem;
+    padding: 0.4rem 0.55rem;
     line-height: 1.15;
   }
   .trip-shape .kbd-hint {
@@ -1012,17 +1016,27 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 0.55rem 0.75rem;
   margin-top: 0.7rem;
-  grid-auto-rows: var(--adv-row);
+  /* Auto-height rows (min the old fixed height) so a wrapped two-line label fits without
+     being clipped — the zero-truncation rule wins over an even row rhythm. */
+  grid-auto-rows: minmax(var(--adv-row), auto);
   align-items: start;
 }
-/* Labels stay on one line: the panel is narrow at three columns, and a wrapping
-   label would break the fixed row height. The full text is on the title attribute. */
+/* Labels WRAP and fit — never clipped (zero-truncation rule): a long FR label like
+   "Correspondance de nuit" / "Durée max. / train (min)" flows onto a second line rather
+   than being cut with an ellipsis. The grid rows are auto-height (below) so a two-line
+   label doesn't get chopped. */
 .advanced .field-label {
   display: block;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.2;
+}
+/* A field whose select VALUE gets long (connections, region, train type): give it the
+   full grid width so the closed value has room and never clips. */
+.advanced-grid .field-wide {
+  grid-column: 1 / -1;
 }
 /* "Only night trains" is a sub-option of "night trains", but side by side in the
    toggle band its indent would just read as a column out of alignment. */
@@ -2945,8 +2959,28 @@ select.input::-ms-expand {
 .results-title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.35rem;
+  /* Tightened from a "big heading" so an actual train shows with little scroll — the
+     route + dates are the context, not a hero title. */
+  font-size: 1.15rem;
   letter-spacing: -0.01em;
+}
+/* On phones the collapsed search bar already carries the route + dates, so the in-drawer
+   heading is a pure duplicate — hide it VISUALLY there (kept in the a11y tree + as the
+   focus target, and it still feeds the search-bar text) so the first result sits near the
+   top of the drawer. Desktop has no search bar, so the heading stays; and a full-page
+   detail view ([data-detail="on"] — saved trips, a drilled route) keeps its heading too,
+   since there it is the page's own title, not a duplicate of the bar. */
+@media (max-width: 860px) {
+  [data-mform]:not([data-detail="on"]) .results-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .count,
 .list-toolbar .count {
