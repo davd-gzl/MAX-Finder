@@ -723,6 +723,13 @@ a {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+/* The stepper + Flexible pill ride together on one line (they wrap as a unit under the
+   label on a narrow phone, never splitting onto separate lines). */
+.nights-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .nights-label {
   font-family: var(--font-mono);
   font-size: 0.6rem;
