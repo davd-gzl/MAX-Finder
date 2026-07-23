@@ -767,6 +767,30 @@ describe("app (jsdom smoke)", () => {
     expect(cellFor(30)!.classList.contains("sel")).toBe(true);
   });
 
+  it("Flexible with ONLY an origin (browse) lets you pick départ → retour — the return registers", () => {
+    // Regression: with only a departure filled the mode is "from" (discovery), which used to
+    // drop the flexible return in readQueryFromForm, so the arrival tap did nothing. It must
+    // now register the return and carry the départ→retour window (rdate).
+    const root = setup(`?from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&stay=flex`);
+    // Only the origin is filled (no destination) → origin-only "from" discovery.
+    const destInput = root.querySelectorAll<HTMLInputElement>('.od-fields input[list="station-list"]')[1];
+    expect(destInput?.value ?? "").toBe("");
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    // Flexible locks the calendar open, so the cells are already present (no toggle needed).
+    const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
+    const cellFor = (day: number): HTMLElement | undefined =>
+      Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell")).find((c) => Number(dayOf(c)) === day);
+    cellFor(27)!.click(); // départ
+    cellFor(30)!.click(); // retour — must register despite there being no destination
+    const params = new URLSearchParams(location.search);
+    expect(params.get("stay")).toBe("flex");
+    expect(params.get("date")).toBe("2026-06-27");
+    expect(params.get("rdate")).toBe("2026-06-30"); // the return was NOT dropped
+    // The band paints between the endpoints, so the arrival visibly took effect.
+    expect(cellFor(28)!.classList.contains("range")).toBe(true);
+    expect(cellFor(30)!.classList.contains("sel")).toBe(true);
+  });
+
   it("restores the Flexible range from the query on sync (stay=flex + rdate)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=flex&rdate=2026-06-28`,
