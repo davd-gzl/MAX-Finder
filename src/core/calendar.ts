@@ -1,5 +1,5 @@
 import type { MaxTrain, CalendarDay, Journey } from "../types";
-import { findJourneys, reachableJourneys, type ConnectionOptions } from "./connections";
+import { findJourneys, reachableJourneys, reachableInto, type ConnectionOptions } from "./connections";
 import { filterTrains, type FilterOptions } from "./search";
 
 /**
@@ -73,6 +73,28 @@ export function reachableCountCalendar(
     let count = 0;
     for (const dest of reachableJourneys(trains, origin, date, opts).keys()) {
       if (accept(dest)) count++;
+    }
+    return { date, available: count > 0, count };
+  });
+}
+
+/**
+ * Per-day count of distinct ORIGINS from which `destination` is reachable over
+ * `dates`, INCLUDING connections — the mirror of {@link reachableCountCalendar}
+ * for a browse-by-arrival (destination-only) search. A day is available when at
+ * least one origin can reach `destination`. `accept` optionally filters origins.
+ */
+export function reachableIntoCountCalendar(
+  trains: MaxTrain[],
+  destination: string,
+  dates: string[],
+  opts: ConnectionOptions = {},
+  accept: (origin: string) => boolean = () => true,
+): CalendarDay[] {
+  return dates.map((date) => {
+    let count = 0;
+    for (const origin of reachableInto(trains, destination, date, opts).keys()) {
+      if (accept(origin)) count++;
     }
     return { date, available: count > 0, count };
   });

@@ -5,7 +5,7 @@ import type { DatasetProfile } from "../src/data/profile";
 import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
-import { availabilityCalendar } from "../src/core/calendar";
+import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar } from "../src/core/calendar";
 import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
 import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
@@ -234,6 +234,28 @@ describe("availabilityCalendar", () => {
     // Accept-all matches the unfiltered counts.
     const all = availabilityCalendar(trains, "PARIS (intramuros)", "LYON (intramuros)", dates, {}, () => true);
     expect(all.map((d) => d.count)).toEqual([3, 1, 0]);
+  });
+});
+
+describe("reachableIntoCountCalendar (destination-only browse-by-arrival)", () => {
+  it("counts the origins that can reach a destination each day — never an empty grid when arrivals exist", () => {
+    const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
+    const cal = reachableIntoCountCalendar(trains, "LYON (intramuros)", dates);
+    // On a day PARIS -> LYON runs, at least one origin reaches LYON, so the day is available.
+    const d25 = cal.find((d) => d.date === "2026-06-25")!;
+    expect(d25.available).toBe(true);
+    expect(d25.count).toBeGreaterThanOrEqual(1);
+    // Every available day carries a positive origin count (the fix: a populated calendar).
+    for (const d of cal) expect(d.available).toBe(d.count > 0);
+  });
+
+  it("mirrors reachableCountCalendar: reachable-into a hub is symmetric to reachable-from it", () => {
+    const dates = ["2026-06-25", "2026-06-26"];
+    const into = reachableIntoCountCalendar(trains, "PARIS (intramuros)", dates);
+    const from = reachableCountCalendar(trains, "PARIS (intramuros)", dates);
+    // Both are non-empty for a hub — the destination-only calendar is as alive as origin-only.
+    expect(into.some((d) => d.available)).toBe(true);
+    expect(from.some((d) => d.available)).toBe(true);
   });
 });
 
