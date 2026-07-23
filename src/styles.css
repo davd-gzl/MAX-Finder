@@ -240,6 +240,12 @@ a {
   display: flex;
   gap: 0.4rem;
 }
+/* Always-visible quick controls (MAX pass + Install + Settings), never behind the menu. */
+.header-quick {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 .menu-selects,
 .menu-actions {
   display: contents;
@@ -4259,8 +4265,14 @@ select.input::-ms-expand {
 @media (max-width: 860px) {
   .site-header {
     flex-wrap: nowrap;
+    gap: 0.5rem;
   }
   .brand-badge {
+    display: none;
+  }
+  /* Logo-only on mobile (drop the wordmark) so the brand + pass + Install + Settings + menu
+     all fit on ONE line without truncation. */
+  .brand-head {
     display: none;
   }
   .header-nav > .menu-btn {
@@ -4268,6 +4280,29 @@ select.input::-ms-expand {
   }
   .header-nav {
     position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+  /* The MAX pass grows to fill the row; Install + Settings + menu stay icon-width. */
+  .header-quick {
+    flex: 1;
+    min-width: 0;
+  }
+  .header-quick select.ctl {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  .header-quick .icon-ctl {
+    width: 42px;
+    min-height: 44px;
+    flex: none;
+  }
+  .header-quick .install-label {
+    display: none;
   }
   .header-ctls {
     position: absolute;
