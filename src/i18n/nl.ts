@@ -290,6 +290,8 @@ export const nl: Dict = {
   sort_days: "Meeste dagen",
   sort_closest: "Dichtstbij",
   sort_fastest: "Snelste",
+  sort_arrival: "Vroegste aankomst",
+  sort_departure: "Vroegste vertrek",
   sort_name: "A–Z",
 
   mode_oneway: "Enkele reis",

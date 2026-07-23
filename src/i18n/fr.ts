@@ -301,6 +301,8 @@ export const fr = {
   sort_days: "Plus de jours",
   sort_closest: "Plus proche",
   sort_fastest: "Plus rapide",
+  sort_arrival: "Arrivée la plus tôt",
+  sort_departure: "Départ le plus tôt",
   sort_name: "A–Z",
 
   mode_oneway: "Aller simple",

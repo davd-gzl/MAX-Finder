@@ -291,6 +291,8 @@ export const it: Dict = {
   sort_days: "Più giorni",
   sort_closest: "Più vicino",
   sort_fastest: "Più veloce",
+  sort_arrival: "Arrivo più presto",
+  sort_departure: "Partenza più presto",
   sort_name: "A–Z",
 
   mode_oneway: "Solo andata",
