@@ -9,6 +9,7 @@ import type { ConnectionOptions } from "./connections";
 import type { GetawayOptions } from "./getaways";
 import { HUB_STATIONS, OVERNIGHT_MAX_CONNECTION_MIN } from "../config";
 import { stayNights } from "./roundtrip";
+import { dayIndex } from "../util/time";
 
 /** Filter options (time window, night rules, duration cap) for a query. */
 export function filterOptsFor(q: SearchQuery): FilterOptions {
@@ -49,14 +50,26 @@ export function getawayOptsFor(q: SearchQuery): GetawayOptions {
   return {
     maxConnections: q.maxConnections,
     ...filterOptsFor(q),
-    ...stayGetawayOpts(q.stay),
+    ...stayGetawayOpts(q.stay, flexWindowNights(q)),
   };
 }
 
+/** The nights implied by a Flexible départ→retour range picked on the calendar (origin- or
+ *  destination-only discovery), or undefined when no such range is set. It bounds the getaway
+ *  sweep to "back by the chosen day" instead of the default up-to-3-nights window. */
+function flexWindowNights(q: SearchQuery): number | undefined {
+  if (q.stay !== "flexible" || !q.returnDate || !q.date || q.returnDate < q.date) return undefined;
+  return dayIndex(q.returnDate) - dayIndex(q.date);
+}
+
 /** The nights / flexibility part of the getaway options for a stay choice. */
-function stayGetawayOpts(stay: SearchQuery["stay"]): { nights?: number; flexibleNights?: boolean } {
+function stayGetawayOpts(
+  stay: SearchQuery["stay"],
+  flexWindow?: number,
+): { nights?: number; flexibleNights?: boolean } {
   if (!stay) return {};
   const nights = stayNights(stay);
-  // Flexible (null) keeps the longest feasible stay up to 3 nights; a fixed stay pins it.
-  return nights == null ? { nights: 3, flexibleNights: true } : { nights };
+  // Flexible (null) keeps the longest feasible stay up to a window: the départ→retour span
+  // the user picked on the calendar when set, else the default 3 nights. A fixed stay pins it.
+  return nights == null ? { nights: flexWindow != null ? Math.max(0, flexWindow) : 3, flexibleNights: true } : { nights };
 }

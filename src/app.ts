@@ -1001,8 +1001,16 @@ function readQueryFromForm(): SearchQuery {
   // Flexible on an exact route keeps the return the user picked on the calendar (still in
   // window and on/after the outbound), else leaves it unset so the results page proposes one.
   const flexReturn = query.returnDate && query.returnDate >= outDate ? query.returnDate : undefined;
-  const returnDate =
-    mode !== "od" ? undefined : formFlexible ? flexReturn : formNights !== null ? returnAfterNights(outDate, formNights) : undefined;
+  // Flexible carries the return the user picked on the calendar in EVERY stay-taking mode —
+  // not just an exact route. Origin-only ("from") and destination-only ("to") discovery use
+  // départ→retour as the getaway window (see getawayOptsFor), so dropping it here was what
+  // left the arrival un-pickable when only one endpoint was filled. A FIXED stay still only
+  // derives an explicit return for an exact route (discovery derives its own from the sweep).
+  const returnDate = formFlexible
+    ? flexReturn
+    : mode === "od" && formNights !== null
+      ? returnAfterNights(outDate, formNights)
+      : undefined;
   return {
     mode,
     origin: legsMode ? undefined : resolveStation(refs.origin.value),
@@ -1399,15 +1407,17 @@ function pickFormRange(date: string): void {
     formRangeAwait = false;
     query = { ...query, returnDate: date };
     const fq = readQueryFromForm(); // reads query.returnDate → carries it as the flexible return
-    if (fq.origin && fq.destination) {
-      const sameRoute =
-        query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
-      query = fq;
-      if (sameRoute && queryIsRenderable(query)) refreshInPlace();
+    const sameRoute =
+      query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
+    query = fq;
+    // Run as soon as the completed range yields something searchable — an exact route OR a
+    // one-ended discovery (origin-only "from", destination-only "to"), so picking départ →
+    // retour with only Paris filled shows the getaways for that window instead of just staging.
+    if (queryIsRenderable(query)) {
+      if (sameRoute) refreshInPlace();
       else applyAndRun();
-    } else {
-      query = fq; // incomplete route: just stage the range, nothing to render yet
     }
+    // else: nothing searchable yet (no endpoint) — the range stays staged on the form.
     repaintFormCalendar();
     return;
   }
@@ -3646,7 +3656,19 @@ function buildLayout(root: HTMLElement): void {
   // input, immediate on a committed value (a datalist pick / blur).
   for (const inp of [refs.origin, refs.destination]) {
     inp.addEventListener("input", scheduleFormCalRepaint);
-    inp.addEventListener("change", () => repaintFormCalendar());
+    // A committed pick (datalist tap / blur / Enter) fires `change`. DEFER the repaint one
+    // frame so the field + chip update paint first: the origin-only "possible days" grid runs
+    // a full getaway sweep that can take ~1s cold for a hub like Paris, and running it inline
+    // froze the tap so the picked station only appeared a second later. Deferring lets the
+    // selection apply instantly; the calendar (which stays visible until then — the repaint
+    // clears and rebuilds in one go) fills a beat afterwards.
+    inp.addEventListener("change", () => {
+      if (formCalTimer) {
+        clearTimeout(formCalTimer);
+        formCalTimer = 0;
+      }
+      requestAnimationFrame(() => repaintFormCalendar());
+    });
   }
   mapPromise = null;
   mapInstance = null;
