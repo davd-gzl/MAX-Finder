@@ -276,6 +276,7 @@ export const ar: Dict = {
   trip_summary_day: "في نفس اليوم · {onsite} في الموقع · {dur} سفر",
   trip_summary_oneway: "ذهاب فقط · {date} · {dur}",
   trip_more_dates: "عرض كل التواريخ",
+  act_view_trip: "عرض التذكرة",
 
   ret_cal_title: "توفّر رحلات العودة",
   ret_view_round: "عرض الذهاب والإياب",

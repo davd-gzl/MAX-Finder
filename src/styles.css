@@ -1470,13 +1470,28 @@ a {
 .od-guide {
   margin: 0 0 0.3rem;
 }
-/* The round-trip conclusion line: nights away + total travel, above the two legs. */
-.rt-total {
+/* The round-trip conclusion: nights away + total travel, plus a "View ticket" button that
+   reopens the whole-trip modal — above the two legs. */
+.rt-conclusion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
   margin: 0 0 0.6rem;
+}
+.rt-total {
+  margin: 0;
   font-weight: 600;
   color: var(--text);
 }
 .rt-total:empty {
+  display: none;
+}
+.rt-view-ticket {
+  flex: none;
+}
+.rt-view-ticket[hidden] {
   display: none;
 }
 .empty {

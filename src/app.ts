@@ -1424,11 +1424,16 @@ function pickFormDay(date: string): void {
   refs.date.value = date;
   refs.departDate.setDate(date);
   const fq = readQueryFromForm();
-  if (fq.origin && fq.destination) {
-    const sameRoute =
-      query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
-    query = fq;
-    if (sameRoute && queryIsRenderable(query)) refreshInPlace();
+  const sameRoute =
+    query.origin === fq.origin && query.destination === fq.destination && (query.mode === "od" || tripIsRound());
+  query = fq;
+  // Run as soon as the query is searchable — an exact route OR a one-ended discovery
+  // (origin-only "from"/"best", destination-only "to") — so tapping a day refreshes the
+  // results AND the map even with a single endpoint filled (David: "destination-only same
+  // day, the calendar selection doesn't update the map"). Only a truly empty query stays
+  // staged.
+  if (queryIsRenderable(query)) {
+    if (sameRoute) refreshInPlace();
     else applyAndRun();
   }
   repaintFormCalendar();
@@ -2738,7 +2743,15 @@ function runTripSearch(c: RenderCtx): void {
   // travel time — kept in step with the chosen outbound/return by updateTripTotal() (assigned
   // once the outbound list exists; the return-list renderer calls it on every return change).
   const tripTotal = el("p", { class: "rt-total" });
-  refs.results.append(tripTotal);
+  // "View ticket" — reopens the whole-trip modal (Book / Add to calendar) after it's been
+  // dismissed, using the chosen (or default) outbound + return. Hidden until both legs resolve.
+  const viewTicketBtn = el("button", {
+    class: "btn btn-primary rt-view-ticket",
+    type: "button",
+    text: t("act_view_trip"),
+    on: { click: () => openTripModalBest() },
+  });
+  refs.results.append(el("div", { class: "rt-conclusion" }, [tripTotal, viewTicketBtn]));
   let updateTripTotal: () => void = () => {};
 
   // --- 2-leg accordion (same behaviour + classes as the multi-city stepper) --------
@@ -2787,6 +2800,14 @@ function runTripSearch(c: RenderCtx): void {
     if (chosenOutbound && boxes[1]?.chosen) {
       showTripModal(chosenOutbound, c, { inbound: boxes[1].chosen, onShare: shareCurrentUrl });
     }
+  };
+  // Reopen the ticket on demand ("View ticket"): use the chosen legs when set, else the
+  // default outbound + the return for the current/proposed day — so it works even before the
+  // user has explicitly tapped each leg.
+  const openTripModalBest = (): void => {
+    const out = chosenOutbound ?? outJourneys[0];
+    const ret = boxes[1]?.chosen ?? returnJourneys(odReturnDate ?? proposed).list[0];
+    if (out && ret) showTripModal(out, c, { inbound: ret, onShare: shareCurrentUrl });
   };
   const pickReturn = (j: Journey): void => {
     if (boxes[1]) boxes[1].chosen = j;
@@ -3044,6 +3065,8 @@ function runTripSearch(c: RenderCtx): void {
     const out = chosenOutbound ?? outJourneys[0];
     const retDate = odReturnDate ?? proposed;
     const ret = returnJourneys(retDate).list[0];
+    // No bookable pairing (a leg has no train that day) → no conclusion, no "View ticket".
+    viewTicketBtn.hidden = !out || !ret;
     if (!out || !ret) {
       tripTotal.textContent = "";
       return;

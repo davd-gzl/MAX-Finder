@@ -277,6 +277,7 @@ export const ko: Dict = {
   trip_summary_day: "당일치기 · 현지 {onsite} · 이동 {dur}",
   trip_summary_oneway: "편도 · {date} · {dur}",
   trip_more_dates: "모든 날짜 보기",
+  act_view_trip: "티켓 보기",
 
   ret_cal_title: "귀가편 가능일",
   ret_view_round: "왕복 보기",

@@ -287,6 +287,7 @@ export const fr = {
   trip_summary_day: "Aller-retour dans la journée · {onsite} sur place · {dur} de trajet",
   trip_summary_oneway: "Aller simple · {date} · {dur}",
   trip_more_dates: "Voir toutes les dates",
+  act_view_trip: "Voir le billet",
 
   ret_cal_title: "Disponibilité des retours",
   ret_view_round: "Voir l'aller-retour",

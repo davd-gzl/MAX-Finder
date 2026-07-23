@@ -276,6 +276,7 @@ export const pt: Dict = {
   trip_summary_day: "No mesmo dia · {onsite} no local · {dur} de viagem",
   trip_summary_oneway: "Só ida · {date} · {dur}",
   trip_more_dates: "Ver todas as datas",
+  act_view_trip: "Ver bilhete",
 
   ret_cal_title: "Disponibilidade de voltas",
   ret_view_round: "Ver ida e volta",

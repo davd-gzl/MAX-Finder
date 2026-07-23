@@ -289,6 +289,7 @@ export const en: Dict = {
   trip_summary_day: "Day trip · {onsite} on site · {dur} round-trip travel",
   trip_summary_oneway: "One-way · {date} · {dur}",
   trip_more_dates: "See all dates",
+  act_view_trip: "View ticket",
 
   ret_cal_title: "Return availability",
   ret_view_round: "See round trip",

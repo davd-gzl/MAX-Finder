@@ -277,6 +277,7 @@ export const de: Dict = {
   trip_summary_day: "Tagesausflug · {onsite} vor Ort · {dur} Fahrt",
   trip_summary_oneway: "Einfache Fahrt · {date} · {dur}",
   trip_more_dates: "Alle Daten anzeigen",
+  act_view_trip: "Ticket ansehen",
 
   ret_cal_title: "Verfügbarkeit der Rückfahrten",
   ret_view_round: "Hin- und Rückfahrt ansehen",

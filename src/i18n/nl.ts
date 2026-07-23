@@ -276,6 +276,7 @@ export const nl: Dict = {
   trip_summary_day: "Dagtrip · {onsite} ter plaatse · {dur} reizen",
   trip_summary_oneway: "Enkele reis · {date} · {dur}",
   trip_more_dates: "Alle datums bekijken",
+  act_view_trip: "Bekijk ticket",
 
   ret_cal_title: "Beschikbaarheid terugreis",
   ret_view_round: "Retour bekijken",
