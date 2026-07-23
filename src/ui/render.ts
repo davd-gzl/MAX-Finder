@@ -462,6 +462,7 @@ export function reachTripRowEl(
   j: Journey,
   ctx: RenderCtx,
   extra?: HTMLElement,
+  opts?: { hideMeta?: boolean },
 ): HTMLElement {
   const route: RoutePair = { origin: j.origin, destination: j.destination };
   const via = j.legs.length > 1;
@@ -490,9 +491,13 @@ export function reachTripRowEl(
       stationNameEl("dest-name", station, ctx.label(station)),
       ...viaChip,
       ...(extra ? [extra] : []),
-      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
-        el("bdi", { text: formatDuration(j.totalDurationMin) }),
-      ]),
+      ...(opts?.hideMeta
+        ? []
+        : [
+            el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+              el("bdi", { text: formatDuration(j.totalDurationMin) }),
+            ]),
+          ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
@@ -771,6 +776,10 @@ export function listToolbarEl(
  * days it's reachable.
  */
 export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): HTMLElement {
+  // Ideas is a discovery list: the city name is the point, so it always leads. A single
+  // "N trains" chip (the ranking signal — how well-served the route is across the month)
+  // rides alongside it; the duration meta is dropped so a long city name never gets
+  // squeezed out of the row. Both figures still live in the chip's tooltip.
   const chips: HTMLElement[] = [];
   if (trains != null && trains > 0) {
     chips.push(
@@ -781,17 +790,8 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
       }),
     );
   }
-  if (trip.days != null) {
-    chips.push(
-      el("span", {
-        class: "chip chip-soft month-chip",
-        text: t("ideas_days", { n: trip.days }),
-        attrs: { title: t("ideas_days_hint", { n: trip.days }) },
-      }),
-    );
-  }
   const extra = chips.length ? el("span", { class: "row-chips" }, chips) : undefined;
-  return reachTripRowEl(trip.destination, trip.journey, ctx, extra);
+  return reachTripRowEl(trip.destination, trip.journey, ctx, extra, { hideMeta: true });
 }
 
 /**

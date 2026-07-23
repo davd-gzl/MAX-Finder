@@ -2236,31 +2236,30 @@ function runBestSearch(c: RenderCtx): void {
   refs.title.textContent = allDays
     ? t("best_title_all", { station: registry.label(query.origin) })
     : t("best_title", { station: registry.label(query.origin), date: formatDate(query.date) });
-  // Ideas by day: a 30-day strip showing how many destinations run each day.
-  // Clicking a day reloads that day's list (works even when today's is empty, so
-  // you can hop to a better day).
   const inRegion = (d: string): boolean =>
     !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  // Count connection-aware destinations per day (matches the list, which includes
-  // places reached via a stopover), so the calendar number is "destinations that day".
-  const cal = reachableCountCalendar(
-    trains,
-    query.origin,
-    window,
-    { ...filterOpts(), maxConnections: query.maxConnections },
-    inRegion,
-  );
-  refs.results.append(
-    // In all-days mode no single day is "selected" — leave the strip unhighlighted.
-    render.calendarEl(cal, c, allDays ? undefined : query.date, {
-      title: t("best_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
-    }),
-  );
-  // Once a day is picked, offer a one-tap return to the full "all days" list.
+  // Ideas is a plain "where can I go from here" list — no date picker, no by-day strip.
+  // The calendar only appears in the narrowed single-day view (reachable from a deep
+  // link), where it doubles as the "which other day?" switcher.
   if (!allDays) {
+    // Count connection-aware destinations per day (matches the list, which includes
+    // places reached via a stopover), so the calendar number is "destinations that day".
+    const cal = reachableCountCalendar(
+      trains,
+      query.origin,
+      window,
+      { ...filterOpts(), maxConnections: query.maxConnections },
+      inRegion,
+    );
+    refs.results.append(
+      render.calendarEl(cal, c, query.date, {
+        title: t("best_cal_title"),
+        count: (n) => t("best_cal_count", { n }),
+        countLegend: t("cal_legend_dest"),
+      }),
+    );
+    // Once a day is picked, offer a one-tap return to the full "all days" list.
     refs.results.append(
       el("p", { class: "best-alldays-row" }, [
         el("button", {
@@ -3112,9 +3111,9 @@ function cycleTripShape(): void {
 function runFromForm(): void {
   navStack = [];
   getawayDay = null; // a fresh search starts discovery un-narrowed (no lingering day filter)
-  // In Ideas, running the search honours the date picked in the form (that day's
-  // ideas), rather than the whole-window "all days" overview.
-  if (tripType === "ideas") bestAllDays = false;
+  // Ideas has no date picker — it's a pick-a-departure, see-the-cities surface — so a
+  // search always shows the whole-window "all destinations" overview, never a single day.
+  if (tripType === "ideas") bestAllDays = true;
   query = readQueryFromForm();
   applyAndRun();
   // Only swap the phone to the results view when there's something real to show. An

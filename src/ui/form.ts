@@ -940,7 +940,9 @@ export function createForm(props: FormProps): FormHandle {
     odFields.style.display = legs ? "none" : "";
     originField.style.display = legs ? "none" : "";
     // The date + trip-shape row hides together in the legs editor (each leg is dated).
-    dateRow.style.display = legs ? "none" : "";
+    // Ideas is a one-field discovery surface — pick a departure, get the cities — so it
+    // carries no date or trip-shape at all: the whole row is hidden there too.
+    dateRow.style.display = legs || ideas ? "none" : "";
     // The reactive availability calendar is the Trip tab's date picker only — other tabs
     // date their trips differently (per-leg, per-tour-plan, or the Ideas day strip).
     formCalBlock.style.display = simple ? "" : "none";
@@ -977,17 +979,22 @@ export function createForm(props: FormProps): FormHandle {
     // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";
 
-    // Region filters "Ideas" and focuses a tour plan ("visit Bretagne").
-    regionField.style.display = ideas || plan ? "" : "none";
+    // Region focuses a tour plan ("visit Bretagne"). Ideas stays a single-field
+    // surface, so no region filter there either.
+    regionField.style.display = plan ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
     // Radius (nearby-station reach) applies to the single trip tabs. (The hidden-train
     // toggle lives in Advanced and shows on every tab, so it isn't gated here.)
     radiusField.style.display = single ? "" : "none";
     scopeField.style.display = single ? "" : "none";
 
-    // The trip-shape control (One-way / Day trip / Round trip) rides the Trip tab and
-    // Ideas; other tabs (multi-city) don't take a return, so it's hidden there.
-    tripShapeField.style.display = simple || ideas ? "" : "none";
+    // The trip-shape control (One-way / Round trip) rides the Trip tab only. Ideas and
+    // the multi-city tabs don't take a return, so it's hidden there.
+    tripShapeField.style.display = simple ? "" : "none";
+    // Connections and the Advanced panel are trip-planning filters; Ideas hides them so
+    // the surface is just the departure field and its list of reachable cities.
+    connectionsField.style.display = ideas ? "none" : "";
+    advanced.style.display = ideas ? "none" : "";
     syncTripShape();
     // A hidden control measures as zero, so the pills can only be placed once their
     // control is on screen — reposition them after the display flags above. This is
