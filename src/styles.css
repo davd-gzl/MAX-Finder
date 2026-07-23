@@ -1470,6 +1470,15 @@ a {
 .od-guide {
   margin: 0 0 0.3rem;
 }
+/* The round-trip conclusion line: nights away + total travel, above the two legs. */
+.rt-total {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.rt-total:empty {
+  display: none;
+}
 .empty {
   background: var(--surface);
   border: 1px dashed var(--border-strong);

@@ -16,7 +16,7 @@ import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, journeyA
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { findHiddenTrains } from "./core/hidden";
-import { addDays, dayIndex } from "./util/time";
+import { addDays, dayIndex, formatDuration } from "./util/time";
 import { haversineKm } from "./util/geo";
 import { el, clear, isTouch } from "./ui/dom";
 import { buildShell, applyTheme, applyDensity, applyReduceMotion, applyMap, closeHeaderMenu } from "./ui/shell";
@@ -2706,6 +2706,12 @@ function runTripSearch(c: RenderCtx): void {
     ret: formatDate(proposed),
   });
   refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, destination)]));
+  // A one-line conclusion of the whole round trip — nights away (or "same day") + total
+  // travel time — kept in step with the chosen outbound/return by updateTripTotal() (assigned
+  // once the outbound list exists; the return-list renderer calls it on every return change).
+  const tripTotal = el("p", { class: "rt-total" });
+  refs.results.append(tripTotal);
+  let updateTripTotal: () => void = () => {};
 
   // --- 2-leg accordion (same behaviour + classes as the multi-city stepper) --------
   interface LegBox {
@@ -2874,6 +2880,7 @@ function runTripSearch(c: RenderCtx): void {
   };
   const renderReturns = (retDate: string): void => {
     clear(retList);
+    updateTripTotal(); // the return just changed — refresh the whole-trip conclusion line
     const nights = dayIndex(retDate) - dayIndex(query.date);
     const { list, sameDay: retSameDay, arrAbs } = returnJourneys(retDate);
     retList.append(
@@ -3002,10 +3009,34 @@ function runTripSearch(c: RenderCtx): void {
     .sort((a, b) => journeyArriveAbs(a) - journeyArriveAbs(b) || a.totalDurationMin - b.totalDurationMin);
   chosenOutbound = outJourneys[0] ?? null;
 
+  // Conclusion line: "{n} nights · {total} round-trip travel" (or "same day · {onsite} on
+  // site · …"), from the chosen outbound + the chosen/derived return. Empty if either leg
+  // has no train that day.
+  updateTripTotal = (): void => {
+    const out = chosenOutbound ?? outJourneys[0];
+    const retDate = odReturnDate ?? proposed;
+    const ret = returnJourneys(retDate).list[0];
+    if (!out || !ret) {
+      tripTotal.textContent = "";
+      return;
+    }
+    const nights = Math.max(0, dayIndex(retDate) - dayIndex(query.date));
+    const total = out.totalDurationMin + ret.totalDurationMin;
+    tripTotal.textContent =
+      nights > 0
+        ? t("trip_summary", { n: nights, dur: formatDuration(total) })
+        : t("trip_summary_day", {
+            onsite: formatDuration(Math.max(0, ret.departMin - (out.departMin + out.totalDurationMin))),
+            dur: formatDuration(total),
+          });
+  };
+  updateTripTotal();
+
   const body0 = el("div", { class: "mc-leg-body" }, [outCalCollapse]);
   const pickOutbound = (j: Journey): void => {
     chosenOutbound = j;
     if (boxes[0]) boxes[0].chosen = j;
+    updateTripTotal(); // a new outbound may change the total travel time
     setCollapsed(0, true); // collapse the outbound leg to its ✓ summary…
     fillReturns(); // …rebuild the return options against this outbound…
     setCollapsed(1, false); // …open the return leg…
