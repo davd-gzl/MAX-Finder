@@ -2826,11 +2826,11 @@ function runTripSearch(c: RenderCtx): void {
   // re-showing the whole strip re-asks the date). FLEXIBLE keeps it OPEN — there the calendar
   // IS the return-length control, so the user must see it to pick the day.
   const retFlexible = query.stay === "flexible";
-  const retCalPanel = el("div", { class: "cal-panel" }, [retCalHost]);
+  const retCalPanel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [retCalHost]);
   const retCalToggle = el("button", {
     class: "cal-toggle linklike",
     type: "button",
-    attrs: { "aria-expanded": String(retFlexible) },
+    attrs: { "aria-expanded": "false" },
     on: {
       click: () => {
         const opening = retCalPanel.hasAttribute("hidden");
@@ -2842,9 +2842,11 @@ function runTripSearch(c: RenderCtx): void {
   const updateRetToggle = (retDate: string): void => {
     retCalToggle.textContent = t("return_change", { date: formatDate(retDate) });
   };
-  if (!retFlexible) retCalPanel.setAttribute("hidden", ""); // fixed stay: collapsed by default
+  // Results screen: EVERY calendar is collapsed by default — including the Flexible return
+  // (only the initial form calendar opens by default). The return was already picked on the
+  // form's départ→retour range; the "Retour : … · Changer" summary reveals it to adjust.
   body1.append(
-    el("div", { class: "od-return-cal" }, retFlexible ? [retCalPanel] : [retCalToggle, retCalPanel]),
+    el("div", { class: "od-return-cal" }, [retCalToggle, retCalPanel]),
     el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]),
   );
   let selectReturn: (retDate: string) => void = () => {};
