@@ -635,20 +635,24 @@ describe("app (jsdom smoke)", () => {
     expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
   });
 
-  it("keeps the return calendar open in Flexible mode (the return is picked there)", () => {
+  it("collapses the results return calendar by default in Flexible too, behind a toggle", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
     );
-    // rt=round → Flexible: the return calendar IS the length control, so it stays open with
-    // no collapse toggle.
+    // Every RESULTS calendar is collapsed by default — the Flexible return included (only the
+    // initial form calendar opens by default). The return was already picked on the form's
+    // départ→retour range; a "Retour : … · Changer" toggle reveals the month to adjust it.
     const retStrip = root.querySelector(".od-return-cal");
     expect(retStrip).not.toBeNull();
-    expect(retStrip!.querySelector(".cal-toggle")).toBeNull();
+    const toggle = retStrip!.querySelector(".cal-toggle") as HTMLElement | null;
+    expect(toggle).not.toBeNull();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
+    // Tapping the summary reveals the calendar (grid present once open).
+    toggle!.click();
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
     expect(retStrip!.querySelector(".cal-grid")).not.toBeNull();
-    // Bug regression: the RETURN LEG accordion (Leg 2) must itself start OPEN in Flexible —
-    // if it were collapsed (like a fixed stay), the return calendar would sit at zero height
-    // inside it and be untappable on touch ("can't select the return date in Flexible on
-    // mobile"). It is only reachable/tappable when the leg is expanded.
+    // The RETURN LEG accordion (Leg 2) still starts OPEN in Flexible so the return list +
+    // toggle are visible without first picking an outbound.
     const returnLeg = retStrip!.closest(".mc-result");
     expect(returnLeg).not.toBeNull();
     expect(returnLeg!.classList.contains("mc-collapsed")).toBe(false);
