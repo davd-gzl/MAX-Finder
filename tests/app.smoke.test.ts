@@ -435,17 +435,21 @@ describe("app (jsdom smoke)", () => {
     // One-way is the baseline; the nights stepper is hidden until a round trip is chosen.
     expect(segs[0]!.getAttribute("aria-pressed")).toBe("true");
     expect((wrap!.querySelector(".nights-field") as HTMLElement).style.display).toBe("none");
-    // Switching to Round trip presses that segment and reveals the stepper (default 1 night).
+    // Switching to Round trip presses that segment and reveals the stepper (default Same day).
     segs[1]!.click();
     expect(segs[1]!.getAttribute("aria-pressed")).toBe("true");
     expect((wrap!.querySelector(".nights-field") as HTMLElement).style.display).not.toBe("none");
-    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("1 night");
+    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("Same day");
     // The −/+ buttons carry accessible labels and the value announces via aria-live.
     const [minus, plus] = Array.from(wrap!.querySelectorAll<HTMLElement>(".nights-step"));
     expect(minus!.getAttribute("aria-label")).toBe("Fewer nights");
     expect(plus!.getAttribute("aria-label")).toBe("More nights");
     expect(wrap!.querySelector(".nights-val")?.getAttribute("aria-live")).toBe("polite");
-    // Stepping up reads "2 nights"; stepping down to 0 reads "Same day" (a day trip).
+    // Same day is the default (a day trip), so minus starts disabled (can't go below 0).
+    expect((minus as HTMLButtonElement).disabled).toBe(true);
+    // Stepping up reads "1 night", "2 nights"; stepping back down to 0 reads "Same day".
+    plus!.click();
+    expect(wrap!.querySelector(".nights-val")?.textContent).toBe("1 night");
     plus!.click();
     expect(wrap!.querySelector(".nights-val")?.textContent).toBe("2 nights");
     minus!.click();
@@ -462,7 +466,7 @@ describe("app (jsdom smoke)", () => {
     const val = () => wrap.querySelector(".nights-val")!.textContent;
     const flex = wrap.querySelector<HTMLElement>(".nights-flex")!;
     // Step up well past 3 (the old cap where stayFromNights flipped to "flexible").
-    for (let i = 0; i < 4; i++) plus!.click(); // 1 → 5
+    for (let i = 0; i < 5; i++) plus!.click(); // 0 (Same day) → 5
     expect(val()).toBe("5 nights");
     // Crucially, the stepper stays USABLE — neither the −/+ buttons nor the mode flip to
     // Flexible (the old bug disabled both at 4 nights via stay="flexible").
@@ -500,13 +504,13 @@ describe("app (jsdom smoke)", () => {
     expect(root.querySelector(".od-return")).toBeNull();
     const round = root.querySelectorAll<HTMLElement>(".trip-toggle .trip-seg")[1];
     round!.click();
-    // The 2-leg round trip is now showing (the toggle alone ran it), defaulting to 1 night,
-    // and the choice is in the URL as stay=1.
+    // The 2-leg round trip is now showing (the toggle alone ran it), defaulting to Same day
+    // (a day trip), and the choice is in the URL as stay=day.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
     expect(root.querySelector(".od-return")).not.toBeNull();
-    expect(new URLSearchParams(location.search).get("stay")).toBe("1");
-    // A fixed 1-night stay derives the return day (outbound + 1) with no second question.
-    expect(new URLSearchParams(location.search).get("rdate")).toBe("2026-06-26");
+    expect(new URLSearchParams(location.search).get("stay")).toBe("day");
+    // A same-day round trip returns the same day — the return date equals the outbound.
+    expect(new URLSearchParams(location.search).get("rdate")).toBe("2026-06-25");
   });
 
   it("drives a boolean field through its toggle switch", () => {

@@ -1113,7 +1113,10 @@ export function createForm(props: FormProps): FormHandle {
   // (`nights`: 0 = Journée / same-day round trip, N = N nuits). Toggling the segment or
   // stepping the nights re-runs the search in place — no extra Search tap.
   let roundTrip = false;
-  let nights = 1;
+  let nights = 0; // a round trip defaults to SAME-DAY (Journée) — there and back the same day
+  // Opens the reactive form calendar (assigned once it's built below). Flexible needs the
+  // month visible so you can actually tap the départ → retour range on a phone.
+  let openFormCal: (open: boolean) => void = () => {};
   // Flexible: a round trip whose return you pick on the calendar (Ulysse-style) instead of
   // a fixed nights count. The stepper stays in place but goes inert (dimmed); the Trip-tab
   // range calendar is the length control. Only meaningful while roundTrip is on.
@@ -1227,7 +1230,10 @@ export function createForm(props: FormProps): FormHandle {
   const setFlex = (on: boolean): void => {
     if (flexible === on) return;
     flexible = on;
-    if (on) roundTrip = true; // Flexible is a kind of round trip
+    if (on) {
+      roundTrip = true; // Flexible is a kind of round trip
+      openFormCal(true); // reveal the month so the départ → retour range is tappable
+    }
     syncTripShape();
     props.onTripShape(currentShape());
   };
@@ -1257,18 +1263,17 @@ export function createForm(props: FormProps): FormHandle {
   // to change it — so the form stays short on a phone (the compact date pill above is the
   // always-there entry). Same collapse-by-click pattern as the results calendars.
   const formCalBody = el("div", { class: "form-cal-body", attrs: { hidden: "" } }, [formCal]);
+  openFormCal = (open: boolean): void => {
+    if (open === !formCalBody.hasAttribute("hidden")) return;
+    formCalBody.toggleAttribute("hidden", !open);
+    formCalToggle.setAttribute("aria-expanded", String(open));
+    formCalToggle.parentElement?.classList.toggle("is-collapsed", !open);
+  };
   const formCalToggle = el("button", {
     class: "form-cal-toggle",
     type: "button",
     attrs: { "aria-expanded": "false" },
-    on: {
-      click: () => {
-        const open = formCalBody.hasAttribute("hidden");
-        formCalBody.toggleAttribute("hidden", !open);
-        formCalToggle.setAttribute("aria-expanded", String(open));
-        formCalToggle.parentElement?.classList.toggle("is-collapsed", !open);
-      },
-    },
+    on: { click: () => openFormCal(formCalBody.hasAttribute("hidden")) },
   }, [
     el("span", { class: "form-cal-heading" }, [
       el("span", { class: "form-cal-title", text: t("form_cal_title") }),
