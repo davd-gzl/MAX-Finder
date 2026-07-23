@@ -14,7 +14,7 @@ import { getawayIdeas, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar }
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, journeyArriveAbs, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
-import { availabilityCalendar, reachableCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
 import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex } from "./util/time";
 import { haversineKm } from "./util/geo";
@@ -1302,8 +1302,8 @@ function repaintFormCalendar(): void {
   const calCtx: RenderCtx = { ...ctx(), onSelectDay: flexRange ? pickFormRange : pickFormDay };
   clear(mount);
 
-  // Neutral month before an origin is chosen — plain, tappable, never a dead grid.
-  if (!o) {
+  // Neutral month before EITHER endpoint is chosen — plain, tappable, never a dead grid.
+  if (!o && !d) {
     const neutralDays: CalendarDay[] = windowDates.map((date) => ({ date, available: false, count: 0 }));
     mount.append(
       render.calendarEl(neutralDays, calCtx, selected, {
@@ -1318,7 +1318,7 @@ function repaintFormCalendar(): void {
 
   let cal: CalendarDay[];
   let calOpts: Parameters<typeof render.calendarEl>[3];
-  if (d) {
+  if (o && d) {
     const { connOpts, passesVia } = odConnOptsFor(fq, o, d);
     if (!round) {
       cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
@@ -1332,15 +1332,29 @@ function repaintFormCalendar(): void {
       cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }
-  } else if (!round) {
-    // Origin only, one-way: the days you can leave (connection-aware; count = destinations).
-    cal = reachableCountCalendar(trains, o, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
+  } else if (o) {
+    if (!round) {
+      // Origin only, one-way: the days you can leave (connection-aware; count = destinations).
+      cal = reachableCountCalendar(trains, o, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
+    } else {
+      // Origin only, round / same-day: the days a getaway is possible — the same two-sweep
+      // pass runGetaways uses, whose per-day sweeps are memoized, so a repaint is cheap.
+      cal = getawayIdeas(trains, o, windowDates, getawayOptsFor(fq)).perDay;
+    }
     calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
   } else {
-    // Origin only, round / same-day: the days a getaway is possible — the same two-sweep
-    // pass runGetaways uses, whose per-day sweeps are memoized, so a repaint is cheap.
-    cal = getawayIdeas(trains, o, windowDates, getawayOptsFor(fq)).perDay;
-    calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_dest") };
+    // Destination only (no origin): browse by ARRIVAL — which days you can reach `d`, and
+    // from how many origins. One-way counts reachable origins; round/same-day counts the
+    // origins you could round-trip from (reverse getaway). Mirrors the origin-only case so
+    // "only a destination" never shows a dead, empty grid. `d` is guaranteed here: the
+    // `!o && !d` case early-returned, and `o` is falsy in this branch, so `d` is set.
+    const dest = d as string;
+    if (!round) {
+      cal = reachableIntoCountCalendar(trains, dest, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
+    } else {
+      cal = reverseGetawayIdeas(trains, dest, windowDates, getawayOptsFor(fq)).perDay;
+    }
+    calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("best_cal_count", { n }), countLegend: t("cal_legend_origin") };
   }
   // In Flexible, overlay the departure→return range + the two-step prompt onto whichever
   // availability calendar was built above.

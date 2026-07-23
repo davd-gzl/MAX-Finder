@@ -1124,6 +1124,11 @@ export function createForm(props: FormProps): FormHandle {
   // Opens the reactive form calendar (assigned once it's built below). Flexible needs the
   // month visible so you can actually tap the départ → retour range on a phone.
   let openFormCal: (open: boolean) => void = () => {};
+  // While Flexible is on, the calendar IS the return picker — it must stay open and cannot
+  // be collapsed, or there's no grid to tap the retour on (the bug this guards against).
+  // Every path into Flexible (toggle, URL restore, popstate, app-driven) runs through
+  // syncTripShape, which sets this and force-opens the month.
+  let lockFormCalOpen = false;
   // Flexible: a round trip whose return you pick on the calendar (Ulysse-style) instead of
   // a fixed nights count. The stepper stays in place but goes inert (dimmed); the Trip-tab
   // range calendar is the length control. Only meaningful while roundTrip is on.
@@ -1207,6 +1212,12 @@ export function createForm(props: FormProps): FormHandle {
     // The possible-days / return calendars ARE the flexibility surface once a return is
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(!roundTrip);
+    // Flexible → the calendar is the return picker: force it open and lock it that way so
+    // no entry path (URL restore, popstate, a manual collapse) can leave the retour
+    // untappable. Leaving Flexible restores the normal collapse-by-tap behaviour.
+    lockFormCalOpen = flexible;
+    if (flexible) openFormCal(true);
+    formCalBlock.classList.toggle("cal-locked", flexible);
     syncShapeThumb();
   };
   /** The current shape as a TripShape: one-way, Flexible (return picked on the calendar),
@@ -1237,10 +1248,9 @@ export function createForm(props: FormProps): FormHandle {
   const setFlex = (on: boolean): void => {
     if (flexible === on) return;
     flexible = on;
-    if (on) {
-      roundTrip = true; // Flexible is a kind of round trip
-      openFormCal(true); // reveal the month so the départ → retour range is tappable
-    }
+    if (on) roundTrip = true; // Flexible is a kind of round trip
+    // syncTripShape force-opens + locks the calendar while Flexible is on (so the départ →
+    // retour range is always tappable), and unlocks it when Flexible turns off.
     syncTripShape();
     props.onTripShape(currentShape());
   };
@@ -1271,6 +1281,7 @@ export function createForm(props: FormProps): FormHandle {
   // always-there entry). Same collapse-by-click pattern as the results calendars.
   const formCalBody = el("div", { class: "form-cal-body", attrs: { hidden: "" } }, [formCal]);
   openFormCal = (open: boolean): void => {
+    if (lockFormCalOpen) open = true; // Flexible: the calendar is the return picker — never collapse it
     if (open === !formCalBody.hasAttribute("hidden")) return;
     formCalBody.toggleAttribute("hidden", !open);
     formCalToggle.setAttribute("aria-expanded", String(open));
@@ -1280,7 +1291,9 @@ export function createForm(props: FormProps): FormHandle {
     class: "form-cal-toggle",
     type: "button",
     attrs: { "aria-expanded": "false" },
-    on: { click: () => openFormCal(formCalBody.hasAttribute("hidden")) },
+    // Locked open while Flexible is on (the header shows a static "return picker" state
+    // instead of a collapse chevron); otherwise a tap collapses/expands the month.
+    on: { click: () => { if (!lockFormCalOpen) openFormCal(formCalBody.hasAttribute("hidden")); } },
   }, [
     el("span", { class: "form-cal-heading" }, [
       el("span", { class: "form-cal-title", text: t("form_cal_title") }),

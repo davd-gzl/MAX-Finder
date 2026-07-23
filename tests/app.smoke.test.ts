@@ -673,6 +673,41 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("stay")).toBe("flex");
   });
 
+  it("locks the calendar OPEN while Flexible so the retour is always tappable (any entry path)", () => {
+    // Enter Flexible straight from the query (the reopen-form / URL-restore path that a plain
+    // toggle-with-openFormCal did NOT cover): the calendar must be open, not collapsed.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=flex&rdate=2026-06-28`,
+    );
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    const body = root.querySelector(".form-cal-body") as HTMLElement;
+    // Flexible restored from the query → the month is already open + locked, no tap needed.
+    expect(block.classList.contains("cal-locked")).toBe(true);
+    expect(body.hasAttribute("hidden")).toBe(false);
+    expect(block.querySelectorAll(".form-cal-body .cal-cell").length).toBeGreaterThan(0);
+    // Clicking the header must NOT collapse it while Flexible (else the retour grid vanishes).
+    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    expect(body.hasAttribute("hidden")).toBe(false);
+    // Leaving Flexible (toggle the pill off → a fixed stay) unlocks it — collapsible again.
+    (root.querySelector(".nights-flex") as HTMLElement).click();
+    expect((root.querySelector(".form-cal-block") as HTMLElement).classList.contains("cal-locked")).toBe(false);
+  });
+
+  it("shows a populated calendar for a destination-only browse (never an empty grid)", () => {
+    // Only the destination filled (browse by arrival). Before the fix this fell through to the
+    // neutral, all-unavailable grid; now it counts the origins that can reach the destination.
+    const root = setup(`?to=${encodeURIComponent("PARIS (intramuros)")}`);
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    if ((root.querySelector(".form-cal-body") as HTMLElement).hasAttribute("hidden")) {
+      (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    }
+    const cells = Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell"));
+    expect(cells.length).toBeGreaterThan(0);
+    // At least one day is genuinely available (an "ok" cell), not the neutral/empty state.
+    expect(cells.some((c) => c.classList.contains("ok"))).toBe(true);
+    expect(cells.some((c) => c.classList.contains("neutral"))).toBe(false);
+  });
+
   it("keeps the nights stepper IN PLACE (inert, not removed) when Flexible toggles — no reflow", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&rdate=2026-06-27`,

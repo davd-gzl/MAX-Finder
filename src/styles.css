@@ -893,6 +893,17 @@ a {
 .form-cal-body[hidden] {
   display: none;
 }
+/* Flexible locks the calendar open (it's the départ → retour picker): the header stops
+   being a collapse control — no chevron, no hover affordance, default cursor. */
+.form-cal-block.cal-locked .form-cal-chevron {
+  display: none;
+}
+.form-cal-block.cal-locked .form-cal-toggle {
+  cursor: default;
+}
+.form-cal-block.cal-locked .form-cal-toggle:hover {
+  border-color: var(--border-strong);
+}
 /* The calendar sits flush inside the block (its own .calendar border provides the frame). */
 .form-cal-mount .calendar {
   margin-top: 0;
