@@ -319,6 +319,8 @@ export const pt: Dict = {
   daytrip_cal_hours: "{h} h no destino",
   cal_legend_hours: "número = horas no destino",
   cal_legend_nights: "número = noites fora",
+  cal_legend_depart: "número = comboios de ida",
+  cal_legend_return: "número = comboios de volta",
   daytrip_best_day: "Mais tempo no destino: {date} ({h} h)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

@@ -319,6 +319,8 @@ export const ar: Dict = {
   daytrip_cal_hours: "{h} ساعة هناك",
   cal_legend_hours: "الرقم = ساعات هناك",
   cal_legend_nights: "الرقم = عدد الليالي",
+  cal_legend_depart: "العدد = قطارات الذهاب",
+  cal_legend_return: "العدد = قطارات العودة",
   daytrip_best_day: "أطول وقت هناك: {date} ({h} ساعة)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

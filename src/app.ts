@@ -1373,9 +1373,22 @@ function repaintFormCalendar(): void {
     } else if (nights === 0 && !flexRange) {
       cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
+    } else if (flexRange) {
+      // Flexible: show the availability for the LEG being picked — the OUTBOUND (o→d) while
+      // choosing the departure, the RETURN (d→o) once the departure is set and we're awaiting
+      // the return tap — so a green day (and its count) means "trains run that day for what
+      // you're picking right now" (David: "available trains per day for departure or return
+      // depending on what you're choosing").
+      if (formRangeAwait) {
+        const ret = odConnOptsFor(fq, d, o);
+        cal = availabilityCalendar(trains, d, o, windowDates, ret.connOpts, ret.passesVia);
+        calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_return") };
+      } else {
+        cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
+        calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_depart") };
+      }
     } else {
-      // Flexible always shows round-trip availability (its return span is picked here),
-      // regardless of the inert stepper's seed count.
+      // Fixed N-night round trip: the days an N-night there-and-back is feasible.
       cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }

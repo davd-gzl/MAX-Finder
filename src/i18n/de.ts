@@ -320,6 +320,8 @@ export const de: Dict = {
   daytrip_cal_hours: "{h} Std. vor Ort",
   cal_legend_hours: "Zahl = Stunden vor Ort",
   cal_legend_nights: "Zahl = Nächte",
+  cal_legend_depart: "Zahl = Hinfahrten",
+  cal_legend_return: "Zahl = Rückfahrten",
   daytrip_best_day: "Meiste Zeit vor Ort: {date} ({h} Std.)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

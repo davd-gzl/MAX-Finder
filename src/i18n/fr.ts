@@ -334,6 +334,8 @@ export const fr = {
   daytrip_cal_hours: "{h} h sur place",
   cal_legend_hours: "nombre = heures sur place",
   cal_legend_nights: "nombre = nuits sur place",
+  cal_legend_depart: "nombre = trains à l’aller",
+  cal_legend_return: "nombre = trains au retour",
   daytrip_best_day: "Le plus de temps sur place : {date} ({h} h)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

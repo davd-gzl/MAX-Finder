@@ -319,6 +319,8 @@ export const ja: Dict = {
   daytrip_cal_hours: "現地 {h} 時間",
   cal_legend_hours: "数字 = 現地滞在時間",
   cal_legend_nights: "数字 = 泊数",
+  cal_legend_depart: "数字 = 往路の列車",
+  cal_legend_return: "数字 = 復路の列車",
   daytrip_best_day: "現地滞在が最長: {date}（{h} 時間）",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

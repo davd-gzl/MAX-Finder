@@ -1121,14 +1121,11 @@ export function createForm(props: FormProps): FormHandle {
   // stepping the nights re-runs the search in place — no extra Search tap.
   let roundTrip = false;
   let nights = 0; // a round trip defaults to SAME-DAY (Journée) — there and back the same day
-  // Opens the reactive form calendar (assigned once it's built below). Flexible needs the
-  // month visible so you can actually tap the départ → retour range on a phone.
+  // Opens/collapses the reactive form calendar (assigned once it's built below). The month
+  // starts collapsed and the header toggles it — including in Flexible: David wants no
+  // auto-open jump ("don't auto open, close it and make it able to open it"); one tap on the
+  // header reveals the départ → retour grid when you want to pick the range.
   let openFormCal: (open: boolean) => void = () => {};
-  // While Flexible is on, the calendar IS the return picker — it must stay open and cannot
-  // be collapsed, or there's no grid to tap the retour on (the bug this guards against).
-  // Every path into Flexible (toggle, URL restore, popstate, app-driven) runs through
-  // syncTripShape, which sets this and force-opens the month.
-  let lockFormCalOpen = false;
   // Flexible: a round trip whose return you pick on the calendar (Ulysse-style) instead of
   // a fixed nights count. The stepper stays in place but goes inert (dimmed); the Trip-tab
   // range calendar is the length control. Only meaningful while roundTrip is on.
@@ -1212,12 +1209,6 @@ export function createForm(props: FormProps): FormHandle {
     // The possible-days / return calendars ARE the flexibility surface once a return is
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(!roundTrip);
-    // Flexible → the calendar is the return picker: force it open and lock it that way so
-    // no entry path (URL restore, popstate, a manual collapse) can leave the retour
-    // untappable. Leaving Flexible restores the normal collapse-by-tap behaviour.
-    lockFormCalOpen = flexible;
-    if (flexible) openFormCal(true);
-    formCalBlock.classList.toggle("cal-locked", flexible);
     syncShapeThumb();
   };
   /** The current shape as a TripShape: one-way, Flexible (return picked on the calendar),
@@ -1249,8 +1240,8 @@ export function createForm(props: FormProps): FormHandle {
     if (flexible === on) return;
     flexible = on;
     if (on) roundTrip = true; // Flexible is a kind of round trip
-    // syncTripShape force-opens + locks the calendar while Flexible is on (so the départ →
-    // retour range is always tappable), and unlocks it when Flexible turns off.
+    // The calendar stays collapsed (no auto-open jump); one tap on its header opens it to
+    // pick the départ → retour range.
     syncTripShape();
     props.onTripShape(currentShape());
   };
@@ -1276,12 +1267,11 @@ export function createForm(props: FormProps): FormHandle {
     attrs: { "aria-hidden": "true" },
     html: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
   });
-  // Collapsed by default: the picked date shows in the header, and one tap opens the month
-  // to change it — so the form stays short on a phone (the compact date pill above is the
-  // always-there entry). Same collapse-by-click pattern as the results calendars.
-  const formCalBody = el("div", { class: "form-cal-body", attrs: { hidden: "" } }, [formCal]);
+  // OPEN by default (David: "open by default the first calendar, always"): the month shows
+  // from the start so the availability grid is right there, and it never pops open in
+  // reaction to a control (no layout jump). A tap on the header still collapses/expands it.
+  const formCalBody = el("div", { class: "form-cal-body" }, [formCal]);
   openFormCal = (open: boolean): void => {
-    if (lockFormCalOpen) open = true; // Flexible: the calendar is the return picker — never collapse it
     if (open === !formCalBody.hasAttribute("hidden")) return;
     formCalBody.toggleAttribute("hidden", !open);
     formCalToggle.setAttribute("aria-expanded", String(open));
@@ -1290,10 +1280,9 @@ export function createForm(props: FormProps): FormHandle {
   const formCalToggle = el("button", {
     class: "form-cal-toggle",
     type: "button",
-    attrs: { "aria-expanded": "false" },
-    // Locked open while Flexible is on (the header shows a static "return picker" state
-    // instead of a collapse chevron); otherwise a tap collapses/expands the month.
-    on: { click: () => { if (!lockFormCalOpen) openFormCal(formCalBody.hasAttribute("hidden")); } },
+    attrs: { "aria-expanded": "true" },
+    // One tap collapses/expands the month — same in every trip shape, including Flexible.
+    on: { click: () => openFormCal(formCalBody.hasAttribute("hidden")) },
   }, [
     el("span", { class: "form-cal-heading" }, [
       el("span", { class: "form-cal-title", text: t("form_cal_title") }),
@@ -1301,7 +1290,7 @@ export function createForm(props: FormProps): FormHandle {
     ]),
     formCalChevron,
   ]);
-  const formCalBlock = el("div", { class: "form-cal-block is-collapsed" }, [formCalToggle, formCalBody]);
+  const formCalBlock = el("div", { class: "form-cal-block" }, [formCalToggle, formCalBody]);
   const region = el("select", { class: "input" }, [
     optionEl("", t("region_any"), true),
     ...props.regions.map((r) => optionEl(r, r, false)),

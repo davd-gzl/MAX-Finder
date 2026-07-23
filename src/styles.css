@@ -893,17 +893,6 @@ a {
 .form-cal-body[hidden] {
   display: none;
 }
-/* Flexible locks the calendar open (it's the départ → retour picker): the header stops
-   being a collapse control — no chevron, no hover affordance, default cursor. */
-.form-cal-block.cal-locked .form-cal-chevron {
-  display: none;
-}
-.form-cal-block.cal-locked .form-cal-toggle {
-  cursor: default;
-}
-.form-cal-block.cal-locked .form-cal-toggle:hover {
-  border-color: var(--border-strong);
-}
 /* The calendar sits flush inside the block (its own .calendar border provides the frame). */
 .form-cal-mount .calendar {
   margin-top: 0;
@@ -3758,6 +3747,7 @@ select.input::-ms-expand {
 .mc-result-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* the collapsed summary drops to its own full-width row below the name */
   gap: 0.5rem;
   width: 100%;
   margin: 1rem 0 0.5rem;
@@ -3840,13 +3830,43 @@ select.input::-ms-expand {
 }
 .mc-result.mc-collapsed .mc-pick-slot {
   display: block;
+  order: 1; /* after the name + chevron → its own row */
+  flex-basis: 100%;
+  margin-inline-start: 0;
+  margin-top: 0.35rem;
+}
+/* On the collapsed leg the chevron sits at the far end of the NAME row (row 1); the rich
+   summary fills row 2, so the leg name never gets squeezed / truncated. */
+.mc-result.mc-collapsed .mc-chev {
+  margin-inline-start: auto;
+}
+.mc-result.mc-collapsed .mc-pick {
+  align-items: flex-start;
+}
+.mc-result.mc-collapsed .mc-pick-route,
+.mc-result.mc-collapsed .mc-pick-line,
+.mc-result.mc-collapsed .mc-pick-train {
+  justify-content: flex-start;
 }
 .mc-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.mc-pick-route,
+.mc-pick-line,
+.mc-pick-train {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+.mc-pick-gares {
+  font-weight: 600;
+  color: var(--text);
 }
 .mc-pick-time {
   display: inline-flex;
@@ -3862,6 +3882,20 @@ select.input::-ms-expand {
   align-items: center;
   gap: 0.25rem;
   font-size: 0.85rem;
+}
+/* The train number(s) + line for the chosen leg — the concrete "look for this on SNCF
+   Connect" detail that makes the collapsed leg a real conclusion, not just a time. */
+.mc-pick-train .train-no {
+  font-weight: 600;
+  color: var(--text);
+}
+.mc-pick-train .train-axe {
+  padding: 0.02rem 0.3rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 @media (max-width: 560px) {
   .mc-head {
