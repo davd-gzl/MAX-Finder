@@ -670,15 +670,38 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     // departure, destination, filters — survive the round trip), then the RESULTS from
     // the URL. Falling back to the URL query keeps older entries (no snapshot) working.
     const snap = formStateFrom(ev.state);
-    query = snap ?? searched;
+    let formQuery = snap ?? searched;
+    // Guard against a Back landing on a snapshot that predates the finished build: the bare
+    // home entry (blank), OR an entry frozen mid-build (e.g. stamped as a same-day round trip
+    // the instant "Aller-retour" was toggled, before Flexible + the return were picked). If
+    // the last form the user actually assembled is for the SAME route (or this entry has no
+    // route at all), restore THAT — so a Back never drops the Flexible range / filters they
+    // entered. A genuinely different route keeps its own snapshot; goHome() clears the memory.
+    if (lastBuiltForm && !isBlankForm(lastBuiltForm)) {
+      // Same-build = same mode AND same route: only then is the entry's snapshot a stale,
+      // mid-build version of what lastBuiltForm holds in full. A different mode (od → tour)
+      // or a different route is a genuinely different prior page — keep its own snapshot, so
+      // Back through distinct searches still restores each one (not the latest build).
+      const sameBuild =
+        formQuery.mode === lastBuiltForm.mode &&
+        formQuery.origin === lastBuiltForm.origin &&
+        formQuery.destination === lastBuiltForm.destination;
+      if (isBlankForm(formQuery) || sameBuild) formQuery = lastBuiltForm;
+    }
+    // The URL decides the SCREEN (a real search → results; a bare home URL → the form). Drive
+    // the form — and its Flexible calendar band, which reads the live query.returnDate — from
+    // the restored build in BOTH cases, so returning to the home screen still shows the whole
+    // form the user assembled (departure, Flexible range, filters) rather than a wiped one.
+    const onResults = queryIsRenderable(searched);
+    query = formQuery;
     syncFormFromQuery();
-    query = searched;
+    query = onResults ? searched : formQuery;
     runSearch();
     // On mobile the form and the results are two different screens. Back/Forward must
     // move between them too: a URL with no search is the initial (form) screen, one
-    // with a search is the results screen. Without this, Back to the home URL left the
-    // phone stuck on a blank results view instead of returning to the search form.
-    setMobileForm(!queryIsRenderable(query));
+    // with a search is the results screen. Follow the URL (onResults), not `query` — on the
+    // home entry `query` now carries the restored build, but the screen is still the form.
+    setMobileForm(!onResults);
   });
 }
 
@@ -1093,8 +1116,20 @@ function readQueryFromForm(): SearchQuery {
 interface HistoryState {
   form: SearchQuery;
 }
+// The last form the user actually built (origin/destination/legs filled). Kept so a Back
+// that lands on the bare home entry — whose snapshot predates the finished build (e.g. it
+// was stamped the moment Round trip was toggled, before Flexible + the return were picked) —
+// restores the WHOLE form the user assembled instead of wiping it. "Keep all data of the
+// initial form across every screen."
+let lastBuiltForm: SearchQuery | null = null;
+/** A form with no route yet — nothing worth preserving across a Back. */
+function isBlankForm(q: SearchQuery): boolean {
+  return !q.origin && !q.destination && !(q.legs && q.legs.length > 0);
+}
 function formSnapshot(): HistoryState {
-  return { form: readQueryFromForm() };
+  const form = readQueryFromForm();
+  if (!isBlankForm(form)) lastBuiltForm = form; // remember the richest form we've seen
+  return { form };
 }
 /** Read a form snapshot back off a popstate `event.state`, if one is present. */
 function formStateFrom(state: unknown): SearchQuery | null {
@@ -1209,7 +1244,11 @@ function revealResults(): void {
 }
 
 function refreshInPlace(reveal = false): void {
-  store.updateUrl(query);
+  // Restamp the entry with a FRESH form snapshot (not just the URL): an in-place refine —
+  // completing a Flexible range, moving the return — changes the form, and a Back must
+  // restore that latest form, not the snapshot frozen before the refine. formSnapshot()
+  // also refreshes lastBuiltForm, so the home-entry fallback stays current.
+  store.updateUrl(query, formSnapshot());
   const scroller = resultsScroller();
   const scrollY = scroller ? scroller.scrollTop : window.scrollY;
   // A calendar-day pick is usually what triggers an in-place refresh. If a day cell had
@@ -3072,6 +3111,7 @@ function goBack(): void {
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
   navStack = [];
+  lastBuiltForm = null; // an explicit reset — don't let a later Back resurrect the old form
   query = { mode: "from", date: today, card: settings.card, maxConnections: 1, hidden: true };
   syncFormFromQuery();
   applyAndRun();
