@@ -290,6 +290,8 @@ export const ar: Dict = {
   sort_days: "الأكثر أيامًا",
   sort_closest: "الأقرب",
   sort_fastest: "الأسرع",
+  sort_arrival: "الوصول الأبكر",
+  sort_departure: "المغادرة الأبكر",
   sort_name: "أ–ي",
 
   mode_oneway: "ذهاب فقط",

@@ -1515,6 +1515,8 @@ const SORT_LABEL = {
   closest: "sort_closest",
   fastest: "sort_fastest",
   name: "sort_name",
+  arrival: "sort_arrival",
+  departure: "sort_departure",
 } as const;
 
 /** Build the sort-picker option list for a mode from its applicable keys. */
@@ -1534,6 +1536,8 @@ interface SortAccessors<T> {
   days?: (x: T) => number;
   distanceKm?: (x: T) => number;
   durationMin?: (x: T) => number;
+  arriveMin?: (x: T) => number; // absolute arrival minutes (earliest first)
+  departMin?: (x: T) => number; // departure minutes (earliest first)
 }
 
 /**
@@ -1557,6 +1561,12 @@ function applySort<T>(items: T[], acc: SortAccessors<T>): T[] {
       break;
     case "fastest":
       if (acc.durationMin) arr.sort((a, b) => acc.durationMin!(a) - acc.durationMin!(b));
+      break;
+    case "arrival":
+      if (acc.arriveMin) arr.sort((a, b) => acc.arriveMin!(a) - acc.arriveMin!(b));
+      break;
+    case "departure":
+      if (acc.departMin) arr.sort((a, b) => acc.departMin!(a) - acc.departMin!(b));
       break;
     case "name":
       arr.sort((a, b) => acc.name(a).localeCompare(acc.name(b)));
@@ -2590,15 +2600,23 @@ function runOdSearch(c: RenderCtx): void {
   }
   searchDates.sort();
   const raw = searchDates.flatMap((d) => findJourneys(trains, query.origin!, query.destination!, d, journeyOpts));
-  const journeys: Journey[] = raw
-    .filter(passesVia)
-    .filter(withinSpan)
-    .sort(
-      (a, b) =>
-        (flex > 0 ? dayIndex(a.date) - dayIndex(b.date) : 0) ||
-        a.totalDurationMin - b.totalDurationMin ||
-        a.departMin - b.departMin,
-    );
+  const journeys: Journey[] = applySort(
+    raw
+      .filter(passesVia)
+      .filter(withinSpan)
+      .sort(
+        (a, b) =>
+          (flex > 0 ? dayIndex(a.date) - dayIndex(b.date) : 0) ||
+          a.totalDurationMin - b.totalDurationMin ||
+          a.departMin - b.departMin,
+      ),
+    {
+      name: (j) => j.legs[0]?.depart ?? "",
+      durationMin: (j) => j.totalDurationMin,
+      arriveMin: (j) => (flex > 0 ? dayIndex(j.date) * 1440 : 0) + journeyArriveAbs(j),
+      departMin: (j) => (flex > 0 ? dayIndex(j.date) * 1440 : 0) + j.departMin,
+    },
+  );
 
   const radiusAlt = query.radiusKm
     ? nearbyAlternatives(query.origin, query.destination, query.date, query.radiusKm, {
@@ -2617,6 +2635,16 @@ function runOdSearch(c: RenderCtx): void {
       refs.results.append(el("p", { class: "muted count", text: t("res_itineraries", { n: journeys.length }) }));
       if (raw.length >= MAX_RESULTS) refs.results.append(render.hintEl(t("res_capped", { n: MAX_RESULTS })));
     }
+    // Order the tickets: recommended (fastest, then earliest departure) by default, or by
+    // arrival / departure / duration when the traveller picks a key.
+    refs.results.append(
+      render.listToolbarEl(
+        t("badge_trains", { n: journeys.length }),
+        query.sort ?? "rec",
+        sortOptions(["rec", "arrival", "departure", "fastest"]),
+        onSort,
+      ),
+    );
     for (const j of journeys)
       refs.results.append(
         render.journeyEl(j, c, { bookOnClick: true, dateLabel: flex > 0 ? formatDate(j.date) : undefined }),

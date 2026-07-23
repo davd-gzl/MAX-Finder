@@ -290,6 +290,8 @@ export const zh: Dict = {
   sort_days: "天数最多",
   sort_closest: "最近",
   sort_fastest: "最快",
+  sort_arrival: "最早到达",
+  sort_departure: "最早出发",
   sort_name: "A–Z",
 
   mode_oneway: "单程",

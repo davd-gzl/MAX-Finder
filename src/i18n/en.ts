@@ -303,6 +303,8 @@ export const en: Dict = {
   sort_days: "Most days",
   sort_closest: "Closest",
   sort_fastest: "Fastest",
+  sort_arrival: "Earliest arrival",
+  sort_departure: "Earliest departure",
   sort_name: "A–Z",
 
   mode_oneway: "One-way",

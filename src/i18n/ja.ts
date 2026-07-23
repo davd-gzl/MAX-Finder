@@ -290,6 +290,8 @@ export const ja: Dict = {
   sort_days: "日数が多い順",
   sort_closest: "近い順",
   sort_fastest: "速い順",
+  sort_arrival: "到着が早い順",
+  sort_departure: "出発が早い順",
   sort_name: "A–Z",
 
   mode_oneway: "片道",
