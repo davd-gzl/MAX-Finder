@@ -446,6 +446,64 @@ await scenario(
   { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
 );
 
+// 15. Regression: build a FLEXIBLE round trip interactively, then Back — the whole build
+//     (route + Flexible + the départ→retour range) must be restored, not a form frozen at
+//     the same-day round trip it was the instant "Aller-retour" was toggled. ("Keep all data
+//     of the initial form across every screen — still not the case for flexible.")
+await scenario(
+  "history: Back restores an interactively-built Flexible round trip",
+  BASE,
+  async (page) => {
+    await page.evaluate(
+      (o, d) => {
+        const [oi, di] = document.querySelectorAll("input.has-clear");
+        for (const [el, v] of [[oi, o], [di, d]]) {
+          el.value = v;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      },
+      P,
+      L,
+    );
+    await sleep(500);
+    await page.evaluate(() => document.querySelectorAll(".trip-toggle .trip-seg")[1]?.click()); // Round trip
+    await sleep(300);
+    await page.evaluate(() => document.querySelector(".nights-flex")?.click()); // Flexible
+    await sleep(400);
+    // Tap a départ then a later retour on the (auto-open) Flexible calendar.
+    const dep = await page.evaluate(() => {
+      const cs = [...document.querySelectorAll(".form-cal-mount .cal-cell")];
+      const t = cs.find((c) => c.classList.contains("ok")) || cs[2];
+      t.click();
+      return t.getAttribute("data-date");
+    });
+    await sleep(300);
+    await page.evaluate((d) => {
+      const cs = [...document.querySelectorAll(".form-cal-mount .cal-cell")];
+      const i = cs.findIndex((c) => c.getAttribute("data-date") === d);
+      (cs[i + 4] || cs[cs.length - 1]).click();
+    }, dep);
+    await sleep(600);
+    const built = await page.evaluate(() => ({
+      flex: document.querySelector(".nights-flex")?.getAttribute("aria-pressed"),
+      rdate: new URL(location.href).searchParams.get("rdate"),
+    }));
+    assert(built.flex === "true" && built.rdate, `precondition: flexible range not built (${JSON.stringify(built)})`);
+    await page.goBack({ waitUntil: "networkidle2" });
+    await sleep(500);
+    const restored = await page.evaluate(() => ({
+      flex: document.querySelector(".nights-flex")?.getAttribute("aria-pressed"),
+      range: document.querySelectorAll(".form-cal-mount .cal-cell.range").length,
+      filled: [...document.querySelectorAll("input.has-clear")].map((e) => e.value).join("|"),
+    }));
+    assert(restored.flex === "true", `Back dropped Flexible (nights-flex aria-pressed=${restored.flex})`);
+    assert(restored.range > 0, "Back dropped the départ→retour range band");
+    assert(/Paris/i.test(restored.filled) && /Lyon/i.test(restored.filled), `Back wiped the route (got "${restored.filled}")`);
+  },
+  { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+);
+
 // 12. PWA manifest is served and parseable, icon reference resolves.
 await scenario("pwa: manifest is served and valid JSON", BASE, async (page) => {
   const manifestHref = await page.$eval('link[rel="manifest"]', (el) => el.getAttribute("href"));
