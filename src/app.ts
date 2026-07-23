@@ -1127,7 +1127,14 @@ function proposedReturn(depart: string): string {
  */
 function applyAndRun(push = true): void {
   const leavingBareForm = !store.urlHasQuery();
-  if (push || leavingBareForm) {
+  // Never push a history entry identical to the one already on screen. Toggling round trip
+  // on the home form runs the search (pushing a results entry), so pressing Search right
+  // after would push a SECOND identical results entry — leaving two duplicate screens and
+  // making Back need two presses to reach the form ("I go round trip, I search, then have to
+  // return twice"). If the query we're committing is the same search already in the URL,
+  // replace in place instead of pushing a duplicate.
+  const alreadyShown = store.urlHasQuery() && store.queryToParams(query).toString() === location.search.replace(/^\?/, "");
+  if ((push || leavingBareForm) && !alreadyShown) {
     // If we're leaving the bare home/form page — no query in the URL and no form snapshot on
     // the entry yet — stamp it (same URL, we only add state) with the staged form so a
     // browser Back returns with the departure/destination/filters still filled instead of a

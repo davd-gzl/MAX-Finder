@@ -404,6 +404,48 @@ await scenario(
   },
 );
 
+// 14. Regression: toggle Round trip on the form, THEN press Search — the search must not
+//     push a second, identical results entry (the old bug left two duplicate screens, so
+//     Back needed two presses: "I go round trip, I search, then have to return twice").
+await scenario(
+  "history: toggle Round trip then Search adds no duplicate entry (one Back to the form)",
+  BASE,
+  async (page) => {
+    await page.evaluate(
+      (o, d) => {
+        const [oi, di] = document.querySelectorAll("input.has-clear");
+        for (const [el, v] of [
+          [oi, o],
+          [di, d],
+        ]) {
+          el.value = v;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      },
+      P,
+      L,
+    );
+    await sleep(500);
+    await page.evaluate(() => document.querySelectorAll(".trip-toggle .trip-seg")[1]?.click()); // Round trip
+    await sleep(700);
+    const afterToggle = await page.evaluate(() => history.length);
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll("button")].find((x) => /search|recherch/i.test(x.textContent || ""));
+      b?.click();
+    });
+    await sleep(900);
+    const afterSearch = await page.evaluate(() => history.length);
+    assert(afterSearch === afterToggle, `Search after a toggle grew history ${afterToggle}→${afterSearch} (duplicate entry)`);
+    await page.goBack({ waitUntil: "networkidle2" });
+    await sleep(500);
+    assert(!new URL(page.url()).searchParams.get("from"), "one Back did not return to the form");
+    const filled = await page.$$eval("input.has-clear", (els) => els.map((e) => e.value).join("|"));
+    assert(/Paris/i.test(filled) && /Lyon/i.test(filled), `form not restored after Back (got "${filled}")`);
+  },
+  { viewport: { width: 390, height: 844, isMobile: true, hasTouch: true } },
+);
+
 // 12. PWA manifest is served and parseable, icon reference resolves.
 await scenario("pwa: manifest is served and valid JSON", BASE, async (page) => {
   const manifestHref = await page.$eval('link[rel="manifest"]', (el) => el.getAttribute("href"));
