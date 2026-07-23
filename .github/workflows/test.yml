@@ -14,8 +14,13 @@ permissions:
   contents: read
 
 concurrency:
+  # Per-ref group so successive pushes to the SAME PR branch collapse onto one run.
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded runs on a PR branch (only the latest push matters there), but let
+  # EVERY push to main run its CI to completion — otherwise two merges landing seconds
+  # apart cancel each other and leave the commit showing a red "cancelled" check even
+  # though nothing actually failed. On main they queue and each finishes green.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
