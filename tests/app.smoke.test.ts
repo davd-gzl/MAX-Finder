@@ -581,8 +581,9 @@ describe("app (jsdom smoke)", () => {
     // Two accordion legs, and NO glossary blurb — the stay control makes it self-evident.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
     expect(root.querySelector(".glossary")).toBeNull();
-    // The possible-days (outbound) calendar is collapsed by default once a date is chosen:
-    // a one-tap "change departure" summary with the calendar panel hidden beside it.
+    // On the RESULTS screen the possible-days (outbound) calendar is collapsed by default
+    // once a date is chosen (only the initial FORM calendar opens by default): a one-tap
+    // "change departure" summary with the calendar panel hidden beside it.
     const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
     expect(leg1.querySelector(".cal-toggle")).not.toBeNull();
     expect(leg1.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
@@ -621,8 +622,9 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
     );
-    // Same-day is a FIXED stay: the return is derived, so its calendar collapses behind a
-    // one-tap "Retour : … · Changer" summary (mirroring the outbound calendar).
+    // Same-day is a FIXED stay: the return is derived, so on the RESULTS screen its calendar
+    // collapses behind a one-tap "Retour : … · Changer" summary (only the initial form
+    // calendar opens by default).
     const retStrip = root.querySelector(".od-return-cal");
     expect(retStrip).not.toBeNull();
     const toggle = retStrip!.querySelector(".cal-toggle") as HTMLElement | null;
@@ -673,24 +675,25 @@ describe("app (jsdom smoke)", () => {
     expect(new URLSearchParams(location.search).get("stay")).toBe("flex");
   });
 
-  it("locks the calendar OPEN while Flexible so the retour is always tappable (any entry path)", () => {
-    // Enter Flexible straight from the query (the reopen-form / URL-restore path that a plain
-    // toggle-with-openFormCal did NOT cover): the calendar must be open, not collapsed.
+  it("calendar is OPEN by default (no lock, no auto-open jump) and the header toggles it", () => {
+    // David: "open by default the first calendar, always" + "make it able to open it" — the
+    // month shows from the start in every shape (Flexible included), never popping open in
+    // reaction to a control, and a header tap collapses/expands it.
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=flex&rdate=2026-06-28`,
     );
     const block = root.querySelector(".form-cal-block") as HTMLElement;
     const body = root.querySelector(".form-cal-body") as HTMLElement;
-    // Flexible restored from the query → the month is already open + locked, no tap needed.
-    expect(block.classList.contains("cal-locked")).toBe(true);
+    // Open from the start, no lock class, grid present.
     expect(body.hasAttribute("hidden")).toBe(false);
+    expect(block.classList.contains("cal-locked")).toBe(false);
     expect(block.querySelectorAll(".form-cal-body .cal-cell").length).toBeGreaterThan(0);
-    // Clicking the header must NOT collapse it while Flexible (else the retour grid vanishes).
-    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    // A tap collapses it; another re-opens it — a real toggle in Flexible too.
+    const toggle = block.querySelector(".form-cal-toggle") as HTMLElement;
+    toggle.click();
+    expect(body.hasAttribute("hidden")).toBe(true);
+    toggle.click();
     expect(body.hasAttribute("hidden")).toBe(false);
-    // Leaving Flexible (toggle the pill off → a fixed stay) unlocks it — collapsible again.
-    (root.querySelector(".nights-flex") as HTMLElement).click();
-    expect((root.querySelector(".form-cal-block") as HTMLElement).classList.contains("cal-locked")).toBe(false);
   });
 
   it("shows a populated calendar for a destination-only browse (never an empty grid)", () => {
@@ -743,9 +746,11 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,
     );
-    // rt=round → Flexible. Open the inline "Quand partir ?" calendar on the form.
+    // rt=round → Flexible. The inline "Quand partir ?" calendar is open by default.
     const block = root.querySelector(".form-cal-block") as HTMLElement;
-    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    if ((block.querySelector(".form-cal-body") as HTMLElement).hasAttribute("hidden")) {
+      (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    }
     const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
     const cellFor = (day: number): HTMLElement | undefined =>
       Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell")).find((c) => Number(dayOf(c)) === day);
@@ -796,7 +801,9 @@ describe("app (jsdom smoke)", () => {
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=flex&rdate=2026-06-28`,
     );
     const block = root.querySelector(".form-cal-block") as HTMLElement;
-    (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    if ((block.querySelector(".form-cal-body") as HTMLElement).hasAttribute("hidden")) {
+      (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    }
     const dayOf = (c: Element | null): string | undefined => c?.querySelector(".cal-day")?.textContent ?? undefined;
     const cellFor = (day: number): HTMLElement | undefined =>
       Array.from(block.querySelectorAll<HTMLElement>(".form-cal-body .cal-cell")).find((c) => Number(dayOf(c)) === day);

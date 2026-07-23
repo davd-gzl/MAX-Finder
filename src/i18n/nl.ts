@@ -319,6 +319,8 @@ export const nl: Dict = {
   daytrip_cal_hours: "{h} u ter plaatse",
   cal_legend_hours: "getal = uren ter plaatse",
   cal_legend_nights: "getal = nachten weg",
+  cal_legend_depart: "aantal = heentreinen",
+  cal_legend_return: "aantal = terugtreinen",
   daytrip_best_day: "Meeste tijd ter plaatse: {date} ({h} u)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

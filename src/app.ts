@@ -671,28 +671,19 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     // the URL. Falling back to the URL query keeps older entries (no snapshot) working.
     const snap = formStateFrom(ev.state);
     let formQuery = snap ?? searched;
-    // Guard against a Back landing on a snapshot that predates the finished build: the bare
-    // home entry (blank), OR an entry frozen mid-build (e.g. stamped as a same-day round trip
-    // the instant "Aller-retour" was toggled, before Flexible + the return were picked). If
-    // the last form the user actually assembled is for the SAME route (or this entry has no
-    // route at all), restore THAT — so a Back never drops the Flexible range / filters they
-    // entered. A genuinely different route keeps its own snapshot; goHome() clears the memory.
-    if (lastBuiltForm && !isBlankForm(lastBuiltForm)) {
-      // Same-build = same mode AND same route: only then is the entry's snapshot a stale,
-      // mid-build version of what lastBuiltForm holds in full. A different mode (od → tour)
-      // or a different route is a genuinely different prior page — keep its own snapshot, so
-      // Back through distinct searches still restores each one (not the latest build).
-      const sameBuild =
-        formQuery.mode === lastBuiltForm.mode &&
-        formQuery.origin === lastBuiltForm.origin &&
-        formQuery.destination === lastBuiltForm.destination;
-      if (isBlankForm(formQuery) || sameBuild) formQuery = lastBuiltForm;
-    }
-    // The URL decides the SCREEN (a real search → results; a bare home URL → the form). Drive
-    // the form — and its Flexible calendar band, which reads the live query.returnDate — from
-    // the restored build in BOTH cases, so returning to the home screen still shows the whole
-    // form the user assembled (departure, Flexible range, filters) rather than a wiped one.
+    // The URL decides the SCREEN: a renderable query is a COMMITTED search (results page); a
+    // bare, non-renderable URL is the home/form screen. Only the home entry can carry a
+    // snapshot frozen mid-build — stamped the instant "Aller-retour" was toggled (a same-day
+    // round trip), before Flexible + the return were picked — OR no snapshot at all. So ONLY
+    // there do we restore the full form the user last assembled, keeping the whole build
+    // (departure, Flexible range, filters) across a Back instead of a wiped/partial form.
+    // A committed search entry always keeps its OWN snapshot, so Backing through several
+    // distinct searches restores each one faithfully (never the latest build). goHome() nulls
+    // lastBuiltForm, so the logo/reset path lands on a genuinely empty home.
     const onResults = queryIsRenderable(searched);
+    if (!onResults && lastBuiltForm && !isBlankForm(lastBuiltForm)) {
+      formQuery = lastBuiltForm;
+    }
     query = formQuery;
     syncFormFromQuery();
     query = onResults ? searched : formQuery;
@@ -1373,9 +1364,22 @@ function repaintFormCalendar(): void {
     } else if (nights === 0 && !flexRange) {
       cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
+    } else if (flexRange) {
+      // Flexible: show the availability for the LEG being picked — the OUTBOUND (o→d) while
+      // choosing the departure, the RETURN (d→o) once the departure is set and we're awaiting
+      // the return tap — so a green day (and its count) means "trains run that day for what
+      // you're picking right now" (David: "available trains per day for departure or return
+      // depending on what you're choosing").
+      if (formRangeAwait) {
+        const ret = odConnOptsFor(fq, d, o);
+        cal = availabilityCalendar(trains, d, o, windowDates, ret.connOpts, ret.passesVia);
+        calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_return") };
+      } else {
+        cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
+        calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_depart") };
+      }
     } else {
-      // Flexible always shows round-trip availability (its return span is picked here),
-      // regardless of the inert stepper's seed count.
+      // Fixed N-night round trip: the days an N-night there-and-back is feasible.
       cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }

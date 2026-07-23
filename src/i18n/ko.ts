@@ -320,6 +320,8 @@ export const ko: Dict = {
   daytrip_cal_hours: "현지 {h}시간",
   cal_legend_hours: "숫자 = 현지 체류 시간",
   cal_legend_nights: "숫자 = 숙박 일수",
+  cal_legend_depart: "숫자 = 출발 열차",
+  cal_legend_return: "숫자 = 귀환 열차",
   daytrip_best_day: "현지 체류 최대: {date} ({h}시간)",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

@@ -137,16 +137,35 @@ export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
   const first = j.legs[0];
   const last = j.legs[j.legs.length - 1];
   const via = j.legs.length > 1;
+  const fromLabel = first ? legEndpointLabel(ctx, first, "origin") : "";
+  const toLabel = last ? legEndpointLabel(ctx, last, "destination") : "";
+  const trains = j.legs.map((l) => l.trainNo).filter(Boolean);
+  const axe = first?.axe;
   return el("span", { class: "mc-pick" }, [
-    el("span", { class: "mc-pick-time" }, [
-      el("strong", { text: first?.depart ?? "" }),
-      icon(I.arrow),
-      el("strong", { text: last?.arrive ?? "" }),
+    // The day + exact gares of THIS leg — Aller and Retour fall on different dates and can
+    // use different Paris termini, so spelling it out per leg is the point of the summary.
+    el("span", { class: "mc-pick-route muted small" }, [
+      el("span", { class: "mc-pick-date", text: ctx.formatDate(j.date) }),
+      el("span", { class: "mc-pick-gares", text: `${fromLabel} → ${toLabel}` }),
     ]),
-    el("span", { class: "mc-pick-dur muted" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
-    via
-      ? el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })
-      : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
+    el("span", { class: "mc-pick-line" }, [
+      el("span", { class: "mc-pick-time" }, [
+        el("strong", { text: first?.depart ?? "" }),
+        icon(I.arrow),
+        el("strong", { text: last?.arrive ?? "" }),
+      ]),
+      el("span", { class: "mc-pick-dur muted" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+      via
+        ? el("span", { class: "chip chip-via", text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }) })
+        : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
+    ]),
+    // The actual train(s) to look for on SNCF Connect: number + line/axe.
+    trains.length
+      ? el("span", { class: "mc-pick-train muted small" }, [
+          ...trains.map((no) => el("span", { class: "train-no", text: t("lbl_train", { no }) })),
+          ...(axe ? [el("span", { class: "train-axe", text: axe })] : []),
+        ])
+      : el("span"),
   ]);
 }
 

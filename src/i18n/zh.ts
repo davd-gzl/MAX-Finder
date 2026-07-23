@@ -319,6 +319,8 @@ export const zh: Dict = {
   daytrip_cal_hours: "当地 {h} 小时",
   cal_legend_hours: "数字 = 当地小时数",
   cal_legend_nights: "数字 = 在外过夜数",
+  cal_legend_depart: "数字 = 出发列车",
+  cal_legend_return: "数字 = 返程列车",
   daytrip_best_day: "当地时间最长：{date}（{h} 小时）",
   res_day_title: "{origin} ⇄ {destination} · {date}",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

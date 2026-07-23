@@ -471,7 +471,13 @@ await scenario(
     await sleep(300);
     await page.evaluate(() => document.querySelector(".nights-flex")?.click()); // Flexible
     await sleep(400);
-    // Tap a départ then a later retour on the (auto-open) Flexible calendar.
+    // The calendar never auto-opens — tap its header to reveal the départ → retour grid.
+    await page.evaluate(() => {
+      const body = document.querySelector(".form-cal-body");
+      if (body?.hasAttribute("hidden")) document.querySelector(".form-cal-toggle")?.click();
+    });
+    await sleep(300);
+    // Tap a départ then a later retour on the (now open) Flexible calendar.
     const dep = await page.evaluate(() => {
       const cs = [...document.querySelectorAll(".form-cal-mount .cal-cell")];
       const t = cs.find((c) => c.classList.contains("ok")) || cs[2];

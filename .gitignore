@@ -13,3 +13,4 @@ keystore.b64
 
 # transient debug/repro scripts
 scripts/_*.mjs
+scratch_rt_conclusion.png
