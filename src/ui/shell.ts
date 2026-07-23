@@ -298,9 +298,13 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
     attrs: { target: "_blank", rel: "noopener noreferrer", "aria-label": "GitHub", title: "GitHub" },
   });
 
+  // A few controls stay visible in the header at all times (never behind the menu): the
+  // MAX pass (switched often), Install, and Settings. Everything else — language, GitHub,
+  // theme, share, shortcuts — lives behind the hamburger to keep the mobile header compact.
+  const quickCtls = el("div", { class: "header-quick" }, [cardSel, installBtn, settingsBtn]);
   const headerCtls = el("div", { class: "header-ctls" }, [
-    el("div", { class: "menu-selects" }, [langSel, cardSel]),
-    el("div", { class: "menu-actions" }, [ghLink, keysBtn, settingsBtn, themeBtn, shareBtn, installBtn]),
+    el("div", { class: "menu-selects" }, [langSel]),
+    el("div", { class: "menu-actions" }, [ghLink, keysBtn, themeBtn, shareBtn]),
   ]);
   const menuBtn = el("button", {
     class: "ctl icon-ctl menu-btn",
@@ -313,7 +317,7 @@ function buildHeader(props: ShellProps): { header: HTMLElement; cardSelect: HTML
     },
     html: MENU_SVG,
   });
-  const headerNav = el("div", { class: "header-nav" }, [menuBtn, headerCtls]);
+  const headerNav = el("div", { class: "header-nav" }, [quickCtls, menuBtn, headerCtls]);
   menuBtn.addEventListener("click", (ev) => {
     ev.stopPropagation();
     const open = headerNav.classList.toggle("menu-open");
