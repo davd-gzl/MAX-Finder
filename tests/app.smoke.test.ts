@@ -581,8 +581,9 @@ describe("app (jsdom smoke)", () => {
     // Two accordion legs, and NO glossary blurb — the stay control makes it self-evident.
     expect(root.querySelectorAll(".mc-result").length).toBe(2);
     expect(root.querySelector(".glossary")).toBeNull();
-    // The possible-days (outbound) calendar is collapsed by default once a date is chosen:
-    // a one-tap "change departure" summary with the calendar panel hidden beside it.
+    // On the RESULTS screen the possible-days (outbound) calendar is collapsed by default
+    // once a date is chosen (only the initial FORM calendar opens by default): a one-tap
+    // "change departure" summary with the calendar panel hidden beside it.
     const leg1 = root.querySelectorAll(".mc-result")[0] as HTMLElement;
     expect(leg1.querySelector(".cal-toggle")).not.toBeNull();
     expect(leg1.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(true);
@@ -621,8 +622,9 @@ describe("app (jsdom smoke)", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=day`,
     );
-    // Same-day is a FIXED stay: the return is derived, so its calendar collapses behind a
-    // one-tap "Retour : … · Changer" summary (mirroring the outbound calendar).
+    // Same-day is a FIXED stay: the return is derived, so on the RESULTS screen its calendar
+    // collapses behind a one-tap "Retour : … · Changer" summary (only the initial form
+    // calendar opens by default).
     const retStrip = root.querySelector(".od-return-cal");
     expect(retStrip).not.toBeNull();
     const toggle = retStrip!.querySelector(".cal-toggle") as HTMLElement | null;
