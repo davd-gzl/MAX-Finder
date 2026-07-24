@@ -1470,6 +1470,12 @@ a {
 .od-guide {
   margin: 0 0 0.3rem;
 }
+/* "Do you want to come back?" — turn a one-way result into a round trip in one tap. */
+.od-comeback {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0 0.25rem;
+}
 /* The round-trip conclusion: nights away + total travel, plus a "View ticket" button that
    reopens the whole-trip modal — above the two legs. */
 .rt-conclusion {

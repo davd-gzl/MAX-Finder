@@ -2646,6 +2646,29 @@ function runOdSearch(c: RenderCtx): void {
       );
   }
 
+  // "Do you want to come back?" — the come-back prompt belongs HERE, on the one-way page
+  // where adding a return is still an open decision (not on the round-trip page, where it's
+  // already decided). One tap switches "How long?" to a 1-night round trip and re-runs into
+  // the 2-leg accordion.
+  if (journeys.length > 0) {
+    refs.results.append(
+      el("div", { class: "od-comeback" }, [
+        el("button", {
+          class: "btn btn-ghost",
+          type: "button",
+          text: t("ret_title"),
+          on: {
+            click: () => {
+              formApi.setStayNights(1);
+              query = readQueryFromForm();
+              applyAndRun();
+            },
+          },
+        }),
+      ]),
+    );
+  }
+
   appendHiddenTrains(c);
   const nearbyIds = appendNearbyAlternatives(c, radiusAlt);
 
@@ -2880,7 +2903,7 @@ function runTripSearch(c: RenderCtx): void {
   // form's départ→retour range; the "Retour : … · Changer" summary reveals it to adjust.
   body1.append(
     retCalUI.host,
-    el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]),
+    el("section", { class: "od-return" }, [el("h3", { text: t("rt_return_leg") }), retList]),
   );
   let selectReturn: (retDate: string) => void = () => {};
   const retCtx: RenderCtx = { ...c, onSelectDay: (d) => selectReturn(d) };
@@ -2947,6 +2970,17 @@ function runTripSearch(c: RenderCtx): void {
     );
     renderReturns(retDate);
     updateRetToggle(retDate); // keep the collapsed summary ("Retour : … · Changer") in step
+    // Keep the page heading AND the return-leg date chip on the day actually shown — else,
+    // after picking a different return, both keep advertising the originally-proposed date
+    // while the conclusion line shows the new one, so the screen contradicts itself (rank 10).
+    refs.title.textContent = t("res_rt_title", {
+      origin: registry.label(origin),
+      destination: registry.label(destination),
+      out: formatDate(query.date),
+      ret: formatDate(retDate),
+    });
+    const retChip = boxes[1]?.head.querySelector<HTMLElement>(".mc-date");
+    if (retChip) retChip.textContent = formatDate(retDate);
     if (refocus) retCalHost.querySelector<HTMLElement>(".cal-cell.sel")?.focus();
   };
   selectReturn = (retDate: string): void => {
@@ -2956,6 +2990,10 @@ function runTripSearch(c: RenderCtx): void {
     // stepper is seeded but inert; a FIXED stay settles onto the matching length (same day
     // or a fixed N-night stay, for any N) so the "How long?" control stays truthful.
     odReturnDate = retDate;
+    // The chosen return train belonged to the OLD day — drop it so "View ticket" reopens the
+    // trip with the new day's return (its pre-highlighted first option), not a train from a
+    // day the return list no longer shows (rank 24).
+    if (boxes[1]) boxes[1].chosen = null;
     const nights = Math.max(0, dayIndex(retDate) - dayIndex(query.date));
     if (retFlexible) {
       query = { ...query, returnDate: retDate, stay: "flexible" };
@@ -2974,7 +3012,12 @@ function runTripSearch(c: RenderCtx): void {
   fillReturns = () => paintReturn(odReturnDate ?? proposed);
 
   // ----- Leg 1 (Aller): outbound list, with the possible-days calendar collapsed above --
-  const outCal = stayCalendar(trains, origin, destination, windowDates, connOpts, "nights");
+  // Grade the outbound days by the SAME feasibility as the form + return leg: the chosen stay
+  // length (getawayOptsFor — a fixed N-night stay or the Flexible window, not a blanket 3) AND
+  // any via/hub budget (connOpts), so a green outbound day always has a bookable return the
+  // return calendar agrees with — no green day that dead-ends on an empty return (#13/#15).
+  const outCalOpts = { ...getawayOptsFor(query), ...connOpts };
+  const outCal = stayCalendar(trains, origin, destination, windowDates, outCalOpts, "nights");
   gradeNearby(outCal, origin, destination, windowDates);
   // Linked calendars: picking a different outbound day re-anchors the trip and UPDATES the
   // return calendar to start from that day. A FIXED stay keeps its length — the return

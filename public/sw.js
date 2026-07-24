@@ -14,7 +14,7 @@
 // re-install and re-activate: the activate handler then deletes the previous cache
 // and navigates any client stranded on a stale shell (the white-page failure mode)
 // onto the freshly deployed one.
-const CACHE_NAME = "maxjeune-v21";
+const CACHE_NAME = "maxjeune-v22";
 
 // Minimal app shell — paths relative to the SW's scope (/MAX-Finder/)
 // Vite injects a hashed index.html in the build output at the base path.
