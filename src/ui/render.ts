@@ -642,7 +642,6 @@ function journeyActionsEl(
 export function getawayCityRowEl(
   trip: Getaway,
   ctx: RenderCtx,
-  stat: { days: number; windowDays: number },
   opts: { metric?: string; openTo?: string } = {},
 ): HTMLElement {
   // Normal getaway: the card names `trip.destination` (where you go) and opens the route
@@ -654,32 +653,35 @@ export function getawayCityRowEl(
   const routeOrigin = opts.openTo != null ? named : trip.outbound.origin;
   const routeDest = opts.openTo != null ? opts.openTo : trip.destination;
   const route: RoutePair = { origin: routeOrigin, destination: routeDest };
-  const summary = t("stat_day_month", { day: stat.days, month: stat.windowDays });
+  // How many changes the outbound takes — Direct / N correspondance(s), colour-matched to
+  // the map pins (green direct / amber 1 / red 2+). The point of a discovery row is "can I
+  // get there, and how hard is it", so this rides alongside the mode's headline metric.
+  const changes = trip.outbound.legs.length - 1;
+  const changeChip =
+    changes === 0
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", { class: `chip chip-changes chip-changes-${Math.min(changes, 2)}`, text: t("lbl_changes", { n: changes }) });
   const main = el(
     "button",
     {
       class: "dest-main dest-main-stacked",
       type: "button",
-      attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? summary}` },
+      attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? t("lbl_changes", { n: changes })}` },
       // Open on the idea's OWN start day (its best there-and-back), so the round trip is
       // feasible — not anchored on today, which may have only an outbound and no return.
       on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest, { date: trip.outbound.date }) },
     },
     [
       // Stack the city NAME on its own line above the chips, so a busy row (hours-on-site +
-      // days chip + travel time) can never squeeze the name down to a single letter on a
+      // changes chip + travel time) can never squeeze the name down to a single letter on a
       // phone — the name is the point of the card and must always read in full.
       el("div", { class: "dest-body" }, [
         stationNameEl("dest-name", named, ctx.label(named)),
         el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
           // The mode's headline metric (hours on site / nights away) leads, so places
-          // compare on what the mode is about; the days/window chip follows.
+          // compare on what the mode is about; the changes chip follows.
           ...(opts.metric ? [el("span", { class: "chip chip-onsite", text: opts.metric })] : []),
-          el("span", {
-            class: "stat-chip",
-            text: summary,
-            attrs: { title: t("getaway_days_hint", { n: stat.windowDays }) },
-          }),
+          changeChip,
           el("bdi", { text: formatDuration(trip.travelMin) }),
         ]),
       ]),

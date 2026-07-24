@@ -1936,14 +1936,6 @@ function runBrowse(c: RenderCtx, dir: "from" | "to"): void {
   if (query.radiusKm) showRadius([{ id: anchor, km: query.radiusKm }], nearby.map((n) => n.via));
 }
 
-/** The discovery window: every bookable day from the chosen departure onward. Discovery
- *  shares the form's date (efficiency over casual "weekend/next-7" presets) — the sweep's
- *  flexible-nights range (0–3) is what varies "how much time", not a cute window chip. */
-function discoveryWindow(): string[] {
-  const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  return dateRange(query.date, dayIndex(lastBookable) - dayIndex(query.date) + 1);
-}
-
 /**
  * Round-trip DISCOVERY from an origin (no destination yet): which cities you can go to
  * and get back — each ranked by its best stay (hours on site when a same-day trip is the
@@ -1954,8 +1946,10 @@ function discoveryWindow(): string[] {
 function runGetaways(c: RenderCtx, origin: string): void {
   const { trains } = deps;
   refs.title.textContent = t("rt_finder_title");
-  const windowDates = discoveryWindow();
-  const { trips, datesByDest } = getawayIdeas(trains, origin, windowDates, getawayOpts());
+  // DAY-SCOPED: list the round trips you can start on the chosen day, so the count matches
+  // the "When to leave?" calendar's number for that day (pick another day → that day's list).
+  // A window-wide union would say "65 possible" while the calendar cell says "8 that day".
+  const { trips } = getawayIdeas(trains, origin, [query.date], getawayOpts());
   const shown = trips;
   if (shown.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")));
@@ -1964,7 +1958,6 @@ function runGetaways(c: RenderCtx, origin: string): void {
   }
   refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: shown.length }) }));
   appendInChunks(refs.results, shown, (trip) => {
-    const days = datesByDest.get(trip.destination) ?? [];
     // The headline metric that VARIES between places: hours on site when the best trip
     // there is same-day (0 nights), nights away otherwise — self-evident per place, no
     // separate mode.
@@ -1972,7 +1965,7 @@ function runGetaways(c: RenderCtx, origin: string): void {
       trip.nights === 0
         ? t("daytrip_cal_hours", { h: Math.round((trip.onSiteMin ?? 0) / 60) })
         : t("getaway_nights", { n: trip.nights });
-    return render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric });
+    return render.getawayCityRowEl(trip, c, { metric });
   });
   showMap(
     origin,
@@ -1990,8 +1983,9 @@ function runGetaways(c: RenderCtx, origin: string): void {
 function runReverseGetaways(c: RenderCtx, destination: string): void {
   const { trains, registry } = deps;
   refs.title.textContent = t("rt_reverse_title", { station: registry.label(destination) });
-  const windowDates = discoveryWindow();
-  const { trips, datesByDest } = reverseGetawayIdeas(trains, destination, windowDates, getawayOpts());
+  // DAY-SCOPED (mirrors runGetaways): list the origins you can round-trip from on the chosen
+  // day, so the count matches the "When to leave?" calendar's number for that day.
+  const { trips } = reverseGetawayIdeas(trains, destination, [query.date], getawayOpts());
   // `trip.destination` here names the discovered ORIGIN (reverseGetawayIdeas relabels it).
   const shown = trips;
   if (shown.length === 0) {
@@ -2001,13 +1995,12 @@ function runReverseGetaways(c: RenderCtx, destination: string): void {
   }
   refs.results.append(el("p", { class: "muted count", text: t("rt_reverse_count", { n: shown.length }) }));
   appendInChunks(refs.results, shown, (trip) => {
-    const days = datesByDest.get(trip.destination) ?? [];
     const metric =
       trip.nights === 0
         ? t("daytrip_cal_hours", { h: Math.round((trip.onSiteMin ?? 0) / 60) })
         : t("getaway_nights", { n: trip.nights });
     // openTo = the fixed destination: the card names the origin and opens origin → dest.
-    return render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric, openTo: destination });
+    return render.getawayCityRowEl(trip, c, { metric, openTo: destination });
   });
   // Plot the fixed destination plus each candidate origin around it.
   showMap(
