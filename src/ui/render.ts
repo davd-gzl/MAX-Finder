@@ -496,13 +496,14 @@ export function reachTripRowEl(
   j: Journey,
   ctx: RenderCtx,
   extra?: HTMLElement,
-  opts?: { hideMeta?: boolean },
+  opts?: { hideMeta?: boolean; hideVia?: boolean },
 ): HTMLElement {
   const route: RoutePair = { origin: j.origin, destination: j.destination };
   const via = j.legs.length > 1;
   // Connecting trips get a "via" chip so a correspondence is obvious in the list;
-  // direct trips stay clean.
-  const viaChip = via
+  // direct trips stay clean. Callers that show an explicit change-count chip (Ideas)
+  // pass hideVia so the two don't duplicate.
+  const viaChip = via && !opts?.hideVia
     ? [
         el("span", {
           class: "chip chip-via",
@@ -513,25 +514,26 @@ export function reachTripRowEl(
   const aria = `${ctx.label(station)} — ${formatDuration(j.totalDurationMin)}${
     via ? ` (${t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") })})` : ""
   }`;
+  // NAME on its own line, the via/count/duration chips wrapping below it — so the city name
+  // always leads and reads in full on a phone, with the arrow stub kept on the right.
+  const metaChips: HTMLElement[] = [
+    ...viaChip,
+    ...(extra ? [extra] : []),
+    ...(opts?.hideMeta ? [] : [el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+  ];
   const main = el(
     "button",
     {
-      class: "dest-main",
+      class: "dest-main dest-main-stacked",
       type: "button",
       attrs: { "aria-label": aria },
       on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
     },
     [
-      stationNameEl("dest-name", station, ctx.label(station)),
-      ...viaChip,
-      ...(extra ? [extra] : []),
-      ...(opts?.hideMeta
-        ? []
-        : [
-            el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
-              el("bdi", { text: formatDuration(j.totalDurationMin) }),
-            ]),
-          ]),
+      el("div", { class: "dest-body" }, [
+        stationNameEl("dest-name", station, ctx.label(station)),
+        ...(metaChips.length ? [el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, metaChips)] : []),
+      ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
@@ -724,6 +726,14 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
   // rides alongside it; the duration meta is dropped so a long city name never gets
   // squeezed out of the row. Both figures still live in the chip's tooltip.
   const chips: HTMLElement[] = [];
+  // How many changes it takes to get there — the point of the Ideas list: Direct, or
+  // "N correspondance(s)". Colour-matched to the map pins (green direct / amber 1 / red 2+).
+  const changes = trip.journey.legs.length - 1;
+  chips.push(
+    changes === 0
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", { class: `chip chip-changes chip-changes-${Math.min(changes, 2)}`, text: t("lbl_changes", { n: changes }) }),
+  );
   if (trains != null && trains > 0) {
     chips.push(
       el("span", {
@@ -733,8 +743,8 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
       }),
     );
   }
-  const extra = chips.length ? el("span", { class: "row-chips" }, chips) : undefined;
-  return reachTripRowEl(trip.destination, trip.journey, ctx, extra, { hideMeta: true });
+  const extra = el("span", { class: "row-chips" }, chips);
+  return reachTripRowEl(trip.destination, trip.journey, ctx, extra, { hideMeta: true, hideVia: true });
 }
 
 /**

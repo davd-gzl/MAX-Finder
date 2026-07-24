@@ -986,14 +986,16 @@ function readQueryFromForm(): SearchQuery {
   // origin (from → discovery), Ideas (best), and a destination-only "to" (kept so the
   // armed prompt can ask for an origin without dropping the intent). "One-way" (Just
   // going) leaves it undefined.
-  const modeTakesStay = mode === "od" || mode === "from" || mode === "to" || mode === "best";
-  const rawNights = tripType === "simple" || tripType === "ideas" ? formApi.getStayNights() : null;
+  // NB: "best" (the Ideas tab) is NOT here — Ideas is a self-contained ONE-WAY reachability
+  // list ("where can I go, and with how many changes"), independent of the Trip tab's stay.
+  const modeTakesStay = mode === "od" || mode === "from" || mode === "to";
+  const rawNights = tripType === "simple" ? formApi.getStayNights() : null;
   // The nights count is the source of truth for a FIXED stay: null → one-way, else 0..3 map
   // to the fixed stays. Flexible is a separate flag: its stay is "flexible" and its return
   // is the day the user picked on the return calendar (carried on the query), NOT a derived
   // departure + N. od carries the EXPLICIT return date; discovery ("from"/"best") derives
   // its return from the getaway sweep instead, so it only needs the stay.
-  const formFlexible = (tripType === "simple" || tripType === "ideas") && modeTakesStay && formApi.isFlexible();
+  const formFlexible = tripType === "simple" && modeTakesStay && formApi.isFlexible();
   const formNights = rawNights !== null && modeTakesStay ? rawNights : null;
   const stay: StayChoice | undefined = formFlexible ? "flexible" : formNights !== null ? stayFromNights(formNights) : undefined;
   const outDate = refs.date.value || query.date;
@@ -2238,10 +2240,9 @@ function runTourSearch(c: RenderCtx): void {
 function runBestSearch(c: RenderCtx): void {
   const { trains, registry } = deps;
   if (!query.origin) return showHint(refs.origin);
-  // Day-trip / round-trip shape → ideas of good there-and-back escapes for the month.
-  if (tripIsRound()) return runBestGetaways(c, query.origin);
-  // Ideas is a "where can I go from here" overview across the WHOLE booking window — every
-  // destination reachable on any day, best trip each.
+  // Ideas is a self-contained "where can I go from here" list — every destination reachable
+  // across the booking window, each with how many changes it takes; tap one to see the days
+  // you can go. It is ONE-WAY and independent of the Trip tab's round-trip / stay setting.
   refs.title.textContent = t("best_title_all", { station: registry.label(query.origin) });
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
   const opts = { ...filterOpts(), maxConnections: query.maxConnections };
@@ -2280,59 +2281,6 @@ function runBestSearch(c: RenderCtx): void {
     query.origin,
     sorted.map((tr) => tr.destination),
     reachInfo(sorted.map((tr) => ({ station: tr.destination, connections: tr.journey.legs.length - 1 }))),
-  );
-}
-
-/**
- * "Ideas" round trips: the best there-and-back escape to every destination,
- * scanned across the whole booking month (or a single picked day). Pairs the
- * round-trip toggle with best mode so you can discover good getaways for the
- * month, not just a one-way list. Ranked by nights, then time on site / travel.
- */
-function runBestGetaways(c: RenderCtx, origin: string): void {
-  const { trains, registry } = deps;
-  // Getaway-ideas framing (each destination ranked by its best stay — same-day hours or
-  // overnight nights, whichever the sweep found best), across the WHOLE booking window.
-  refs.title.textContent = t("best_round_title_all", { station: registry.label(origin) });
-  const inRegion = (d: string): boolean => !query.region || registry.get(d)?.region === query.region;
-  const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  const opts = getawayOpts();
-  const whole = getawayIdeas(trains, origin, window, opts, inRegion);
-  const trips = whole.trips;
-  if (trips.length === 0) {
-    refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
-    showMap(origin, []);
-    return;
-  }
-  // Sort by distance / total travel / name; "rec" keeps the best-stay default.
-  const sorted = applySort(trips, {
-    name: (g) => registry.label(g.destination),
-    distanceKm: (g) => stationDistanceKm(origin, g.destination),
-    durationMin: (g) => g.travelMin,
-  });
-  refs.results.append(
-    render.listToolbarEl(
-      t("best_round_count", { n: trips.length }),
-      query.sort ?? "rec",
-      sortOptions(["rec", "closest", "fastest", "name"]),
-      onSort,
-    ),
-  );
-  // Compact, scannable cards — the SAME as the origin-only discovery list: the city name,
-  // its best stay, how many days it's possible, and the travel time; tap to open the full
-  // trip. Ideas is a "what's possible from here" browse, not a wall of expanded tickets.
-  appendInChunks(refs.results, sorted, (trip) => {
-    const days = whole.datesByDest.get(trip.destination) ?? [];
-    const metric =
-      trip.nights === 0
-        ? t("daytrip_cal_hours", { h: Math.round((trip.onSiteMin ?? 0) / 60) })
-        : t("getaway_nights", { n: trip.nights });
-    return render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric });
-  });
-  showMap(
-    origin,
-    sorted.map((trip) => trip.destination),
-    reachInfo(sorted.map((trip) => ({ station: trip.destination, connections: trip.outbound.legs.length - 1 }))),
   );
 }
 
@@ -3255,9 +3203,9 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (/^[1-3]$/.test(e.key)) {
     e.preventDefault();
     switchTab(TRIP_TABS[Number(e.key) - 1]!);
-  } else if (e.key === "r" && (tripType === "simple" || tripType === "ideas")) {
+  } else if (e.key === "r" && tripType === "simple") {
     e.preventDefault();
-    cycleTripShape(); // One-way ↔ Round trip on the Trip / Ideas tab
+    cycleTripShape(); // One-way ↔ Round trip on the Trip tab (Ideas is always one-way)
   } else if (e.key === "/") {
     e.preventDefault();
     const f = deriveMode() === "to" ? refs.destination : refs.origin;

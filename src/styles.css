@@ -1751,6 +1751,19 @@ a {
   color: var(--accent);
   border-color: transparent;
 }
+/* Change-count chips echo the map heat-map: green (direct) → amber (1) → red (2+). */
+.chip-changes {
+  border-color: transparent;
+  white-space: nowrap;
+}
+.chip-changes-1 {
+  background: color-mix(in oklab, #d97706 20%, var(--surface));
+  color: #b45309;
+}
+.chip-changes-2 {
+  background: color-mix(in oklab, #dc2626 20%, var(--surface));
+  color: #b91c1c;
+}
 .chip-via {
   background: var(--surface-2);
   color: var(--text);
