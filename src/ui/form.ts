@@ -901,9 +901,9 @@ export function createForm(props: FormProps): FormHandle {
     // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";
 
-    // Region focuses a tour plan ("visit Bretagne"). Ideas stays a single-field
-    // surface, so no region filter there either.
-    regionField.style.display = plan ? "" : "none";
+    // Region focuses a tour plan ("visit Bretagne") and narrows the Ideas list to one
+    // area ("where in the Atlantique can I go?") — both filter by destination region.
+    regionField.style.display = plan || ideas ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
     // Radius (nearby-station reach) applies to the single trip tabs. (The hidden-train
     // toggle lives in Advanced and shows on every tab, so it isn't gated here.)
@@ -913,9 +913,10 @@ export function createForm(props: FormProps): FormHandle {
     // The trip-shape control (One-way / Round trip) rides the Trip tab only. Ideas and
     // the multi-city tabs don't take a return, so it's hidden there.
     tripShapeField.style.display = simple ? "" : "none";
-    // Connections and the Advanced panel are trip-planning filters; Ideas hides them so
-    // the surface is just the departure field and its list of reachable cities.
-    connectionsField.style.display = ideas ? "none" : "";
+    // "Max changes" caps how many correspondances an idea may take — the headline signal
+    // on every Ideas row (Direct / N-correspondance chip), so it's a first-class filter
+    // there too. The rest of the Advanced panel is exact-route planning, kept off Ideas.
+    connectionsField.style.display = "";
     advanced.style.display = ideas ? "none" : "";
     syncTripShape();
     // A hidden control measures as zero, so the pills can only be placed once their
