@@ -62,17 +62,6 @@ export function registerServiceWorker(onUpdateReady?: () => void): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Requests notification permission from the user.
- * Returns "denied" if the Notifications API is unavailable.
- */
-export async function requestNotificationPermission(): Promise<NotificationPermission> {
-  if (!("Notification" in window)) return "denied";
-  if (Notification.permission === "granted") return "granted";
-  if (Notification.permission === "denied") return "denied";
-  return Notification.requestPermission();
-}
-
-/**
  * Fires a notification if permission is already granted.
  * Silently does nothing if unsupported or permission not granted.
  *

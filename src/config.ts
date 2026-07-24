@@ -1,5 +1,3 @@
-import type { CardType } from "./types";
-
 /** SNCF Open Data — Explore API v2.1 records endpoint for the `tgvmax` dataset. */
 export const SNCF_API_URL =
   "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/tgvmax/records";
@@ -23,15 +21,6 @@ export const MIN_CONNECTION_MIN = 15;
 export const MAX_CONNECTION_MIN = 240;
 /** Layover ceiling when overnight stopovers are allowed (sleep at the hub). */
 export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
-
-/**
- * A train counts as a "night train" if it leaves at/after this time (minutes from
- * midnight) or arrives past midnight — i.e. it has you travelling through the
- * night. Used by the "night trains" toggle to optionally exclude them.
- */
-export const NIGHT_DEPART_MIN = 22 * 60; // 22:00
-
-export const DEFAULT_CARD: CardType = "jeune";
 
 /**
  * Destinations that appear in the open data but are NOT bookable with a MAX pass

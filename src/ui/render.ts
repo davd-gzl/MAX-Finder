@@ -4,7 +4,6 @@ import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
 import type { Tour } from "../core/tour";
-import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { isNightTrain } from "../core/search";
@@ -24,7 +23,6 @@ export interface RenderCtx {
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
-  onFocusStation: (id: string) => void;
   /** Draw a specific journey (origin → interchanges → destination) on the map. */
   onShowJourney: (journey: Journey) => void;
   /** Draw a whole multi-city tour (every stop) on the map. */
@@ -169,37 +167,54 @@ export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 }
 
-/** External travel-guide link styled as a button (matches the Save button). */
-export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
+/**
+ * External travel-guide (Wikivoyage) link for a station's city. `variant: "button"`
+ * styles it as a ghost button with the icon leading (matches the Save button);
+ * `variant: "link"` is an inline linklike with the icon trailing the label.
+ */
+export function guideEl(ctx: RenderCtx, stationId: string, variant: "button" | "link" = "link"): HTMLElement {
+  const label = el("span", { text: t("act_guide") });
+  const ext = icon(I.external);
+  const newtab = el("span", { class: "sr-only", text: t("link_newtab") });
   return el(
     "a",
     {
-      class: "btn btn-ghost",
+      class: variant === "button" ? "btn btn-ghost" : "linklike",
       href: ctx.cityInfoUrl(stationId),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
-    [icon(I.external), el("span", { text: t("act_guide") }), el("span", { class: "sr-only", text: t("link_newtab") })],
-  );
-}
-
-/** External travel-guide (Wikivoyage) link for a station's city. */
-export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "linklike",
-      href: ctx.cityInfoUrl(stationId),
-      attrs: { target: "_blank", rel: "noopener noreferrer" },
-    },
-    [
-      el("span", { text: t("act_guide") }),
-      icon(I.external),
-      el("span", { class: "sr-only", text: t("link_newtab") }),
-    ],
+    variant === "button" ? [ext, label, newtab] : [label, ext, newtab],
   );
 }
 
 // Paris intra-muros is a single aggregate in the SNCF open data, but a train's axe
+/**
+ * A calendar tucked behind a one-tap "… · Changer" summary toggle: collapsed by
+ * default on results screens (only the form calendar opens up front). Returns the
+ * wrapper `host`, the `toggle` button, and a `setLabel` to (re)write its summary
+ * text. Replaces the outbound / return / getaway calendars' hand-duplicated copies.
+ */
+export function collapsibleCalendar(
+  calNode: HTMLElement,
+  wrapClass = "cal-collapsible",
+): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void } {
+  const panel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [calNode]);
+  const toggle = el("button", {
+    class: "cal-toggle linklike",
+    type: "button",
+    attrs: { "aria-expanded": "false" },
+    on: {
+      click: () => {
+        const opening = panel.hasAttribute("hidden");
+        panel.toggleAttribute("hidden", !opening);
+        toggle.setAttribute("aria-expanded", String(opening));
+      },
+    },
+  });
+  const host = el("div", { class: wrapClass }, [toggle, panel]);
+  return { host, toggle, setLabel: (text: string) => (toggle.textContent = text) };
+}
+
 // pins which terminus gare it actually uses. Map the main TGV axes; other axes
 // (Intercités, international, night) stay as the plain "Paris" — better a city than
 // a wrong gare. The mapping only applies on a concrete journey leg (where the axe is
@@ -682,9 +697,17 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
   const head = el("div", { class: "daytrip-head" }, [
     favStarEl(route, ctx),
     stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
-    // Rows on a city's page differ by start day, so it always leads.
+    // Rows on a city's page differ by start day, so it always leads. A multi-night stay
+    // shows the whole span (out – back) so the return day is visible without arithmetic.
     ...(opts.showDate
-      ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
+      ? [
+          el("span", {
+            class: "daytrip-date",
+            text: sameDay
+              ? ctx.formatDate(trip.outbound.date)
+              : `${ctx.formatDate(trip.outbound.date)} – ${ctx.formatDate(trip.back.date)}`,
+          }),
+        ]
       : []),
     ...(sameDay
       ? []
@@ -696,7 +719,7 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
     el("span", {
       class: "chip chip-onsite",
       text: headlineText,
-      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
+      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("daytrip_travel_hint") },
     }),
   ]);
   // One action row for the whole card, after both legs. Every button therefore acts
@@ -1135,46 +1158,6 @@ export function calendarEl(
   ]);
 }
 
-/** One flexible-date row: the fastest trip for a nearby day; click to select it. */
-export function flexDayEl(
-  date: string,
-  j: Journey,
-  ctx: RenderCtx,
-  selected: boolean,
-  destLabel?: string,
-): HTMLElement {
-  const first = j.legs[0];
-  const last = j.legs[j.legs.length - 1];
-  const via = j.legs.length > 1;
-  return el(
-    "button",
-    {
-      class: `flex-day${selected ? " is-sel" : ""}`,
-      type: "button",
-      attrs: { "aria-pressed": String(selected) },
-      on: { click: () => ctx.onSelectDay(date) },
-    },
-    [
-      el("span", { class: "flex-date", text: ctx.formatDate(date) }),
-      // In "best" mode the destination differs each day, so name it; in "od" the
-      // route is fixed and shown in the page title, so this is omitted.
-      ...(destLabel ? [el("span", { class: "flex-dest", text: destLabel })] : []),
-      el("span", { class: "flex-time" }, [
-        el("strong", { text: first?.depart ?? "" }),
-        icon(I.arrow),
-        el("strong", { text: last?.arrive ?? "" }),
-      ]),
-      el("span", { class: "flex-meta" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
-      via
-        ? el("span", {
-            class: "chip chip-via",
-            text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
-          })
-        : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
-    ],
-  );
-}
-
 /**
  * The whole trip on one page: a single journey (one-way) or a round trip
  * (outbound + inbound) with a title, a nights/total-travel summary, each leg as a
@@ -1240,7 +1223,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
     // Save the trip + a travel guide for the destination city (what to do once there).
     el("div", { class: "trip-view-actions" }, [
       tripSaveBtn(outbound, ctx, inbound),
-      guideButtonEl(ctx, outbound.destination),
+      guideEl(ctx, outbound.destination, "button"),
     ]),
   );
   return view;
@@ -1288,23 +1271,6 @@ export function multiTripViewEl(legs: RecapLeg[], ctx: RenderCtx): HTMLElement {
     );
   });
   return view;
-}
-
-/** A round-trip card. */
-export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
-  const out = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_outbound") }),
-    journeyEl(rt.outbound, ctx),
-  ]);
-  const back = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_inbound") }),
-    journeyEl(rt.inbound, ctx),
-  ]);
-  const stay = el("p", {
-    class: "rt-stay muted",
-    text: t("rt_stay", { dur: formatDuration(rt.stayMinutes) }),
-  });
-  return el("article", { class: "roundtrip" }, [out, stay, back]);
 }
 
 /** Straight-line km between a journey's endpoints, or null if unmeasurable. */
