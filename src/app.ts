@@ -90,9 +90,6 @@ let navStack: { query: SearchQuery; form: SearchQuery }[] = [];
 // — walking the flow backwards — instead of exiting it. The current render registers a
 // handler here (cleared on each render); it returns true when it consumed the Back.
 let activeStepBack: (() => boolean) | null = null;
-// "Ideas" (best) mode: when no specific day is picked, show every destination
-// reachable across the whole window. A calendar-day click narrows to that day.
-let bestAllDays = true;
 
 let tripType: TripType = "simple";
 // Number keys 1..3 select these tabs; "r" toggles round trip (see onGlobalKey).
@@ -133,9 +130,6 @@ function returnAfterNights(depart: string, nights: number): string {
   return d > last ? last : d;
 }
 
-// Discovery (origin-only Trip tab): a clicked possible-day narrows the destination list
-// to places reachable that day; null = show the whole window. Cleared on a fresh search.
-let getawayDay: string | null = null;
 
 function deriveMode(): SearchMode {
   if (tripType === "multi") return "tour";
@@ -847,10 +841,9 @@ function ctx(): RenderCtx {
     // no teardown flash) and keep the scroll position so the calendar appears to
     // just move its highlight instead of vanishing and rebuilding.
     onSelectDay: (date) => {
-      // In ideas mode, clicking a day narrows the "all days" list to that day.
-      const narrowing = query.mode === "best" && bestAllDays;
-      if (date === query.date && !narrowing) return;
-      if (query.mode === "best") bestAllDays = false;
+      // Only the exact-route / browse calendars are interactive (they pick the travel day);
+      // the Ideas/discovery calendars are read-only heat-maps, so this never fires for them.
+      if (date === query.date) return;
       query = { ...query, date };
       refreshInPlace();
     },
@@ -1944,52 +1937,24 @@ function runGetaways(c: RenderCtx, origin: string): void {
   refs.title.textContent = t("rt_finder_title");
   const windowDates = discoveryWindow();
   const { trips, perDay, datesByDest } = getawayIdeas(trains, origin, windowDates, getawayOpts());
-  // A clicked possible-day narrows the list to destinations reachable that day (only
-  // meaningful for a day actually inside the window). The calendar highlights it.
-  const dayFilter = getawayDay && windowDates.includes(getawayDay) ? getawayDay : null;
-  // The possible-days calendar: a green day is one you can START a round trip on, its
-  // number the count of distinct reachable destinations. A day click narrows the list;
-  // clicking the same day again clears the narrowing.
-  const dayCtx: RenderCtx = {
-    ...c,
-    onSelectDay: (d) => {
-      getawayDay = getawayDay === d ? null : d;
-      refreshInPlace(true);
-    },
-  };
+  // The possible-days calendar: a green day is one you can START a round trip on, its number
+  // the count of distinct reachable destinations. READ-ONLY — discovery is a "what's possible"
+  // overview, so a day never filters the list; the list always shows the whole window.
   refs.results.append(
-    render.calendarEl(perDay, dayCtx, dayFilter ?? undefined, {
+    render.calendarEl(perDay, c, undefined, {
       title: t("getaway_cal_title"),
       count: (n) => t("best_cal_count", { n }),
       countLegend: t("cal_legend_dest"),
+      readOnly: true,
     }),
   );
-  // Narrow to the picked day's destinations, keeping the pre-computed ranking order.
-  const shown = dayFilter ? trips.filter((trip) => (datesByDest.get(trip.destination) ?? []).includes(dayFilter)) : trips;
+  const shown = trips;
   if (shown.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")));
     showMap(origin, []);
     return;
   }
   refs.results.append(el("p", { class: "muted count", text: t("getaway_count", { n: shown.length }) }));
-  // When a day narrows the list, offer a one-click way back to the whole window.
-  if (dayFilter) {
-    refs.results.append(
-      el("p", { class: "best-alldays-row" }, [
-        el("button", {
-          class: "linklike best-alldays",
-          type: "button",
-          text: t("best_all_days"),
-          on: {
-            click: () => {
-              getawayDay = null;
-              refreshInPlace();
-            },
-          },
-        }),
-      ]),
-    );
-  }
   appendInChunks(refs.results, shown, (trip) => {
     const days = datesByDest.get(trip.destination) ?? [];
     // The headline metric that VARIES between places: hours on site when the best trip
@@ -2019,46 +1984,24 @@ function runReverseGetaways(c: RenderCtx, destination: string): void {
   refs.title.textContent = t("rt_reverse_title", { station: registry.label(destination) });
   const windowDates = discoveryWindow();
   const { trips, perDay, datesByDest } = reverseGetawayIdeas(trains, destination, windowDates, getawayOpts());
-  const dayFilter = getawayDay && windowDates.includes(getawayDay) ? getawayDay : null;
-  const dayCtx: RenderCtx = {
-    ...c,
-    onSelectDay: (d) => {
-      getawayDay = getawayDay === d ? null : d;
-      refreshInPlace(true);
-    },
-  };
+  // READ-ONLY heat-map: a green day is one you can start a round trip INTO `destination` on,
+  // its number the count of distinct origins. Informational only — never filters the list.
   refs.results.append(
-    render.calendarEl(perDay, dayCtx, dayFilter ?? undefined, {
+    render.calendarEl(perDay, c, undefined, {
       title: t("getaway_cal_title"),
       count: (n) => t("best_cal_count", { n }),
       countLegend: t("cal_legend_origin"),
+      readOnly: true,
     }),
   );
   // `trip.destination` here names the discovered ORIGIN (reverseGetawayIdeas relabels it).
-  const shown = dayFilter ? trips.filter((trip) => (datesByDest.get(trip.destination) ?? []).includes(dayFilter)) : trips;
+  const shown = trips;
   if (shown.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")));
     showMap(destination, []);
     return;
   }
   refs.results.append(el("p", { class: "muted count", text: t("rt_reverse_count", { n: shown.length }) }));
-  if (dayFilter) {
-    refs.results.append(
-      el("p", { class: "best-alldays-row" }, [
-        el("button", {
-          class: "linklike best-alldays",
-          type: "button",
-          text: t("best_all_days"),
-          on: {
-            click: () => {
-              getawayDay = null;
-              refreshInPlace();
-            },
-          },
-        }),
-      ]),
-    );
-  }
   appendInChunks(refs.results, shown, (trip) => {
     const days = datesByDest.get(trip.destination) ?? [];
     const metric =
@@ -2313,61 +2256,34 @@ function runBestSearch(c: RenderCtx): void {
   if (!query.origin) return showHint(refs.origin);
   // Day-trip / round-trip shape → ideas of good there-and-back escapes for the month.
   if (tripIsRound()) return runBestGetaways(c, query.origin);
-  // No specific day picked → "all days": every destination reachable across the
-  // whole window. Clicking a calendar day narrows to that day.
-  const allDays = bestAllDays;
-  refs.title.textContent = allDays
-    ? t("best_title_all", { station: registry.label(query.origin) })
-    : t("best_title", { station: registry.label(query.origin), date: formatDate(query.date) });
+  // Ideas is a "where can I go from here" overview across the WHOLE booking window — every
+  // destination reachable on any day, best trip each.
+  refs.title.textContent = t("best_title_all", { station: registry.label(query.origin) });
   const inRegion = (d: string): boolean =>
     !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  // Ideas is a plain "where can I go from here" list — no date picker, no by-day strip.
-  // The calendar only appears in the narrowed single-day view (reachable from a deep
-  // link), where it doubles as the "which other day?" switcher.
-  if (!allDays) {
-    // Count connection-aware destinations per day (matches the list, which includes
-    // places reached via a stopover), so the calendar number is "destinations that day".
-    const cal = reachableCountCalendar(
-      trains,
-      query.origin,
-      window,
-      { ...filterOpts(), maxConnections: query.maxConnections },
-      "from",
-      inRegion,
-    );
-    refs.results.append(
-      render.calendarEl(cal, c, query.date, {
-        title: t("best_cal_title"),
-        count: (n) => t("best_cal_count", { n }),
-        countLegend: t("cal_legend_dest"),
-      }),
-    );
-    // Once a day is picked, offer a one-tap return to the full "all days" list.
-    refs.results.append(
-      el("p", { class: "best-alldays-row" }, [
-        el("button", {
-          class: "linklike best-alldays",
-          type: "button",
-          text: t("best_all_days"),
-          on: {
-            click: () => {
-              bestAllDays = true;
-              refreshInPlace();
-            },
-          },
-        }),
-      ]),
-    );
-  }
+  // READ-ONLY heat-map: how many destinations are reachable each day (connection-aware, so it
+  // matches the list). Informational only — Ideas never narrows to a single day; the list
+  // always shows the whole window.
+  const cal = reachableCountCalendar(
+    trains,
+    query.origin,
+    window,
+    { ...filterOpts(), maxConnections: query.maxConnections },
+    "from",
+    inRegion,
+  );
+  refs.results.append(
+    render.calendarEl(cal, c, undefined, {
+      title: t("best_cal_title"),
+      count: (n) => t("best_cal_count", { n }),
+      countLegend: t("cal_legend_dest"),
+      readOnly: true,
+    }),
+  );
 
   const opts = { ...filterOpts(), maxConnections: query.maxConnections };
-  let trips: BestTrip[] = allDays
-    ? bestTripsAcrossWindow(trains, query.origin, window, opts)
-    : reachableBest(trains, query.origin, query.date, stationsOnDate(trains, query.date), opts, "from").map((r) => ({
-        destination: r.station,
-        journey: r.journey,
-      }));
+  let trips: BestTrip[] = bestTripsAcrossWindow(trains, query.origin, window, opts);
   if (query.region) {
     trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
   }
@@ -2413,46 +2329,25 @@ function runBestSearch(c: RenderCtx): void {
  */
 function runBestGetaways(c: RenderCtx, origin: string): void {
   const { trains, registry } = deps;
-  const allDays = bestAllDays;
   // Getaway-ideas framing (each destination ranked by its best stay — same-day hours or
-  // overnight nights, whichever the sweep found best).
-  refs.title.textContent = allDays
-    ? t("best_round_title_all", { station: registry.label(origin) })
-    : t("best_round_title", { station: registry.label(origin), date: formatDate(query.date) });
+  // overnight nights, whichever the sweep found best), across the WHOLE booking window.
+  refs.title.textContent = t("best_round_title_all", { station: registry.label(origin) });
   const inRegion = (d: string): boolean => !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
   const opts = getawayOpts();
-  // One whole-window scan drives the by-day calendar (round trips startable each
-  // day) so the calendar matches the round-trip list — a green day is one you can
-  // actually start a getaway on, and its number is how many.
+  // One whole-window scan drives the READ-ONLY by-day heat-map (round trips startable each
+  // day) so the calendar matches the round-trip list — a green day is one you can actually
+  // start a getaway on, its number how many. Informational only: it never narrows the list.
   const whole = getawayIdeas(trains, origin, window, opts, inRegion);
   refs.results.append(
-    render.calendarEl(whole.perDay, c, allDays ? undefined : query.date, {
+    render.calendarEl(whole.perDay, c, undefined, {
       title: t("getaway_cal_title"),
       count: (n) => t("best_cal_count", { n }),
       countLegend: t("cal_legend_dest"),
+      readOnly: true,
     }),
   );
-  // All-days lists the best escape per destination; a picked day lists just that
-  // day's round trips (a cheap single-day re-scan, mostly served from the cache).
-  const trips = allDays ? whole.trips : getawayIdeas(trains, origin, [query.date], opts, inRegion).trips;
-  if (!allDays) {
-    refs.results.append(
-      el("p", { class: "best-alldays-row" }, [
-        el("button", {
-          class: "linklike best-alldays",
-          type: "button",
-          text: t("best_all_days"),
-          on: {
-            click: () => {
-              bestAllDays = true;
-              refreshInPlace();
-            },
-          },
-        }),
-      ]),
-    );
-  }
+  const trips = whole.trips;
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));
     showMap(origin, []);
@@ -3256,7 +3151,6 @@ function goHome(): void {
 function switchTab(next: TripType): void {
   navStack = [];
   tripType = next;
-  if (next === "ideas") bestAllDays = true;
   formApi.setActiveTab(tripType);
   formApi.updateFieldVisibility(tripType);
   query = readQueryFromForm();
@@ -3307,10 +3201,6 @@ function cycleTripShape(): void {
 /** Run a fresh search from the current form (submit or "g" shortcut). */
 function runFromForm(): void {
   navStack = [];
-  getawayDay = null; // a fresh search starts discovery un-narrowed (no lingering day filter)
-  // Ideas has no date picker — it's a pick-a-departure, see-the-cities surface — so a
-  // search always shows the whole-window "all destinations" overview, never a single day.
-  if (tripType === "ideas") bestAllDays = true;
   query = readQueryFromForm();
   applyAndRun();
   // Only swap the phone to the results view when there's something real to show. An
@@ -3405,13 +3295,6 @@ function onGlobalKey(e: KeyboardEvent): void {
     if (tgt && /^(INPUT|SELECT|TEXTAREA)$/.test(tgt.tagName)) {
       tgt.blur();
       e.preventDefault();
-      return;
-    }
-    // In Ideas narrowed to a single day, return to the "all days" overview.
-    if (query.mode === "best" && !bestAllDays) {
-      e.preventDefault();
-      bestAllDays = true;
-      refreshInPlace();
       return;
     }
     if (activeStepBack || navStack.length) {

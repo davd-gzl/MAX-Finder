@@ -986,6 +986,10 @@ export function calendarEl(
     /** A short line shown in place of (neutral) or after (normal) the availability legend —
      *  e.g. "pick a departure station…" on the form, or a fallback note. */
     hint?: string;
+    /** Render as a READ-ONLY heat-map: the day cells are non-interactive (no tap, no focus,
+     *  no narrowing) — a "which days are feasible" overview, used on the informational
+     *  Ideas/discovery lists where clicking a day must NOT filter the list. */
+    readOnly?: boolean;
     /** Render the heading visually hidden (sr-only) — it stays the grid's accessible label
      *  (aria-labelledby) but shows no visible text, for when an outer collapsible header
      *  already names the calendar (the home form's "Quand partir ?"), so the title isn't
@@ -999,6 +1003,7 @@ export function calendarEl(
   },
 ): HTMLElement {
   const neutral = opts?.neutral === true;
+  const readOnly = opts?.readOnly === true;
   const countText = opts?.count ?? ((n: number) => t("badge_trains", { n }));
   const showCount = opts?.showCount !== false && !neutral;
   // What the per-cell number means (trains on a route, or destinations per day).
@@ -1099,10 +1104,10 @@ export function calendarEl(
       ? ctx.formatDate(d.date)
       : `${ctx.formatDate(d.date)} — ${d.available ? countText(d.count, d) : status}`;
     const cell = el(
-      "button",
+      readOnly ? "span" : "button",
       {
-        class: `cal-cell ${state}${sel}${inRange}`,
-        type: "button",
+        class: `cal-cell ${state}${sel}${inRange}${readOnly ? " cal-readonly" : ""}`,
+        ...(readOnly ? {} : { type: "button" }),
         title: label,
         attrs: {
           // The per-cell metric (hours on site / nights / destinations) is the point of
@@ -1110,11 +1115,11 @@ export function calendarEl(
           // aria-hidden, so an AT user would otherwise hear only "available" on every cell.
           "aria-label": label,
           role: "gridcell",
-          tabindex: "-1",
+          ...(readOnly ? {} : { tabindex: "-1" }),
           "data-date": d.date,
           ...(sel ? { "aria-current": "date" } : {}),
         },
-        on: { click: () => ctx.onSelectDay(d.date) },
+        ...(readOnly ? {} : { on: { click: () => ctx.onSelectDay(d.date) } }),
       },
       [
         el("span", { class: "cal-day", text: d.date.slice(8, 10) }),
@@ -1127,10 +1132,12 @@ export function calendarEl(
     grid.append(cell);
   }
   // One Tab stop with roving focus inside (arrows): only the entry cell is tabbable —
-  // the selected day, else the first available, else the first cell.
-  (grid.querySelector<HTMLElement>(".cal-cell.sel") ??
-    grid.querySelector<HTMLElement>(".cal-cell.ok") ??
-    grid.querySelector<HTMLElement>(".cal-cell"))?.setAttribute("tabindex", "0");
+  // the selected day, else the first available, else the first cell. A read-only heat-map
+  // has no interactive cells, so nothing enters the Tab order.
+  if (!readOnly)
+    (grid.querySelector<HTMLElement>(".cal-cell.sel") ??
+      grid.querySelector<HTMLElement>(".cal-cell.ok") ??
+      grid.querySelector<HTMLElement>(".cal-cell"))?.setAttribute("tabindex", "0");
   // Neutral: the hint stands alone (no colour legend). Otherwise the availability legend,
   // with any hint appended after it.
   const legend = neutral

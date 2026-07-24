@@ -1732,13 +1732,6 @@ a {
 }
 
 /* "Ideas" all-days reset link, shown above the list once a day is picked. */
-.best-alldays-row {
-  margin: 0.2rem 0 0.6rem;
-}
-.best-alldays::before {
-  content: "← ";
-}
-
 /* ---- chips ---- */
 .chip {
   display: inline-flex;
@@ -2084,7 +2077,12 @@ a {
   cursor: pointer;
   transition: border-color 0.1s;
 }
-.cal-cell:hover {
+/* Read-only heat-map cells (Ideas/discovery): a "which days are feasible" overview, not a
+   picker — no pointer affordance, no hover lift. */
+.cal-cell.cal-readonly {
+  cursor: default;
+}
+.cal-cell:not(.cal-readonly):hover {
   border-color: var(--text);
 }
 /* Weekday label sits above the day number in each cell. */
