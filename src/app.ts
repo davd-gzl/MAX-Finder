@@ -2827,8 +2827,13 @@ function runTripSearch(c: RenderCtx): void {
   // length (getawayOptsFor — a fixed N-night stay or the Flexible window, not a blanket 3) AND
   // any via/hub budget (connOpts), so a green outbound day always has a bookable return the
   // return calendar agrees with — no green day that dead-ends on an empty return (#13/#15).
+  // A SAME-DAY (day-trip) round trip must be graded by same-day feasibility (a there-and-back
+  // that gets you home tonight), NOT the multi-night search — otherwise the outbound calendar
+  // greens days that only have an overnight trip and labels them "N nights", so it lists days
+  // with no same-day round trip at all. Use the hours metric for same-day, nights otherwise.
+  const isSameDayTrip = query.stay != null && stayNights(query.stay) === 0;
   const outCalOpts = { ...getawayOptsFor(query), ...connOpts };
-  const outCal = stayCalendar(trains, origin, destination, windowDates, outCalOpts, "nights");
+  const outCal = stayCalendar(trains, origin, destination, windowDates, outCalOpts, isSameDayTrip ? "hours" : "nights");
   gradeNearby(outCal, origin, destination, windowDates);
   // Linked calendars: picking a different outbound day re-anchors the trip and UPDATES the
   // return calendar to start from that day. A FIXED stay keeps its length — the return
@@ -2861,8 +2866,8 @@ function runTripSearch(c: RenderCtx): void {
   const outCalCtx: RenderCtx = { ...c, onSelectDay: onOutboundDay };
   const outCalEl = render.calendarEl(outCal, outCalCtx, query.date, {
     title: t("getaway_cal_title"),
-    count: (n) => t("getaway_nights", { n }),
-    countLegend: t("cal_legend_nights"),
+    count: (n) => (isSameDayTrip ? t("daytrip_cal_hours", { h: n }) : t("getaway_nights", { n })),
+    countLegend: isSameDayTrip ? t("cal_legend_hours") : t("cal_legend_nights"),
   });
   // The departure is already chosen (the form set it), so the possible-days calendar is
   // COLLAPSED by default — it re-asking the date is what read as a duplicate. A one-tap
