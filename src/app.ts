@@ -80,11 +80,6 @@ const BOOKING_WINDOW_DAYS = 30;
 const APP_TITLE = document.title;
 // Cap on connection-only ("via") destinations appended to a browse list.
 const MAX_VIA_RESULTS = 30;
-// Query history for the in-app Back button (drilling into a route pushes here).
-// Each nav entry keeps BOTH the searched query (what results were showing) and a
-// snapshot of the LIVE form (staged, not-yet-searched edits), so returning restores the
-// form the user was building instead of resetting it to the last search.
-let navStack: { query: SearchQuery; form: SearchQuery }[] = [];
 // Step-wise Back INSIDE a multi-step flow (the round-trip Aller/Retour accordion, the
 // multi-city legs). While a later step is active, Back re-opens the previous step first
 // — walking the flow backwards — instead of exiting it. The current render registers a
@@ -519,14 +514,12 @@ function growTour(mode: "nearest" | "random", count: number): void {
     // the form — not a stale query that would keep a just-removed destination — then
     // flag that nothing was added.
     query = { ...query, origin };
-    navStack = [];
     syncFormFromQuery();
     applyAndRun();
     setSurpriseMsg(t("surprise_none"));
     return;
   }
   query = { ...query, origin, cities: [...nextCities] };
-  navStack = [];
   syncFormFromQuery();
   applyAndRun();
 }
@@ -654,12 +647,11 @@ export function initApp(root: HTMLElement, dataset: Dataset, registry: StationRe
     if (ev.key === "Escape") closeHeaderMenu();
   });
 
-  // Native browser Back/Forward: restore the page from the URL. The in-app drill
-  // stack is the URL's source of truth here, so clear it to keep the in-app
-  // "Retour" button in step with where the browser history now sits.
+  // Native browser Back/Forward: restore the page from the URL. The browser history is the
+  // single back-stack; the entry's `detail` flag (read by renderSearch) keeps the in-app
+  // "Retour" in step with where the history now sits.
   window.addEventListener("popstate", (ev) => {
     const searched = queryFromUrl();
-    navStack = [];
     // Restore the FORM from the snapshot stashed on this history entry (staged edits —
     // departure, destination, filters — survive the round trip), then the RESULTS from
     // the URL. Falling back to the URL query keeps older entries (no snapshot) working.
@@ -813,14 +805,15 @@ function ctx(): RenderCtx {
       generateBookingUrl(deps.registry.label(origin), deps.registry.label(destination), date, time),
     cityInfoUrl,
     onOpenRoute: (origin, destination) => {
-      navStack.push({ query: { ...query }, form: readQueryFromForm() }); // list + staged form
       // Drop any "via" carried over from a previous exact-trip search: drilling into
       // a specific route (often a connecting one) shouldn't be filtered through an
       // unrelated hub, which would force it through a station it doesn't pass and
       // show nothing.
       query = { ...query, mode: "od", origin, destination, via: undefined };
       syncFormFromQuery();
-      applyAndRun();
+      // Push a browser entry marked as a DETAIL page: the list stays one Back away, and the
+      // in-app Retour shows. The browser history is the single back-stack.
+      applyAndRun(true, true);
       setMobileForm(false);
       // One clean scroll to the new page's heading (focus uses preventScroll so
       // this is the only scroll, not a jump-then-smooth).
@@ -1098,6 +1091,15 @@ function readQueryFromForm(): SearchQuery {
  *  instead of resetting them (state preservation across navigation). */
 interface HistoryState {
   form: SearchQuery;
+  /** True on a drilled-in DETAIL page (a route opened from a list, or the saved-trips page):
+   *  the in-app "Retour" shows and Back returns to the underlying list. The browser history
+   *  is the single back-stack — this flag just marks which entries are drill-ins. */
+  detail?: boolean;
+}
+/** Whether the current history entry is a drilled-in detail page. */
+function currentDetail(): boolean {
+  const s = history.state;
+  return Boolean(s && typeof s === "object" && (s as { detail?: unknown }).detail);
 }
 // The last form the user actually built (origin/destination/legs filled). Kept so a Back
 // that lands on the bare home entry — whose snapshot predates the finished build (e.g. it
@@ -1109,10 +1111,10 @@ let lastBuiltForm: SearchQuery | null = null;
 function isBlankForm(q: SearchQuery): boolean {
   return !q.origin && !q.destination && !(q.legs && q.legs.length > 0);
 }
-function formSnapshot(): HistoryState {
+function formSnapshot(detail = false): HistoryState {
   const form = readQueryFromForm();
   if (!isBlankForm(form)) lastBuiltForm = form; // remember the richest form we've seen
-  return { form };
+  return detail ? { form, detail: true } : { form };
 }
 /** Read a form snapshot back off a popstate `event.state`, if one is present. */
 function formStateFrom(state: unknown): SearchQuery | null {
@@ -1151,7 +1153,7 @@ function proposedReturn(depart: string): string {
  * refinement), so there is a home/form entry to Back to — otherwise an in-place refinement
  * on the landing screen would leave no way back to the form.
  */
-function applyAndRun(push = true): void {
+function applyAndRun(push = true, detail = false): void {
   const leavingBareForm = !store.urlHasQuery();
   // Never push a history entry identical to the one already on screen. Toggling round trip
   // on the home form runs the search (pushing a results entry), so pressing Search right
@@ -1173,13 +1175,15 @@ function applyAndRun(push = true): void {
     }
     // Push a browser history entry so the native Back button returns to the prior page,
     // stashing a snapshot of the live form on the entry so a gesture-Back / popstate can
-    // restore the exact form that produced this page instead of wiping it.
-    store.pushUrl(query, formSnapshot());
+    // restore the exact form that produced this page instead of wiping it. `detail` marks a
+    // drilled-in page (route from a list) so renderSearch shows the in-app Retour.
+    store.pushUrl(query, formSnapshot(detail));
   } else {
     // In-place refinement of the view already on screen: REPLACE the current entry (still
     // stamping the live form snapshot, so Back restores the filled form) so a run of
-    // toggles adds zero history entries.
-    store.updateUrl(query, formSnapshot());
+    // toggles adds zero history entries. Preserve the detail flag — a refine stays on the
+    // same (possibly drilled-in) page.
+    store.updateUrl(query, formSnapshot(currentDetail()));
   }
   settings = { ...settings, card: query.card };
   store.saveSettings(settings);
@@ -1230,8 +1234,9 @@ function refreshInPlace(reveal = false): void {
   // Restamp the entry with a FRESH form snapshot (not just the URL): an in-place refine —
   // completing a Flexible range, moving the return — changes the form, and a Back must
   // restore that latest form, not the snapshot frozen before the refine. formSnapshot()
-  // also refreshes lastBuiltForm, so the home-entry fallback stays current.
-  store.updateUrl(query, formSnapshot());
+  // also refreshes lastBuiltForm, so the home-entry fallback stays current. Preserve the
+  // detail flag: an in-place refresh (calendar day, moving the return) stays on the same page.
+  store.updateUrl(query, formSnapshot(currentDetail()));
   const scroller = resultsScroller();
   const scrollY = scroller ? scroller.scrollTop : window.scrollY;
   // A calendar-day pick is usually what triggers an in-place refresh. If a day cell had
@@ -1720,7 +1725,7 @@ function renderSearch(): void {
   activeStepBack = null; // each render re-registers its own step-back (if any)
   const c = ctx();
   updateDocTitle();
-  rootRef.dataset.detail = navStack.length ? "on" : "";
+  rootRef.dataset.detail = currentDetail() ? "on" : "";
 
   // NB: the map is drawn by exactly ONE call per render — the mode's own show()/
   // route(), or showBaseMap() on an empty state (via showHint / a "nothing to plot"
@@ -1728,7 +1733,7 @@ function renderSearch(): void {
   // that was a visible zoom-out-then-in on every search (jarring on Surprise me).
 
   // Back to the previous list (instant — journeys are memoized).
-  if (navStack.length) {
+  if (currentDetail()) {
     refs.results.append(
       el("button", { class: "back-btn", type: "button", text: `← ${t("act_back")}`, on: { click: goBack } }),
     );
@@ -2909,7 +2914,7 @@ function runTripSearch(c: RenderCtx): void {
       // a long pick shows the real fixed count).
       formApi.setStayNights(nights);
     }
-    store.updateUrl(query, formSnapshot());
+    store.updateUrl(query, formSnapshot(currentDetail()));
     paintReturn(retDate);
     // The return list updates IN PLACE right where the calendar is — no scroll jump (a
     // calendar tap must never jerk the drawer up). The paint already re-focuses the cell.
@@ -3123,22 +3128,13 @@ function goBack(): void {
   // Inside a multi-step flow, Back first walks the steps backwards (re-open the outbound
   // after picking it, etc.) — only once the flow is at its first step does Back leave it.
   if (activeStepBack?.()) return;
-  const prev = navStack.pop();
-  if (!prev) return;
-  // Restore the FORM to the staged snapshot (so navigating away didn't wipe edits), then
-  // the RESULTS to what was showing — the two are tracked separately per nav entry.
-  query = prev.form;
-  syncFormFromQuery(); // form now reflects the staged edits from before we navigated
-  query = prev.query;
-  store.updateUrl(query);
-  runSearch();
-  setMobileForm(!queryIsRenderable(query)); // don't leave the phone on a blank results view
-  refs.title.focus(); // announce the restored context to screen readers
+  // Otherwise the in-app Retour is exactly the browser Back: pop the history entry. The
+  // popstate handler restores the underlying list + its form snapshot. One back-stack.
+  if (currentDetail()) history.back();
 }
 
 /** Reset to the landing state (clicking the logo). Keeps language/theme/card. */
 function goHome(): void {
-  navStack = [];
   lastBuiltForm = null; // an explicit reset — don't let a later Back resurrect the old form
   query = { mode: "from", date: today, card: settings.card, maxConnections: 1, hidden: true };
   syncFormFromQuery();
@@ -3149,7 +3145,6 @@ function goHome(): void {
 
 /** Switch trip type (tab click or 1–4 shortcut), starting a fresh history. */
 function switchTab(next: TripType): void {
-  navStack = [];
   tripType = next;
   formApi.setActiveTab(tripType);
   formApi.updateFieldVisibility(tripType);
@@ -3164,7 +3159,6 @@ function switchTab(next: TripType): void {
  * — like a tab switch — doesn't fabricate results before the user has entered a trip.
  */
 function switchMultiMode(mode: "plan" | "legs"): void {
-  navStack = [];
   formApi.setMultiMode(mode);
   formApi.updateFieldVisibility("multi");
   query = readQueryFromForm();
@@ -3176,7 +3170,6 @@ function switchMultiMode(mode: "plan" | "legs"): void {
  * the "r" shortcut) and re-run in place — so the possible-days calendar auto-appears.
  */
 function applyTripShape(shape: TripShape): void {
-  navStack = [];
   formRangeAwait = false; // changing the shape ends any in-progress Flexible range pick
   formApi.setTripShape(shape); // repaint the control (a click already did; the shortcut hasn't)
   query = readQueryFromForm();
@@ -3190,7 +3183,6 @@ function applyTripShape(shape: TripShape): void {
  *  current nights count. It never lands on Flexible (that's a deliberate choice from the
  *  nights control), so it toggles to a plain fixed-nights round trip. */
 function cycleTripShape(): void {
-  navStack = [];
   formRangeAwait = false; // 'r' leaves Flexible → end any in-progress range pick
   formApi.toggleRound(); // flip one-way ↔ round trip in place, keeping the nights count
   query = readQueryFromForm();
@@ -3200,7 +3192,6 @@ function cycleTripShape(): void {
 
 /** Run a fresh search from the current form (submit or "g" shortcut). */
 function runFromForm(): void {
-  navStack = [];
   query = readQueryFromForm();
   applyAndRun();
   // Only swap the phone to the results view when there's something real to show. An
@@ -3297,7 +3288,7 @@ function onGlobalKey(e: KeyboardEvent): void {
       e.preventDefault();
       return;
     }
-    if (activeStepBack || navStack.length) {
+    if (activeStepBack || currentDetail()) {
       e.preventDefault();
       goBack(); // steps backward inside a flow first, then exits it
     }
@@ -3414,7 +3405,6 @@ function surpriseMe(): void {
     }
     query = { ...query, origin };
   }
-  navStack = [];
   syncFormFromQuery();
   applyAndRun();
   setMobileForm(false);
@@ -3941,16 +3931,15 @@ function renderSavedTrips(): void {
 
 /** Open the dedicated saved-trips page (full list), remembering where we were. */
 function openSavedPage(): void {
-  navStack.push({ query: { ...query }, form: readQueryFromForm() }); // page's Back returns here
-  // Push a browser history entry (carrying the form snapshot) so a gesture / browser Back
-  // closes the saved page coherently — popping back to the underlying search — instead of
-  // skipping past it, and returns with the form intact.
-  store.pushUrl(query, formSnapshot());
+  // Push a browser history entry marked as a detail page (carrying the form snapshot) so a
+  // gesture / browser Back closes the saved page coherently — popping back to the underlying
+  // search — instead of skipping past it, and returns with the form intact.
+  store.pushUrl(query, formSnapshot(true));
   if (pendingRaf) cancelAnimationFrame(pendingRaf);
   pendingRaf = 0;
   // Enter the full-page detail layout (like drilling into a route) so this isn't
-  // crammed into the 30vh bottom sheet with the map behind it on mobile. renderSearch
-  // sets this from navStack on the way back, so goBack clears it.
+  // crammed into the 30vh bottom sheet with the map behind it on mobile. On the way back,
+  // renderSearch reads the (now non-detail) entry and clears this.
   rootRef.dataset.detail = "on";
   clear(refs.results);
   renderSavedPage();

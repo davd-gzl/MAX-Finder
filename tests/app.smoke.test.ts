@@ -145,7 +145,8 @@ describe("app (jsdom smoke)", () => {
   });
 
   it("drills into a connecting destination and back again", () => {
-    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`);
+    const listSearch = `?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`;
+    const root = setup(listSearch);
     const cards = Array.from(root.querySelectorAll(".group-card"));
     const toulouse = cards.find((c) => (c.textContent ?? "").includes("Toulouse"));
     expect(toulouse).toBeTruthy();
@@ -154,12 +155,20 @@ describe("app (jsdom smoke)", () => {
     expect(toulouse!.querySelector(".star")).not.toBeNull();
 
     (toulouse!.querySelector(".dest-main") as HTMLElement).click();
-    // Now on the exact-trip page, with a Back button.
+    // Now on the exact-trip page (a drilled-in DETAIL entry), with a Back button.
     const back = root.querySelector(".back-btn") as HTMLElement | null;
     expect(back).not.toBeNull();
     expect(root.querySelector(".chip-via")).not.toBeNull(); // via Bordeaux journey
 
+    // The in-app Retour delegates to the browser Back (history.back()); the browser history
+    // is the single back-stack. jsdom doesn't implement history traversal, so assert the
+    // delegation, then simulate the browser restoring the underlying list entry (popstate).
+    const backSpy = vi.spyOn(history, "back");
     back!.click();
+    expect(backSpy).toHaveBeenCalled();
+    backSpy.mockRestore();
+    history.replaceState(null, "", `/${listSearch}`);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
     // Back to the browse list; no Back button left.
     expect(root.querySelector(".back-btn")).toBeNull();
     expect(root.textContent ?? "").toContain("Toulouse");
