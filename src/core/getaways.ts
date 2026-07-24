@@ -332,45 +332,33 @@ export function getawaysForDay(
 }
 
 /**
- * Possible-days calendar for a SAME-DAY round trip ("day trip") to one known
- * destination: for every date, is a real free-MAX there-and-back-the-same-day
- * feasible, and if so, how many WHOLE HOURS you'd get on site (the defining metric
- * of a day trip). A thin wrapper over the tested {@link bestGetawayTo} with
- * `nights: 0`, so a day is green ONLY when a bookable same-day round trip exists.
+ * Possible-start-days calendar for a there-and-back trip to one known destination:
+ * for every date, is a real free-MAX round trip that leaves that day feasible, and
+ * if so how much time it buys. A thin wrapper over the tested {@link bestGetawayTo}.
+ *
+ * `metric: "hours"` counts a SAME-DAY day trip (nights 0) and reports WHOLE HOURS on
+ * site; `metric: "nights"` counts a MULTI-DAY round trip (flexible up to the opts
+ * ceiling, default 3) and reports NIGHTS away. A day is green ONLY when a bookable
+ * round trip of that shape exists.
  */
-export function dayTripCalendar(
+export function stayCalendar(
   trains: MaxTrain[],
   origin: string,
   dest: string,
   dates: string[],
   opts: GetawayOptions = {},
+  metric: "hours" | "nights" = "nights",
 ): CalendarDay[] {
+  // For nights, flexibleNights keeps the longest feasible stay but needs a ceiling to
+  // search up to (maxNights 0 collapses to same-day only) — default up to 3 nights.
+  const probe: GetawayOptions =
+    metric === "hours"
+      ? { ...opts, nights: 0 }
+      : { ...opts, nights: opts.nights && opts.nights > 0 ? opts.nights : 3, flexibleNights: true };
   return dates.map((date) => {
-    const g = bestGetawayTo(trains, origin, dest, date, { ...opts, nights: 0 });
-    return { date, available: g != null, count: g?.onSiteMin ? Math.round(g.onSiteMin / 60) : 0 };
-  });
-}
-
-/**
- * Possible-start-days calendar for a MULTI-DAY round trip to one known destination:
- * for every start date, is an N-night round trip feasible, and if so, how many
- * NIGHTS away the best one gives. A thin wrapper over {@link bestGetawayTo} with
- * `flexibleNights: true`, so a day is green ONLY when a real free-MAX round trip
- * that leaves that day exists.
- */
-export function roundTripCalendar(
-  trains: MaxTrain[],
-  origin: string,
-  dest: string,
-  dates: string[],
-  opts: GetawayOptions = {},
-): CalendarDay[] {
-  // flexibleNights keeps the longest feasible stay, but needs a ceiling to search up
-  // to (with maxNights 0 it collapses to same-day only) — default up to 3 nights.
-  const nights = opts.nights && opts.nights > 0 ? opts.nights : 3;
-  return dates.map((date) => {
-    const g = bestGetawayTo(trains, origin, dest, date, { ...opts, nights, flexibleNights: true });
-    return { date, available: g != null, count: g?.nights ?? 0 };
+    const g = bestGetawayTo(trains, origin, dest, date, probe);
+    const count = !g ? 0 : metric === "hours" ? (g.onSiteMin ? Math.round(g.onSiteMin / 60) : 0) : (g.nights ?? 0);
+    return { date, available: g != null, count };
   });
 }
 

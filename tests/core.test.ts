@@ -5,9 +5,9 @@ import type { DatasetProfile } from "../src/data/profile";
 import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
-import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar } from "../src/core/calendar";
+import { availabilityCalendar, reachableCountCalendar } from "../src/core/calendar";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
-import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
+import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, stayCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
 import sample from "../data/tgvmax.sample.json";
@@ -236,10 +236,10 @@ describe("availabilityCalendar", () => {
   });
 });
 
-describe("reachableIntoCountCalendar (destination-only browse-by-arrival)", () => {
+describe("reachableCountCalendar dir:'to' (destination-only browse-by-arrival)", () => {
   it("counts the origins that can reach a destination each day — never an empty grid when arrivals exist", () => {
     const dates = ["2026-06-25", "2026-06-26", "2026-06-27"];
-    const cal = reachableIntoCountCalendar(trains, "LYON (intramuros)", dates);
+    const cal = reachableCountCalendar(trains, "LYON (intramuros)", dates, {}, "to");
     // On a day PARIS -> LYON runs, at least one origin reaches LYON, so the day is available.
     const d25 = cal.find((d) => d.date === "2026-06-25")!;
     expect(d25.available).toBe(true);
@@ -250,8 +250,8 @@ describe("reachableIntoCountCalendar (destination-only browse-by-arrival)", () =
 
   it("mirrors reachableCountCalendar: reachable-into a hub is symmetric to reachable-from it", () => {
     const dates = ["2026-06-25", "2026-06-26"];
-    const into = reachableIntoCountCalendar(trains, "PARIS (intramuros)", dates);
-    const from = reachableCountCalendar(trains, "PARIS (intramuros)", dates);
+    const into = reachableCountCalendar(trains, "PARIS (intramuros)", dates, {}, "to");
+    const from = reachableCountCalendar(trains, "PARIS (intramuros)", dates, {}, "from");
     // Both are non-empty for a hub — the destination-only calendar is as alive as origin-only.
     expect(into.some((d) => d.available)).toBe(true);
     expect(from.some((d) => d.available)).toBe(true);
@@ -878,19 +878,19 @@ describe("getaways (round trips: day trips + N-night stays)", () => {
     expect(sweep.perDay[0]!.count).toBeGreaterThanOrEqual(1);
   });
 
-  it("dayTripCalendar: green only when a real same-day there-and-back exists, count = hours on site", () => {
+  it("stayCalendar 'hours': green only when a real same-day there-and-back exists, count = hours on site", () => {
     // ARRAS has a same-day round trip (12 h on site); DOUAI has a one-way but no
     // feasible same-day return, so its day must NOT be green.
-    const arras = dayTripCalendar(data, "PARIS (intramuros)", "ARRAS", ["2026-07-01"], { maxConnections: 0, minOnSiteMin: 60 });
+    const arras = stayCalendar(data, "PARIS (intramuros)", "ARRAS", ["2026-07-01"], { maxConnections: 0, minOnSiteMin: 60 }, "hours");
     expect(arras[0]!.available).toBe(true);
     expect(arras[0]!.count).toBe(12); // 10:00 → 22:00 = 12 h on site
-    const douai = dayTripCalendar(data, "PARIS (intramuros)", "DOUAI", ["2026-07-01"], { maxConnections: 0 });
+    const douai = stayCalendar(data, "PARIS (intramuros)", "DOUAI", ["2026-07-01"], { maxConnections: 0 }, "hours");
     expect(douai[0]!.available).toBe(false); // one-way seat, but no same-day return
     expect(douai[0]!.count).toBe(0);
   });
 
-  it("roundTripCalendar: green with the best nights count when a multi-day round trip exists", () => {
-    const cal = roundTripCalendar(stay, "PARIS (intramuros)", "ROUEN", ["2026-07-01"], { maxConnections: 0 });
+  it("stayCalendar 'nights': green with the best nights count when a multi-day round trip exists", () => {
+    const cal = stayCalendar(stay, "PARIS (intramuros)", "ROUEN", ["2026-07-01"], { maxConnections: 0 }, "nights");
     expect(cal[0]!.available).toBe(true);
     expect(cal[0]!.count).toBe(2); // flexibleNights keeps the LONGEST feasible stay (return on 07-03 = 2 nights)
   });

@@ -10,11 +10,11 @@ import {
 } from "./core/destinations";
 import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
-import { getawayIdeas, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar } from "./core/getaways";
+import { getawayIdeas, reverseGetawayIdeas, stayCalendar } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, journeyArriveAbs, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
-import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar, destinationCalendar, dateRange } from "./core/calendar";
+import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
 import { findHiddenTrains } from "./core/hidden";
 import { addDays, dayIndex, formatDuration } from "./util/time";
 import { haversineKm } from "./util/geo";
@@ -1293,8 +1293,8 @@ function scheduleFormCalRepaint(): void {
  * green day always means "a trip is possible that day" for the chosen shape:
  *  - no origin            → a neutral, tappable month + a "pick a departure station" hint;
  *  - origin+dest, one-way → availabilityCalendar (a departure exists), as runOdSearch;
- *  - origin+dest, same day → dayTripCalendar (a there-and-back-same-day works);
- *  - origin+dest, N nights → roundTripCalendar (an N-night round trip is feasible);
+ *  - origin+dest, same day → stayCalendar 'hours' (a there-and-back-same-day works);
+ *  - origin+dest, N nights → stayCalendar 'nights' (an N-night round trip is feasible);
  *  - origin only, one-way  → reachableCountCalendar (the days you can leave);
  *  - origin only, round/day → getawayIdeas().perDay (days a getaway is possible).
  * The option helpers (odConnOptsFor / getawayOptsFor) are the SAME ones the real search
@@ -1361,7 +1361,7 @@ function repaintFormCalendar(): void {
       cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
       calOpts = { title: t("form_cal_title"), hideTitle: true };
     } else if (nights === 0 && !flexRange) {
-      cal = dayTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
+      cal = stayCalendar(trains, o, d, windowDates, getawayOptsFor(fq), "hours");
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (h: number) => t("daytrip_cal_hours", { h }), countLegend: t("cal_legend_hours") };
     } else if (flexRange) {
       // Flexible: show the availability for the LEG being picked — the OUTBOUND (o→d) while
@@ -1379,7 +1379,7 @@ function repaintFormCalendar(): void {
       }
     } else {
       // Fixed N-night round trip: the days an N-night there-and-back is feasible.
-      cal = roundTripCalendar(trains, o, d, windowDates, getawayOptsFor(fq));
+      cal = stayCalendar(trains, o, d, windowDates, getawayOptsFor(fq), "nights");
       calOpts = { title: t("form_cal_title"), hideTitle: true, count: (n: number) => t("getaway_nights", { n }), countLegend: t("cal_legend_nights") };
     }
   } else if (o) {
@@ -1400,7 +1400,7 @@ function repaintFormCalendar(): void {
     // `!o && !d` case early-returned, and `o` is falsy in this branch, so `d` is set.
     const dest = d as string;
     if (!round) {
-      cal = reachableIntoCountCalendar(trains, dest, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections });
+      cal = reachableCountCalendar(trains, dest, windowDates, { ...filterOptsFor(fq), maxConnections: fq.maxConnections }, "to");
     } else {
       cal = reverseGetawayIdeas(trains, dest, windowDates, getawayOptsFor(fq)).perDay;
     }
@@ -2331,6 +2331,7 @@ function runBestSearch(c: RenderCtx): void {
       query.origin,
       window,
       { ...filterOpts(), maxConnections: query.maxConnections },
+      "from",
       inRegion,
     );
     refs.results.append(
@@ -2868,7 +2869,7 @@ function runTripSearch(c: RenderCtx): void {
   // cell would green a return leaving BEFORE the outbound arrives. Re-derive that first
   // cell from the day-trip feasibility (nights 0: home by midnight, after arrival) so no
   // impossible same-day pairing leaks, and carry its hours-on-site as the count.
-  const sameDay = dayTripCalendar(trains, origin, destination, [query.date], connOpts)[0];
+  const sameDay = stayCalendar(trains, origin, destination, [query.date], connOpts, "hours")[0];
   if (retCal[0]) {
     retCal[0].available = Boolean(sameDay?.available);
     retCal[0].count = sameDay?.count ?? 0; // hours on site (0 = badge hidden)
@@ -2995,7 +2996,7 @@ function runTripSearch(c: RenderCtx): void {
   fillReturns = () => paintReturn(odReturnDate ?? proposed);
 
   // ----- Leg 1 (Aller): outbound list, with the possible-days calendar collapsed above --
-  const outCal = roundTripCalendar(trains, origin, destination, windowDates, connOpts);
+  const outCal = stayCalendar(trains, origin, destination, windowDates, connOpts, "nights");
   gradeNearby(outCal, origin, destination, windowDates);
   // Linked calendars: picking a different outbound day re-anchors the trip and UPDATES the
   // return calendar to start from that day. A FIXED stay keeps its length — the return
@@ -3717,7 +3718,10 @@ function buildLayout(root: HTMLElement): void {
       if (o && d) {
         cal = availabilityCalendar(deps.trains, o, d, dates, opts);
       } else if (o) {
-        cal = destinationCalendar(deps.trains, o, dates, opts);
+        // Origin-only: count destinations reachable INCLUDING connections, so the
+        // date-pill hint agrees with the live calendar and the results list (both
+        // connection-aware) instead of the old direct-only undercount.
+        cal = reachableCountCalendar(deps.trains, o, dates, opts, "from");
       }
       if (cal) for (const c of cal) map.set(c.date, c.available ? c.count : 0);
       return map;
