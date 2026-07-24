@@ -2,6 +2,7 @@ import type { MaxTrain, Journey, CalendarDay } from "../types";
 import { findJourneys, reachableJourneys, latestReturns, reachableInto, journeyArriveAbs, type ConnectionOptions } from "./connections";
 import { stationsOnDate } from "./best";
 import { addDays } from "../util/time";
+import { SAME_DAY_MIN_ON_SITE_MIN } from "../config";
 
 export interface Getaway {
   destination: string;
@@ -95,7 +96,7 @@ export function bestGetawayTo(
   outbound?: Journey,
 ): Getaway | null {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
-  const minOnSite = opts.minOnSiteMin ?? 240;
+  const minOnSite = opts.minOnSiteMin ?? SAME_DAY_MIN_ON_SITE_MIN;
   // Sleeper round trip: you sleep on the train there AND back, arriving each
   // morning — so returns arrive the day after they leave, and there's no same-day
   // option (nights ≥ 1). A day trip keeps its morning-out / evening-back model.
@@ -236,7 +237,7 @@ export function reverseGetawayIdeas(
   // outbound INTO the destination per origin in one sweep; reachableJourneys from the
   // destination on the return day gives the way back per origin in another.
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
-  const minOnSite = opts.minOnSiteMin ?? 240;
+  const minOnSite = opts.minOnSiteMin ?? SAME_DAY_MIN_ON_SITE_MIN;
   const sleeper = Boolean(opts.onlyNight);
   const nightChoices = stayChoices(maxNights, Boolean(opts.flexibleNights), sleeper);
 
@@ -380,7 +381,7 @@ export function getawayIdeas(
   accept: (destination: string) => boolean = () => true,
 ): GetawaySweep {
   const maxNights = Math.max(0, Math.floor(opts.nights ?? 0));
-  const minOnSite = opts.minOnSiteMin ?? 240;
+  const minOnSite = opts.minOnSiteMin ?? SAME_DAY_MIN_ON_SITE_MIN;
   // Sleeper round trips arrive each morning, so the return lands the day after it
   // leaves (later ceiling) and there's no same-day option (nights ≥ 1).
   const sleeper = Boolean(opts.onlyNight);

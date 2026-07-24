@@ -23,6 +23,16 @@ export const MAX_CONNECTION_MIN = 240;
 export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
 
 /**
+ * Minimum time on site (minutes) for a SAME-DAY round trip to count as a real day
+ * out. Below this, a "trip" is just stepping off the platform and boarding the
+ * return — so both the discovery list and the exact round-trip page require at
+ * least this gap between arriving and the return leaving. It also drops outbound
+ * departures so late that no return can leave this many minutes later and still get
+ * you home by midnight (you'd be stranded).
+ */
+export const SAME_DAY_MIN_ON_SITE_MIN = 4 * 60;
+
+/**
  * Destinations that appear in the open data but are NOT bookable with a MAX pass
  * (MAX JEUNE / SENIOR cover domestic France; these international stops show
  * od_happy_card="OUI" in the feed but can't actually be reserved with the pass).

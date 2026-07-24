@@ -44,6 +44,7 @@ import {
   GITHUB_URL,
   GITHUB_ISSUES_URL,
   OVERNIGHT_MAX_CONNECTION_MIN,
+  SAME_DAY_MIN_ON_SITE_MIN,
 } from "./config";
 import { filterOptsFor, odConnOptsFor, getawayOptsFor } from "./core/queryOpts";
 import { warmSearch } from "./search/searchClient";
@@ -2734,10 +2735,13 @@ function runTripSearch(c: RenderCtx): void {
     const nights = dayIndex(retDate) - dayIndex(query.date);
     if (nights <= 0) {
       const arrAbs = chosenOutbound ? journeyArriveAbs(chosenOutbound) : 0;
+      // A same-day return must leave AFTER you've had a real stretch in the city (not a
+      // platform-to-platform bounce) and still get you home by midnight — the same
+      // minimum the discovery list promises, so a listed day trip drills into one.
       const list = findJourneys(trains, destination, origin, query.date, journeyOpts)
         .filter(passesVia)
         .filter(withinSpan)
-        .filter((j) => journeyArriveAbs(j) <= 24 * 60 && j.departMin >= arrAbs)
+        .filter((j) => journeyArriveAbs(j) <= 24 * 60 && j.departMin >= arrAbs + SAME_DAY_MIN_ON_SITE_MIN)
         .sort((a, b) => b.departMin - a.departMin);
       return { list, sameDay: true, arrAbs };
     }
@@ -2885,9 +2889,22 @@ function runTripSearch(c: RenderCtx): void {
   outCalUI.setLabel(t("outbound_change", { date: formatDate(query.date) }));
   const outCalCollapse = outCalUI.host;
 
+  // On a SAME-DAY round trip, drop outbound departures so late you'd be stranded — no
+  // return can leave the required time-on-site later and still get you home by midnight.
+  // Offering a train that dead-ends on an empty return leg is what read as broken. The
+  // latest feasible same-day return sets the cutoff; an outbound survives only if it
+  // arrives early enough to leave that gap before it.
+  const latestSameDayReturnDepart = isSameDayTrip
+    ? findJourneys(trains, destination, origin, query.date, journeyOpts)
+        .filter(passesVia)
+        .filter(withinSpan)
+        .filter((j) => journeyArriveAbs(j) <= 24 * 60)
+        .reduce((max, j) => Math.max(max, j.departMin), -Infinity)
+    : Infinity;
   const outJourneys = findJourneys(trains, origin, destination, query.date, journeyOpts)
     .filter(passesVia)
     .filter(withinSpan)
+    .filter((j) => !isSameDayTrip || journeyArriveAbs(j) + SAME_DAY_MIN_ON_SITE_MIN <= latestSameDayReturnDepart)
     .sort((a, b) => journeyArriveAbs(a) - journeyArriveAbs(b) || a.totalDurationMin - b.totalDurationMin);
   chosenOutbound = outJourneys[0] ?? null;
 
