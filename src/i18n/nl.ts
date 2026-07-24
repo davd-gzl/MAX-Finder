@@ -206,7 +206,7 @@ export const nl: Dict = {
   getaway_cal_title: "Mogelijke vertrekdagen",
   getaway_days_hint: "{n} mogelijke vertrekdagen naar deze stad binnen de boekbare periode. Open de stad om te zien welke.",
   getaway_count: "{n} retour(s) mogelijk",
-  getaway_nights: "{n} nacht(en) weg",
+  getaway_nights: "{n} nacht(en) ter plaatse",
   getaway_none: "Geen MAX-retours voor deze criteria.",
 
   act_save: "Opslaan",
@@ -255,7 +255,7 @@ export const nl: Dict = {
   return_change: "Terugreis: {date} · Wijzigen",
   daytrip_cal_hours: "{h} u ter plaatse",
   cal_legend_hours: "getal = uren ter plaatse",
-  cal_legend_nights: "getal = nachten weg",
+  cal_legend_nights: "getal = nachten ter plaatse",
   cal_legend_depart: "aantal = heentreinen",
   cal_legend_return: "aantal = terugtreinen",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

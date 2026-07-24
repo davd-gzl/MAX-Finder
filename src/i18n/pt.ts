@@ -255,7 +255,7 @@ export const pt: Dict = {
   return_change: "Volta: {date} · Alterar",
   daytrip_cal_hours: "{h} h no destino",
   cal_legend_hours: "número = horas no destino",
-  cal_legend_nights: "número = noites fora",
+  cal_legend_nights: "número = noites no local",
   cal_legend_depart: "número = comboios de ida",
   cal_legend_return: "número = comboios de volta",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

@@ -219,7 +219,7 @@ export const en: Dict = {
   getaway_cal_title: "Possible start days",
   getaway_days_hint: "{n} start days work for this city across the bookable window. Open the city to see which.",
   getaway_count: "{n} round trip(s) possible",
-  getaway_nights: "{n} night(s) away",
+  getaway_nights: "{n} night(s) there",
   getaway_none: "No MAX round trips for these criteria.",
 
   act_save: "Save",
@@ -268,7 +268,7 @@ export const en: Dict = {
   return_change: "Return: {date} · Change",
   daytrip_cal_hours: "{h}h on site",
   cal_legend_hours: "number = hours on site",
-  cal_legend_nights: "number = nights away",
+  cal_legend_nights: "number = nights there",
   cal_legend_depart: "number = outbound trains",
   cal_legend_return: "number = return trains",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",

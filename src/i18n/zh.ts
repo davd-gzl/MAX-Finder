@@ -255,7 +255,7 @@ export const zh: Dict = {
   return_change: "返程：{date} · 更改",
   daytrip_cal_hours: "当地 {h} 小时",
   cal_legend_hours: "数字 = 当地小时数",
-  cal_legend_nights: "数字 = 在外过夜数",
+  cal_legend_nights: "数字 = 停留晚数",
   cal_legend_depart: "数字 = 出发列车",
   cal_legend_return: "数字 = 返程列车",
   res_rt_title: "{origin} ⇄ {destination} · {out} → {ret}",
