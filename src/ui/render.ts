@@ -4,7 +4,6 @@ import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
 import type { Tour } from "../core/tour";
-import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { isNightTrain } from "../core/search";
@@ -23,8 +22,10 @@ export interface RenderCtx {
   bookUrl: (origin: string, destination: string, date: string, time?: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
-  onOpenRoute: (origin: string, destination: string) => void;
-  onFocusStation: (id: string) => void;
+  /** Open the exact O→D trip. A getaway idea passes `open.date` — its advertised start day —
+   *  so the round trip opens on a day it's actually feasible, not one anchored on today (which
+   *  may have only an outbound and no return). */
+  onOpenRoute: (origin: string, destination: string, open?: { date?: string }) => void;
   /** Draw a specific journey (origin → interchanges → destination) on the map. */
   onShowJourney: (journey: Journey) => void;
   /** Draw a whole multi-city tour (every stop) on the map. */
@@ -169,37 +170,55 @@ export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 }
 
-/** External travel-guide link styled as a button (matches the Save button). */
-export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
+/**
+ * External travel-guide (Wikivoyage) link for a station's city. `variant: "button"`
+ * styles it as a ghost button with the icon leading (matches the Save button);
+ * `variant: "link"` is an inline linklike with the icon trailing the label.
+ */
+export function guideEl(ctx: RenderCtx, stationId: string, variant: "button" | "link" = "link"): HTMLElement {
+  const label = el("span", { text: t("act_guide") });
+  const ext = icon(I.external);
+  const newtab = el("span", { class: "sr-only", text: t("link_newtab") });
   return el(
     "a",
     {
-      class: "btn btn-ghost",
+      class: variant === "button" ? "btn btn-ghost" : "linklike",
       href: ctx.cityInfoUrl(stationId),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
-    [icon(I.external), el("span", { text: t("act_guide") }), el("span", { class: "sr-only", text: t("link_newtab") })],
-  );
-}
-
-/** External travel-guide (Wikivoyage) link for a station's city. */
-export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "linklike",
-      href: ctx.cityInfoUrl(stationId),
-      attrs: { target: "_blank", rel: "noopener noreferrer" },
-    },
-    [
-      el("span", { text: t("act_guide") }),
-      icon(I.external),
-      el("span", { class: "sr-only", text: t("link_newtab") }),
-    ],
+    variant === "button" ? [ext, label, newtab] : [label, ext, newtab],
   );
 }
 
 // Paris intra-muros is a single aggregate in the SNCF open data, but a train's axe
+/**
+ * A calendar tucked behind a one-tap "… · Changer" summary toggle: collapsed by
+ * default on results screens (only the form calendar opens up front). Returns the
+ * wrapper `host`, the `toggle` button, and a `setLabel` to (re)write its summary
+ * text. Replaces the outbound / return / getaway calendars' hand-duplicated copies.
+ */
+export function collapsibleCalendar(
+  calNode: HTMLElement,
+  wrapClass = "cal-collapsible",
+  startOpen = false,
+): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void } {
+  const panel = el("div", { class: "cal-panel", attrs: startOpen ? {} : { hidden: "" } }, [calNode]);
+  const toggle = el("button", {
+    class: "cal-toggle linklike",
+    type: "button",
+    attrs: { "aria-expanded": String(startOpen) },
+    on: {
+      click: () => {
+        const opening = panel.hasAttribute("hidden");
+        panel.toggleAttribute("hidden", !opening);
+        toggle.setAttribute("aria-expanded", String(opening));
+      },
+    },
+  });
+  const host = el("div", { class: wrapClass }, [toggle, panel]);
+  return { host, toggle, setLabel: (text: string) => (toggle.textContent = text) };
+}
+
 // pins which terminus gare it actually uses. Map the main TGV axes; other axes
 // (Intercités, international, night) stay as the plain "Paris" — better a city than
 // a wrong gare. The mapping only applies on a concrete journey leg (where the axe is
@@ -481,13 +500,14 @@ export function reachTripRowEl(
   j: Journey,
   ctx: RenderCtx,
   extra?: HTMLElement,
-  opts?: { hideMeta?: boolean },
+  opts?: { hideMeta?: boolean; hideVia?: boolean },
 ): HTMLElement {
   const route: RoutePair = { origin: j.origin, destination: j.destination };
   const via = j.legs.length > 1;
   // Connecting trips get a "via" chip so a correspondence is obvious in the list;
-  // direct trips stay clean.
-  const viaChip = via
+  // direct trips stay clean. Callers that show an explicit change-count chip (Ideas)
+  // pass hideVia so the two don't duplicate.
+  const viaChip = via && !opts?.hideVia
     ? [
         el("span", {
           class: "chip chip-via",
@@ -498,25 +518,26 @@ export function reachTripRowEl(
   const aria = `${ctx.label(station)} — ${formatDuration(j.totalDurationMin)}${
     via ? ` (${t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") })})` : ""
   }`;
+  // NAME on its own line, the via/count/duration chips wrapping below it — so the city name
+  // always leads and reads in full on a phone, with the arrow stub kept on the right.
+  const metaChips: HTMLElement[] = [
+    ...viaChip,
+    ...(extra ? [extra] : []),
+    ...(opts?.hideMeta ? [] : [el("bdi", { text: formatDuration(j.totalDurationMin) })]),
+  ];
   const main = el(
     "button",
     {
-      class: "dest-main",
+      class: "dest-main dest-main-stacked",
       type: "button",
       attrs: { "aria-label": aria },
       on: { click: () => ctx.onOpenRoute(j.origin, j.destination) },
     },
     [
-      stationNameEl("dest-name", station, ctx.label(station)),
-      ...viaChip,
-      ...(extra ? [extra] : []),
-      ...(opts?.hideMeta
-        ? []
-        : [
-            el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
-              el("bdi", { text: formatDuration(j.totalDurationMin) }),
-            ]),
-          ]),
+      el("div", { class: "dest-body" }, [
+        stationNameEl("dest-name", station, ctx.label(station)),
+        ...(metaChips.length ? [el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, metaChips)] : []),
+      ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
@@ -621,7 +642,6 @@ function journeyActionsEl(
 export function getawayCityRowEl(
   trip: Getaway,
   ctx: RenderCtx,
-  stat: { days: number; windowDays: number },
   opts: { metric?: string; openTo?: string } = {},
 ): HTMLElement {
   // Normal getaway: the card names `trip.destination` (where you go) and opens the route
@@ -633,27 +653,37 @@ export function getawayCityRowEl(
   const routeOrigin = opts.openTo != null ? named : trip.outbound.origin;
   const routeDest = opts.openTo != null ? opts.openTo : trip.destination;
   const route: RoutePair = { origin: routeOrigin, destination: routeDest };
-  const summary = t("stat_day_month", { day: stat.days, month: stat.windowDays });
+  // How many changes the outbound takes — Direct / N correspondance(s), colour-matched to
+  // the map pins (green direct / amber 1 / red 2+). The point of a discovery row is "can I
+  // get there, and how hard is it", so this rides alongside the mode's headline metric.
+  const changes = trip.outbound.legs.length - 1;
+  const changeChip =
+    changes === 0
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", { class: `chip chip-changes chip-changes-${Math.min(changes, 2)}`, text: t("lbl_changes", { n: changes }) });
   const main = el(
     "button",
     {
-      class: "dest-main",
+      class: "dest-main dest-main-stacked",
       type: "button",
-      attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? summary}` },
-      on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest) },
+      attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? t("lbl_changes", { n: changes })}` },
+      // Open on the idea's OWN start day (its best there-and-back), so the round trip is
+      // feasible — not anchored on today, which may have only an outbound and no return.
+      on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest, { date: trip.outbound.date }) },
     },
     [
-      stationNameEl("dest-name", named, ctx.label(named)),
-      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
-        // The mode's headline metric (hours on site / nights away) leads, so places
-        // compare on what the mode is about; the days/window chip follows.
-        ...(opts.metric ? [el("span", { class: "chip chip-onsite", text: opts.metric })] : []),
-        el("span", {
-          class: "stat-chip",
-          text: summary,
-          attrs: { title: t("getaway_days_hint", { n: stat.windowDays }) },
-        }),
-        el("bdi", { text: formatDuration(trip.travelMin) }),
+      // Stack the city NAME on its own line above the chips, so a busy row (hours-on-site +
+      // changes chip + travel time) can never squeeze the name down to a single letter on a
+      // phone — the name is the point of the card and must always read in full.
+      el("div", { class: "dest-body" }, [
+        stationNameEl("dest-name", named, ctx.label(named)),
+        el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, [
+          // The mode's headline metric (hours on site / nights away) leads, so places
+          // compare on what the mode is about; the changes chip follows.
+          ...(opts.metric ? [el("span", { class: "chip chip-onsite", text: opts.metric })] : []),
+          changeChip,
+          el("bdi", { text: formatDuration(trip.travelMin) }),
+        ]),
       ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
@@ -661,102 +691,6 @@ export function getawayCityRowEl(
   return el("article", { class: "group-card", dataset: { station: named } }, [
     el("div", { class: "dest-row" }, [favStarEl(route, ctx), main]),
   ]);
-}
-
-/**
- * One dated solution on a city's page: ONE ticket holding the whole round trip. The
- * head names the destination and how long you get there; below it each leg reads as
- * it does in the round-trip detail — its name and direct/via chip with the duration
- * opposite, the route, a rule, then the times / "+1d" / duration / train number. One
- * action row closes the card, for the trip as a whole; the stub's arrow opens it.
- */
-export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: boolean } = {}): HTMLElement {
-  const origin = trip.outbound.origin;
-  const route: RoutePair = { origin, destination: trip.destination };
-  // The headline shows the figure that actually VARIES between rows: time on site
-  // for same-day trips, round-trip travel time for N-night stays.
-  const sameDay = trip.nights === 0;
-  const headlineText = sameDay
-    ? t("daytrip_onsite", { dur: formatDuration(trip.onSiteMin ?? 0) })
-    : t("daytrip_travel", { dur: formatDuration(trip.travelMin) });
-  const head = el("div", { class: "daytrip-head" }, [
-    favStarEl(route, ctx),
-    stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
-    // Rows on a city's page differ by start day, so it always leads.
-    ...(opts.showDate
-      ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
-      : []),
-    ...(sameDay
-      ? []
-      : [
-          el("span", { class: "daytrip-travel muted" }, [
-            el("bdi", { text: t("getaway_nights", { n: trip.nights }) }),
-          ]),
-        ]),
-    el("span", {
-      class: "chip chip-onsite",
-      text: headlineText,
-      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
-    }),
-  ]);
-  // One action row for the whole card, after both legs. Every button therefore acts
-  // on the round trip: the calendar export writes an event per leg, the map draws the
-  // route (identical either way), and Save stores the pair as one trip.
-  const actions = el("div", { class: "journey-sub daytrip-actions" }, [
-    el(
-      "button",
-      {
-        class: "btn btn-ghost",
-        type: "button",
-        on: {
-          click: () => {
-            ctx.onIcs(trip.outbound);
-            ctx.onIcs(trip.back);
-          },
-        },
-      },
-      [icon(I.cal), el("span", { text: t("act_ics") })],
-    ),
-    el(
-      "button",
-      { class: "btn btn-ghost", type: "button", on: { click: () => ctx.onShowJourney(trip.outbound) } },
-      [icon(I.pin), el("span", { text: t("act_map") })],
-    ),
-    tripSaveBtn(trip.outbound, ctx, trip.back),
-  ]);
-  const open = (): void => ctx.onShowTrip(trip.outbound, trip.back);
-  const article = el(
-    "article",
-    { class: "journey daytrip-card is-clickable", dataset: { station: trip.destination } },
-    [
-      el("div", { class: "journey-main" }, [
-        head,
-        journeyBodyEl(trip.outbound, ctx, t("daytrip_out")),
-        journeyBodyEl(trip.back, ctx, t("daytrip_back")),
-        actions,
-      ]),
-      el("div", { class: "journey-book" }, [
-        el(
-          "button",
-          {
-            class: "book-arrow",
-            type: "button",
-            attrs: {
-              "aria-label": `${ctx.label(trip.destination)} — ${headlineText}`,
-              title: t("act_next"),
-            },
-            on: { click: open },
-          },
-          [icon(I.arrow)],
-        ),
-      ]),
-    ],
-  );
-  article.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest("button, a")) return;
-    open();
-  });
-  return article;
 }
 
 /**
@@ -800,6 +734,14 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
   // rides alongside it; the duration meta is dropped so a long city name never gets
   // squeezed out of the row. Both figures still live in the chip's tooltip.
   const chips: HTMLElement[] = [];
+  // How many changes it takes to get there — the point of the Ideas list: Direct, or
+  // "N correspondance(s)". Colour-matched to the map pins (green direct / amber 1 / red 2+).
+  const changes = trip.journey.legs.length - 1;
+  chips.push(
+    changes === 0
+      ? el("span", { class: "chip chip-direct", text: t("lbl_direct") })
+      : el("span", { class: `chip chip-changes chip-changes-${Math.min(changes, 2)}`, text: t("lbl_changes", { n: changes }) }),
+  );
   if (trains != null && trains > 0) {
     chips.push(
       el("span", {
@@ -809,8 +751,8 @@ export function bestTripRowEl(trip: BestTrip, ctx: RenderCtx, trains?: number): 
       }),
     );
   }
-  const extra = chips.length ? el("span", { class: "row-chips" }, chips) : undefined;
-  return reachTripRowEl(trip.destination, trip.journey, ctx, extra, { hideMeta: true });
+  const extra = el("span", { class: "row-chips" }, chips);
+  return reachTripRowEl(trip.destination, trip.journey, ctx, extra, { hideMeta: true, hideVia: true });
 }
 
 /**
@@ -1135,46 +1077,6 @@ export function calendarEl(
   ]);
 }
 
-/** One flexible-date row: the fastest trip for a nearby day; click to select it. */
-export function flexDayEl(
-  date: string,
-  j: Journey,
-  ctx: RenderCtx,
-  selected: boolean,
-  destLabel?: string,
-): HTMLElement {
-  const first = j.legs[0];
-  const last = j.legs[j.legs.length - 1];
-  const via = j.legs.length > 1;
-  return el(
-    "button",
-    {
-      class: `flex-day${selected ? " is-sel" : ""}`,
-      type: "button",
-      attrs: { "aria-pressed": String(selected) },
-      on: { click: () => ctx.onSelectDay(date) },
-    },
-    [
-      el("span", { class: "flex-date", text: ctx.formatDate(date) }),
-      // In "best" mode the destination differs each day, so name it; in "od" the
-      // route is fixed and shown in the page title, so this is omitted.
-      ...(destLabel ? [el("span", { class: "flex-dest", text: destLabel })] : []),
-      el("span", { class: "flex-time" }, [
-        el("strong", { text: first?.depart ?? "" }),
-        icon(I.arrow),
-        el("strong", { text: last?.arrive ?? "" }),
-      ]),
-      el("span", { class: "flex-meta" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
-      via
-        ? el("span", {
-            class: "chip chip-via",
-            text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
-          })
-        : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
-    ],
-  );
-}
-
 /**
  * The whole trip on one page: a single journey (one-way) or a round trip
  * (outbound + inbound) with a title, a nights/total-travel summary, each leg as a
@@ -1240,7 +1142,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
     // Save the trip + a travel guide for the destination city (what to do once there).
     el("div", { class: "trip-view-actions" }, [
       tripSaveBtn(outbound, ctx, inbound),
-      guideButtonEl(ctx, outbound.destination),
+      guideEl(ctx, outbound.destination, "button"),
     ]),
   );
   return view;
@@ -1288,23 +1190,6 @@ export function multiTripViewEl(legs: RecapLeg[], ctx: RenderCtx): HTMLElement {
     );
   });
   return view;
-}
-
-/** A round-trip card. */
-export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
-  const out = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_outbound") }),
-    journeyEl(rt.outbound, ctx),
-  ]);
-  const back = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_inbound") }),
-    journeyEl(rt.inbound, ctx),
-  ]);
-  const stay = el("p", {
-    class: "rt-stay muted",
-    text: t("rt_stay", { dur: formatDuration(rt.stayMinutes) }),
-  });
-  return el("article", { class: "roundtrip" }, [out, stay, back]);
 }
 
 /** Straight-line km between a journey's endpoints, or null if unmeasurable. */

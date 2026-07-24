@@ -199,13 +199,6 @@ export interface CalendarDay {
   nearbyBoth?: boolean;
 }
 
-/** A round-trip pairing (outbound + return both free-MAX). */
-export interface RoundTrip {
-  outbound: Journey;
-  inbound: Journey;
-  stayMinutes: number; // time between outbound arrival and inbound departure
-}
-
 /** Dataset freshness metadata. */
 export interface DataMeta {
   updatedAt: string; // ISO timestamp of the last snapshot

@@ -2,7 +2,7 @@ import type { SearchMode, StayChoice } from "../types";
 import type { ConnectionOptions } from "../core/connections";
 import { stayNights, stayFromNights } from "../core/roundtrip";
 import { el, clear, optionEl } from "./dom";
-import { t, getLang } from "../i18n";
+import { t } from "../i18n";
 import { addDays, dayIndex } from "../util/time";
 
 export type TripType = "simple" | "multi" | "ideas";
@@ -22,12 +22,9 @@ export interface DateFieldCtl {
   input: HTMLInputElement;
   getMargin(): number;
   setMargin(n: number): void;
-  setRange(on: boolean): void;
   /** Show/hide the ±flex-days stepper (hidden in day-trip / round-trip mode). */
   setFlexVisible(on: boolean): void;
   setDate(date: string): void;
-  setDates(out: string, ret: string): void;
-  getReturn(): string;
   refresh(): void;
   /** Close the popover, drop its document/window listeners, and remove it from the DOM. */
   destroy(): void;
@@ -74,6 +71,9 @@ export interface FormRefs {
   hiddenField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  /** Same-day round trip only: the minimum time on site (in hours) the user requires. */
+  stayMin: HTMLSelectElement;
+  stayMinField: HTMLElement;
   overnight: HTMLInputElement;
   night: HTMLInputElement;
   onlyNight: HTMLInputElement;
@@ -129,7 +129,6 @@ export interface FormProps {
   availabilityFor: (
     o: string | undefined,
     d: string | undefined,
-    kind: "out" | "ret",
     dates: string[],
     opts: ConnectionOptions,
   ) => Map<string, number>;
@@ -300,13 +299,7 @@ export function createForm(props: FormProps): FormHandle {
 
     let margin = 0;
     let isOpen = false;
-    let range = false;
-    let retDate = "";
-    let awaitReturn = false;
     let avail = new Map<string, number>();
-    const fmtShort = (d: string): string =>
-      new Intl.DateTimeFormat(getLang(), { day: "numeric", month: "short" }).format(new Date(`${d}T00:00:00`));
-    const phase = (): "out" | "ret" => (range && awaitReturn ? "ret" : "out");
 
     const valueText = el("span", { class: "dp-value-text" });
     const valueBadge = el("span", { class: "dp-value-badge", attrs: { hidden: "" } });
@@ -351,13 +344,7 @@ export function createForm(props: FormProps): FormHandle {
     for (let i = 0; i < 7; i++) dow.append(el("span", { class: "dp-dow-c", text: props.formatWeekday(addDays(refMonday, i)) }));
 
     const setLabel = (): void => {
-      if (range) {
-        const a = input.value ? fmtShort(input.value) : t("field_depart");
-        const b = retDate ? fmtShort(retDate) : t("field_ret");
-        valueText.textContent = `${a} → ${b}`;
-      } else {
-        valueText.textContent = input.value ? props.formatDate(input.value) : t("field_date");
-      }
+      valueText.textContent = input.value ? props.formatDate(input.value) : t("field_date");
       if (margin > 0) {
         valueBadge.textContent = `±${margin}`;
         valueBadge.removeAttribute("hidden");
@@ -372,26 +359,6 @@ export function createForm(props: FormProps): FormHandle {
       // the trigger once it closes. Only when focus was inside — a mouse pick must not
       // steal it.
       const hadFocus = pop.contains(document.activeElement);
-      if (range) {
-        if (awaitReturn && date >= input.value) {
-          retDate = date;
-          awaitReturn = false;
-          setLabel();
-          paint();
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-          close();
-          if (hadFocus) trigger.focus();
-          return;
-        }
-        input.value = date;
-        retDate = "";
-        awaitReturn = true;
-        setLabel();
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        refresh();
-        if (hadFocus) focusDay(date);
-        return;
-      }
       input.value = date;
       setLabel();
       paint();
@@ -405,25 +372,19 @@ export function createForm(props: FormProps): FormHandle {
       for (let i = 0; i < leading; i++) grid.append(el("span", { class: "dp-cell dp-blank" }));
       const out = input.value;
       const outIdx = out ? dayIndex(out) : -1;
-      const retIdx = retDate ? dayIndex(retDate) : -1;
-      const picking = range && awaitReturn;
       const known = avail.size > 0;
       let anyOk = false;
       for (const date of days) {
         const di = dayIndex(date);
-        const before = picking && di < outIdx;
-        const ok = !before && (avail.get(date) ?? 0) > 0;
+        const ok = (avail.get(date) ?? 0) > 0;
         if (ok) anyOk = true;
-        const isSel = date === out || (range && date === retDate);
-        const inRange = range && outIdx >= 0 && retIdx >= 0 && di > outIdx && di < retIdx;
+        const isSel = date === out;
         const nearOut = margin > 0 && outIdx >= 0 && Math.abs(di - outIdx) <= margin;
-        const nearRet = range && margin > 0 && retIdx >= 0 && Math.abs(di - retIdx) <= margin;
-        const inWin = !isSel && !inRange && (nearOut || nearRet);
+        const inWin = !isSel && nearOut;
         const cls = [
           "dp-cell",
-          ok ? "ok" : before || known ? "no" : "",
+          ok ? "ok" : known ? "no" : "",
           isSel ? "sel" : "",
-          inRange ? "range" : "",
           inWin ? "win" : "",
         ]
           .filter(Boolean)
@@ -453,7 +414,7 @@ export function createForm(props: FormProps): FormHandle {
 
     const refresh = (): void => {
       const r = route();
-      avail = props.availabilityFor(r.o, r.d, phase(), days, popoverOpts());
+      avail = props.availabilityFor(r.o, r.d, days, popoverOpts());
       paint();
     };
 
@@ -523,11 +484,6 @@ export function createForm(props: FormProps): FormHandle {
       target.setAttribute("tabindex", "0");
       target.focus();
     };
-    function focusDay(date: string): void {
-      const cells = dayCells();
-      const i = cells.findIndex((c) => c.getAttribute("data-date") === date);
-      if (i >= 0) focusCell(cells, i);
-    }
     pop.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         close();
@@ -570,22 +526,6 @@ export function createForm(props: FormProps): FormHandle {
       else if (step === "end") focusCell(cells, cells.length - 1);
       else focusCell(cells, (cur < 0 ? 0 : cur) + step);
     });
-    grid.addEventListener("mouseover", (e) => {
-      if (!range || !awaitReturn) return;
-      const cell = (e.target as HTMLElement).closest<HTMLElement>(".dp-cell");
-      const hover = cell?.getAttribute("data-date");
-      if (!hover) return;
-      const outIdx = dayIndex(input.value);
-      const hi = dayIndex(hover);
-      for (const c of Array.from(grid.children) as HTMLElement[]) {
-        const cd = c.getAttribute("data-date");
-        c.classList.toggle("preview", Boolean(cd) && hi >= outIdx && dayIndex(cd!) > outIdx && dayIndex(cd!) <= hi);
-      }
-    });
-    grid.addEventListener("mouseleave", () => {
-      for (const c of Array.from(grid.children) as HTMLElement[]) c.classList.remove("preview");
-    });
-
     const setMarginVal = (n: number): void => {
       margin = Math.max(0, Math.min(FLEX_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
       marginVal.textContent = String(margin);
@@ -611,26 +551,11 @@ export function createForm(props: FormProps): FormHandle {
       setFlexVisible: (on) => {
         marginRow.style.display = on ? "" : "none";
       },
-      setRange: (on) => {
-        range = on;
-        if (!on) retDate = "";
-        awaitReturn = false;
-        setLabel();
-        if (isOpen) refresh();
-      },
       setDate: (d) => {
         input.value = d;
         setLabel();
         if (isOpen) paint();
       },
-      setDates: (out, ret) => {
-        input.value = out;
-        retDate = range ? ret : "";
-        awaitReturn = false;
-        setLabel();
-        if (isOpen) refresh();
-      },
-      getReturn: () => retDate,
       refresh,
       destroy: () => {
         close(); // detaches the document-click + window scroll/resize listeners
@@ -979,9 +904,9 @@ export function createForm(props: FormProps): FormHandle {
     // A single journey caps its TOTAL time; a tour caps each hop instead (above).
     maxDurationField.style.display = multi ? "none" : "";
 
-    // Region focuses a tour plan ("visit Bretagne"). Ideas stays a single-field
-    // surface, so no region filter there either.
-    regionField.style.display = plan ? "" : "none";
+    // Region focuses a tour plan ("visit Bretagne") and narrows the Ideas list to one
+    // area ("where in the Atlantique can I go?") — both filter by destination region.
+    regionField.style.display = plan || ideas ? "" : "none";
     maxSpanDaysField.style.display = single ? "" : "none";
     // Radius (nearby-station reach) applies to the single trip tabs. (The hidden-train
     // toggle lives in Advanced and shows on every tab, so it isn't gated here.)
@@ -991,9 +916,10 @@ export function createForm(props: FormProps): FormHandle {
     // The trip-shape control (One-way / Round trip) rides the Trip tab only. Ideas and
     // the multi-city tabs don't take a return, so it's hidden there.
     tripShapeField.style.display = simple ? "" : "none";
-    // Connections and the Advanced panel are trip-planning filters; Ideas hides them so
-    // the surface is just the departure field and its list of reachable cities.
-    connectionsField.style.display = ideas ? "none" : "";
+    // "Max changes" caps how many correspondances an idea may take — the headline signal
+    // on every Ideas row (Direct / N-correspondance chip), so it's a first-class filter
+    // there too. The rest of the Advanced panel is exact-route planning, kept off Ideas.
+    connectionsField.style.display = "";
     advanced.style.display = ideas ? "none" : "";
     syncTripShape();
     // A hidden control measures as zero, so the pills can only be placed once their
@@ -1092,6 +1018,16 @@ export function createForm(props: FormProps): FormHandle {
     optionEl("3", t("conn_3"), false),
     optionEl("6", t("conn_max"), false),
   ]) as HTMLSelectElement;
+  // Same-day round trip: how long you want on site before the return leaves (4 h default,
+  // shared with SAME_DAY_MIN_ON_SITE_MIN). Only shown for a same-day round trip.
+  const stayMin = el("select", { class: "input" }, [
+    optionEl("2", t("stay_min_h", { h: 2 }), false),
+    optionEl("3", t("stay_min_h", { h: 3 }), false),
+    optionEl("4", t("stay_min_h", { h: 4 }), true),
+    optionEl("6", t("stay_min_h", { h: 6 }), false),
+    optionEl("8", t("stay_min_h", { h: 8 }), false),
+  ]) as HTMLSelectElement;
+  const stayMinField = field(t("field_min_onsite"), stayMin, "field-wide");
   const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
   const overnightField = yesNoField(t("field_overnight"), overnight);
   // Night trains are INCLUDED by default (`checked` before any query syncs), so a fresh
@@ -1210,6 +1146,12 @@ export function createForm(props: FormProps): FormHandle {
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(!roundTrip);
     syncShapeThumb();
+    syncStayMinField();
+  };
+  // "Minimum time there" only means something for a SAME-DAY round trip (a fixed 0-night
+  // return), on the single-trip tab — a stay with nights or a one-way has no on-site gate.
+  const syncStayMinField = (): void => {
+    stayMinField.style.display = currentTrip === "simple" && roundTrip && !flexible && nights === 0 ? "" : "none";
   };
   /** The current shape as a TripShape: one-way, Flexible (return picked on the calendar),
    *  or the fixed stay the nights imply. */
@@ -1553,6 +1495,7 @@ export function createForm(props: FormProps): FormHandle {
     regionField,
     legsBlock,
     stayField,
+    stayMinField,
     connectionsField,
     scopeField,
   ]);
@@ -1599,6 +1542,8 @@ export function createForm(props: FormProps): FormHandle {
     hiddenField,
     trainType,
     maxConnections,
+    stayMin,
+    stayMinField,
     overnight,
     night,
     onlyNight,

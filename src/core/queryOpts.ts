@@ -51,6 +51,9 @@ export function getawayOptsFor(q: SearchQuery): GetawayOptions {
     maxConnections: q.maxConnections,
     ...filterOptsFor(q),
     ...stayGetawayOpts(q.stay, flexWindowNights(q)),
+    // Same-day round trips only: the user's chosen minimum time on site (hours → minutes),
+    // else getaways falls back to SAME_DAY_MIN_ON_SITE_MIN.
+    ...(q.stayMinHours && q.stayMinHours > 0 ? { minOnSiteMin: q.stayMinHours * 60 } : {}),
   };
 }
 

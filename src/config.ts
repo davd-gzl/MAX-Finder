@@ -1,5 +1,3 @@
-import type { CardType } from "./types";
-
 /** SNCF Open Data — Explore API v2.1 records endpoint for the `tgvmax` dataset. */
 export const SNCF_API_URL =
   "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/tgvmax/records";
@@ -25,13 +23,14 @@ export const MAX_CONNECTION_MIN = 240;
 export const OVERNIGHT_MAX_CONNECTION_MIN = 15 * 60;
 
 /**
- * A train counts as a "night train" if it leaves at/after this time (minutes from
- * midnight) or arrives past midnight — i.e. it has you travelling through the
- * night. Used by the "night trains" toggle to optionally exclude them.
+ * Minimum time on site (minutes) for a SAME-DAY round trip to count as a real day
+ * out. Below this, a "trip" is just stepping off the platform and boarding the
+ * return — so both the discovery list and the exact round-trip page require at
+ * least this gap between arriving and the return leaving. It also drops outbound
+ * departures so late that no return can leave this many minutes later and still get
+ * you home by midnight (you'd be stranded).
  */
-export const NIGHT_DEPART_MIN = 22 * 60; // 22:00
-
-export const DEFAULT_CARD: CardType = "jeune";
+export const SAME_DAY_MIN_ON_SITE_MIN = 4 * 60;
 
 /**
  * Destinations that appear in the open data but are NOT bookable with a MAX pass

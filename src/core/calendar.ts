@@ -1,6 +1,13 @@
 import type { MaxTrain, CalendarDay, Journey } from "../types";
 import { findJourneys, reachableJourneys, reachableInto, type ConnectionOptions } from "./connections";
-import { filterTrains, type FilterOptions } from "./search";
+
+/** Build a per-day calendar from a count function: a day is available when its count > 0. */
+export function perDayCount(dates: string[], count: (date: string) => number): CalendarDay[] {
+  return dates.map((date) => {
+    const c = count(date);
+    return { date, available: c > 0, count: c };
+  });
+}
 
 /**
  * Availability over a set of dates for one O-D route. A day is "available" if at
@@ -19,84 +26,32 @@ export function availabilityCalendar(
   opts: ConnectionOptions = {},
   accept: (j: Journey) => boolean = () => true,
 ): CalendarDay[] {
-  return dates.map((date) => {
-    const count = findJourneys(trains, origin, destination, date, opts).filter(accept).length;
-    return { date, available: count > 0, count };
-  });
+  return perDayCount(dates, (date) => findJourneys(trains, origin, destination, date, opts).filter(accept).length);
 }
 
 /**
- * Per-day count of distinct direct free-MAX destinations reachable from `origin`
- * over `dates`. Powers the "ideas by day" strip in best mode — a day is available
- * when at least one destination runs. `accept` optionally filters destinations
- * (e.g. by region). Counts direct trains only (cheap, a navigation hint); the
- * full list on click still includes connections.
- */
-export function destinationCalendar(
-  trains: MaxTrain[],
-  origin: string,
-  dates: string[],
-  opts: FilterOptions = {},
-  accept: (destination: string) => boolean = () => true,
-): CalendarDay[] {
-  const byDate = new Map<string, Set<string>>();
-  for (const t of filterTrains(trains, { ...opts, origin })) {
-    if (!accept(t.destination)) continue;
-    let set = byDate.get(t.date);
-    if (!set) {
-      set = new Set();
-      byDate.set(t.date, set);
-    }
-    set.add(t.destination);
-  }
-  return dates.map((date) => {
-    const count = byDate.get(date)?.size ?? 0;
-    return { date, available: count > 0, count };
-  });
-}
-
-/**
- * Per-day count of distinct destinations reachable from `origin` over `dates`,
- * INCLUDING connections (so a place reached only via a stopover still counts) —
- * one multi-target graph search per day. Matches what the connection-aware lists
- * actually show, unlike `destinationCalendar` (direct only). `accept` optionally
- * filters destinations (e.g. by region).
+ * Per-day count of distinct destinations reachable over `dates`, INCLUDING
+ * connections (so a place reached only via a stopover still counts) — one
+ * multi-target graph search per day, matching what the connection-aware lists
+ * actually show. With `dir: "from"` counts destinations reachable FROM `anchor`
+ * (origin-only browse); with `dir: "to"` counts ORIGINS from which `anchor` is
+ * reachable (destination-only browse-by-arrival). `accept` optionally filters.
  */
 export function reachableCountCalendar(
   trains: MaxTrain[],
-  origin: string,
+  anchor: string,
   dates: string[],
   opts: ConnectionOptions = {},
-  accept: (destination: string) => boolean = () => true,
+  dir: "from" | "to" = "from",
+  accept: (other: string) => boolean = () => true,
 ): CalendarDay[] {
-  return dates.map((date) => {
+  const reach = dir === "from" ? reachableJourneys : reachableInto;
+  return perDayCount(dates, (date) => {
     let count = 0;
-    for (const dest of reachableJourneys(trains, origin, date, opts).keys()) {
-      if (accept(dest)) count++;
+    for (const other of reach(trains, anchor, date, opts).keys()) {
+      if (accept(other)) count++;
     }
-    return { date, available: count > 0, count };
-  });
-}
-
-/**
- * Per-day count of distinct ORIGINS from which `destination` is reachable over
- * `dates`, INCLUDING connections — the mirror of {@link reachableCountCalendar}
- * for a browse-by-arrival (destination-only) search. A day is available when at
- * least one origin can reach `destination`. `accept` optionally filters origins.
- */
-export function reachableIntoCountCalendar(
-  trains: MaxTrain[],
-  destination: string,
-  dates: string[],
-  opts: ConnectionOptions = {},
-  accept: (origin: string) => boolean = () => true,
-): CalendarDay[] {
-  return dates.map((date) => {
-    let count = 0;
-    for (const origin of reachableInto(trains, destination, date, opts).keys()) {
-      if (accept(origin)) count++;
-    }
-    return { date, available: count > 0, count };
+    return count;
   });
 }
 

@@ -8,7 +8,7 @@ import type { SearchQuery, MaxTrain } from "../types";
 import { dateRange, availabilityCalendar } from "../core/calendar";
 import { bestTripsAcrossWindow, reachableBest, stationsOnDate } from "../core/best";
 import { reachableDestinations, reachableOrigins } from "../core/destinations";
-import { getawayIdeas, dayTripCalendar, roundTripCalendar } from "../core/getaways";
+import { getawayIdeas, stayCalendar } from "../core/getaways";
 import { filterOptsFor, odConnOptsFor, getawayOptsFor } from "../core/queryOpts";
 import { addDays } from "../util/time";
 
@@ -35,9 +35,9 @@ export function warmForQuery(trains: MaxTrain[], query: SearchQuery, today: stri
       if (query.stay) {
         // Leg 1 (outbound possible-days) + the return-direction availability, and the
         // same-day (0-night) feasibility the return calendar's first cell needs.
-        roundTripCalendar(trains, query.origin, query.destination, window, connOpts);
+        stayCalendar(trains, query.origin, query.destination, window, connOpts, "nights");
         availabilityCalendar(trains, query.destination, query.origin, window, connOpts);
-        dayTripCalendar(trains, query.origin, query.destination, [query.date], connOpts);
+        stayCalendar(trains, query.origin, query.destination, [query.date], connOpts, "hours");
       } else {
         availabilityCalendar(trains, query.origin, query.destination, window, connOpts);
       }

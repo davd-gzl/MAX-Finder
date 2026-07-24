@@ -145,7 +145,8 @@ describe("app (jsdom smoke)", () => {
   });
 
   it("drills into a connecting destination and back again", () => {
-    const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`);
+    const listSearch = `?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=1`;
+    const root = setup(listSearch);
     const cards = Array.from(root.querySelectorAll(".group-card"));
     const toulouse = cards.find((c) => (c.textContent ?? "").includes("Toulouse"));
     expect(toulouse).toBeTruthy();
@@ -154,12 +155,20 @@ describe("app (jsdom smoke)", () => {
     expect(toulouse!.querySelector(".star")).not.toBeNull();
 
     (toulouse!.querySelector(".dest-main") as HTMLElement).click();
-    // Now on the exact-trip page, with a Back button.
+    // Now on the exact-trip page (a drilled-in DETAIL entry), with a Back button.
     const back = root.querySelector(".back-btn") as HTMLElement | null;
     expect(back).not.toBeNull();
     expect(root.querySelector(".chip-via")).not.toBeNull(); // via Bordeaux journey
 
+    // The in-app Retour delegates to the browser Back (history.back()); the browser history
+    // is the single back-stack. jsdom doesn't implement history traversal, so assert the
+    // delegation, then simulate the browser restoring the underlying list entry (popstate).
+    const backSpy = vi.spyOn(history, "back");
     back!.click();
+    expect(backSpy).toHaveBeenCalled();
+    backSpy.mockRestore();
+    history.replaceState(null, "", `/${listSearch}`);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
     // Back to the browse list; no Back button left.
     expect(root.querySelector(".back-btn")).toBeNull();
     expect(root.textContent ?? "").toContain("Toulouse");
@@ -244,11 +253,10 @@ describe("app (jsdom smoke)", () => {
     // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.
     expect(root.textContent ?? "").not.toContain("Toulouse");
 
-    // Allow one change, then commit the field. Only maxConnections offers a "6" option,
-    // so it's uniquely identifiable among the form selects.
-    const conn = Array.from(root.querySelectorAll<HTMLSelectElement>(".search-form select.input")).find((s) =>
-      Array.from(s.options).some((o) => o.value === "6"),
-    );
+    // Allow one change, then commit the field. The connections select lives in its own
+    // full-width band (.connections-field), so target that rather than "the select with a
+    // 6 option" — the same-day minimum-time-there select also offers a 6 (hours).
+    const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input");
     expect(conn).toBeTruthy();
     conn!.value = "1";
     conn!.dispatchEvent(new Event("change", { bubbles: true }));
@@ -260,6 +268,27 @@ describe("app (jsdom smoke)", () => {
     expect(searchBtn).not.toBeNull();
     searchBtn.click();
     expect(root.textContent ?? "").toContain("Toulouse");
+  });
+
+  it("shows the 'minimum time there' control only for a same-day round trip", () => {
+    const onsiteField = (root: HTMLElement): HTMLElement | null =>
+      Array.from(root.querySelectorAll<HTMLElement>(".search-form .field")).find((f) =>
+        (f.textContent ?? "").includes("Minimum time there"),
+      ) ?? null;
+
+    // Same-day round trip (stay=day): the on-site minimum is meaningful, so it's shown.
+    const sameDay = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=day`);
+    const field = onsiteField(sameDay);
+    expect(field).not.toBeNull();
+    expect(field!.style.display).not.toBe("none");
+
+    // One-way (no stay): there is no return to gate, so the control is hidden.
+    const oneway = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`);
+    expect(onsiteField(oneway)!.style.display).toBe("none");
+
+    // A round trip WITH nights (stay=1) counts days, not hours on site — also hidden.
+    const nights = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=1`);
+    expect(onsiteField(nights)!.style.display).toBe("none");
   });
 
   it("keeps a staged filter when the results refresh in place (sort change)", () => {

@@ -1,5 +1,5 @@
 import type { MaxTrain, Journey } from "../types";
-import { bestJourney, reachableJourneys, reachableInto, type ConnectionOptions } from "./connections";
+import { reachableJourneys, reachableInto, type ConnectionOptions } from "./connections";
 
 export interface BestTrip {
   destination: string;
@@ -17,27 +17,6 @@ export function stationsOnDate(trains: MaxTrain[], date: string): string[] {
     set.add(t.destination);
   }
   return [...set];
-}
-
-/**
- * The best (shortest total) free-MAX trip from `origin` to each candidate
- * destination on `date`, ranked by total travel time ascending. Destinations
- * with no reachable journey are dropped.
- */
-export function bestTrips(
-  trains: MaxTrain[],
-  origin: string,
-  date: string,
-  destinations: string[],
-  opts: ConnectionOptions = {},
-): BestTrip[] {
-  const out: BestTrip[] = [];
-  for (const destination of destinations) {
-    if (destination === origin) continue;
-    const journey = bestJourney(trains, origin, destination, date, opts);
-    if (journey) out.push({ destination, journey });
-  }
-  return out.sort((a, b) => a.journey.totalDurationMin - b.journey.totalDurationMin);
 }
 
 /**
