@@ -200,12 +200,13 @@ export function guideEl(ctx: RenderCtx, stationId: string, variant: "button" | "
 export function collapsibleCalendar(
   calNode: HTMLElement,
   wrapClass = "cal-collapsible",
+  startOpen = false,
 ): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void } {
-  const panel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [calNode]);
+  const panel = el("div", { class: "cal-panel", attrs: startOpen ? {} : { hidden: "" } }, [calNode]);
   const toggle = el("button", {
     class: "cal-toggle linklike",
     type: "button",
-    attrs: { "aria-expanded": "false" },
+    attrs: { "aria-expanded": String(startOpen) },
     on: {
       click: () => {
         const opening = panel.hasAttribute("hidden");

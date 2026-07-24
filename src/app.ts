@@ -86,6 +86,11 @@ const MAX_VIA_RESULTS = 30;
 // handler here (cleared on each render); it returns true when it consumed the Back.
 let activeStepBack: (() => boolean) | null = null;
 
+// Set when a ONE-WAY destination is opened from the Ideas list: the exact-trip page then
+// shows its availability calendar OPEN (the days you can go), since Ideas' whole promise is
+// "tap a place → see when you can go" rather than landing on today's (maybe empty) trains.
+let openOdCalendar = false;
+
 let tripType: TripType = "simple";
 // Number keys 1..3 select these tabs; "r" toggles round trip (see onGlobalKey).
 const TRIP_TABS: readonly TripType[] = ["simple", "multi", "ideas"];
@@ -813,6 +818,9 @@ function ctx(): RenderCtx {
       // outbound and no return (the "click a same-day idea, get no round trip" dead end).
       const date = open?.date ?? query.date;
       const returnDate = open?.date && query.returnDate ? undefined : query.returnDate;
+      // Opening a ONE-WAY idea (Ideas list, no stay, no dated getaway) → reveal the dates:
+      // the exact-trip page shows its availability calendar open instead of today's trains.
+      openOdCalendar = query.mode === "best" && !query.stay && !open?.date;
       query = { ...query, mode: "od", origin, destination, via: undefined, date, returnDate };
       syncFormFromQuery();
       // Push a browser entry marked as a DETAIL page: the list stays one Back away, and the
@@ -2393,7 +2401,10 @@ function runOdSearch(c: RenderCtx): void {
   // COLLAPSED by default here too — re-showing the whole strip read as asking the date
   // twice. A one-tap "Départ : … · Changer" summary reveals it to switch days or scan
   // availability, mirroring the round-trip outbound calendar's collapse pattern.
-  const odCal = render.collapsibleCalendar(render.calendarEl(cal, c, query.date));
+  // Opened from an Ideas one-way tap → show the days you can go up front (calendar open);
+  // otherwise it's collapsed behind a one-tap "Départ : … · Changer" summary as usual.
+  const odCal = render.collapsibleCalendar(render.calendarEl(cal, c, query.date), "cal-collapsible", openOdCalendar);
+  openOdCalendar = false;
   odCal.setLabel(t("outbound_change", { date: formatDate(query.date) }));
   refs.results.append(odCal.host);
 
