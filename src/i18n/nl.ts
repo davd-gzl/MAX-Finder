@@ -202,12 +202,6 @@ export const nl: Dict = {
   field_maxLegDuration: "Max. duur / trein (min)",
   field_minLegDuration: "Min. duur / trein (min)",
   stat_window_hint: "{trains} MAX-treinen naar deze bestemming over {days} komende dagen. Open de exacte reis om de datums te zien.",
-  daytrip_onsite: "{dur} ter plaatse",
-  daytrip_onsite_hint: "Tijd in de stad, tussen aankomst en de terugreis.",
-  daytrip_travel: "{dur} reizen",
-  daytrip_travel_hint: "Totale reistijd heen en terug.",
-  daytrip_out: "Heen",
-  daytrip_back: "Terug",
 
   nights_sameday: "Zelfde dag",
   getaway_cal_title: "Mogelijke vertrekdagen",

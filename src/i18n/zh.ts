@@ -202,12 +202,6 @@ export const zh: Dict = {
   field_maxLegDuration: "每趟列车最长时间（分钟）",
   field_minLegDuration: "每趟列车最短时间（分钟）",
   stat_window_hint: "未来 {days} 天内前往该目的地的 MAX 列车 {trains} 趟。打开精确行程查看具体日期。",
-  daytrip_onsite: "当地 {dur}",
-  daytrip_onsite_hint: "在城市停留的时间，从到达至返程出发。",
-  daytrip_travel: "行程 {dur}",
-  daytrip_travel_hint: "往返总旅行时间。",
-  daytrip_out: "去程",
-  daytrip_back: "返程",
 
   nights_sameday: "当日往返",
   getaway_cal_title: "可出发日期",

@@ -202,12 +202,6 @@ export const ja: Dict = {
   field_maxLegDuration: "1列車あたり最大時間（分）",
   field_minLegDuration: "1列車あたり最小時間（分）",
   stat_window_hint: "今後 {days} 日間でこの目的地へ向かう MAX 列車 {trains} 本。正確な行程を開いて日付を確認できます。",
-  daytrip_onsite: "現地 {dur}",
-  daytrip_onsite_hint: "到着から復路出発までの、街での滞在時間。",
-  daytrip_travel: "移動 {dur}",
-  daytrip_travel_hint: "往復の合計移動時間。",
-  daytrip_out: "往路",
-  daytrip_back: "復路",
 
   nights_sameday: "日帰り",
   getaway_cal_title: "出発できる日",

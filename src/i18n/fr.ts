@@ -214,12 +214,6 @@ export const fr = {
   field_minLegDuration: "Durée min. / train (min)",
   stat_window_hint: "{trains} trains MAX vers cette destination sur {days} jours à venir. Ouvrez le trajet précis pour voir les dates exactes.",
 
-  daytrip_onsite: "{dur} sur place",
-  daytrip_onsite_hint: "Temps dans la ville, entre l'arrivée et le départ du retour.",
-  daytrip_travel: "{dur} de trajet",
-  daytrip_travel_hint: "Temps de trajet aller-retour total.",
-  daytrip_out: "Aller",
-  daytrip_back: "Retour",
   nights_sameday: "Journée",
   getaway_cal_title: "Jours de départ possibles",
   getaway_days_hint: "{n} jours de départ possibles vers cette ville sur la période réservable. Ouvrez la ville pour voir lesquels.",

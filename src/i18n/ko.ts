@@ -203,12 +203,6 @@ export const ko: Dict = {
   field_maxLegDuration: "열차당 최대 시간 (분)",
   field_minLegDuration: "열차당 최소 시간 (분)",
   stat_window_hint: "향후 {days}일 동안 이 목적지로 가는 MAX 열차 {trains}편. 정확한 여정을 열어 날짜를 확인하세요.",
-  daytrip_onsite: "현지 {dur}",
-  daytrip_onsite_hint: "도착부터 귀가 출발까지 도시에서 보내는 시간.",
-  daytrip_travel: "이동 {dur}",
-  daytrip_travel_hint: "왕복 총 이동 시간입니다.",
-  daytrip_out: "가는 편",
-  daytrip_back: "오는 편",
 
   nights_sameday: "당일",
   getaway_cal_title: "가능한 출발일",

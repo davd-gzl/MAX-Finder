@@ -2318,10 +2318,17 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
       onSort,
     ),
   );
-  // Trips fall on different start days across the month, so each row shows its date.
-  // Render incrementally (like browse/best) so a busy hub's long list never blocks the
-  // main thread in one go — the first rows paint immediately, the rest fill in per frame.
-  appendInChunks(refs.results, sorted, (trip) => render.getawayRowEl(trip, c, { showDate: true }));
+  // Compact, scannable cards — the SAME as the origin-only discovery list: the city name,
+  // its best stay, how many days it's possible, and the travel time; tap to open the full
+  // trip. Ideas is a "what's possible from here" browse, not a wall of expanded tickets.
+  appendInChunks(refs.results, sorted, (trip) => {
+    const days = whole.datesByDest.get(trip.destination) ?? [];
+    const metric =
+      trip.nights === 0
+        ? t("daytrip_cal_hours", { h: Math.round((trip.onSiteMin ?? 0) / 60) })
+        : t("getaway_nights", { n: trip.nights });
+    return render.getawayCityRowEl(trip, c, { days: days.length, windowDays: days.length }, { metric });
+  });
   showMap(
     origin,
     sorted.map((trip) => trip.destination),

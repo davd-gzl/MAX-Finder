@@ -203,12 +203,6 @@ export const es: Dict = {
   field_maxLegDuration: "Duración máx. / tren (min)",
   field_minLegDuration: "Duración mín. / tren (min)",
   stat_window_hint: "{trains} trenes MAX a este destino en {days} días próximos. Abre el viaje exacto para ver las fechas.",
-  daytrip_onsite: "{dur} en destino",
-  daytrip_onsite_hint: "Tiempo en la ciudad, entre la llegada y la salida de vuelta.",
-  daytrip_travel: "{dur} de viaje",
-  daytrip_travel_hint: "Tiempo total de viaje de ida y vuelta.",
-  daytrip_out: "Ida",
-  daytrip_back: "Vuelta",
 
   nights_sameday: "En el día",
   getaway_cal_title: "Días de salida posibles",
