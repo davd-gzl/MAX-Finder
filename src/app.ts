@@ -832,7 +832,6 @@ function ctx(): RenderCtx {
       // this is the only scroll, not a jump-then-smooth).
       refs.title.scrollIntoView({ behavior: "smooth", block: "start" });
     },
-    onFocusStation: (id) => mapInstance?.focus(id),
     onShowJourney: (j) => {
       showRoute([j.origin, ...j.hubs, j.destination]);
       refs.mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -3712,12 +3711,10 @@ function buildLayout(root: HTMLElement): void {
     mode: () => query.mode,
     formatDate,
     formatWeekday,
-    availabilityFor: (o, d, kind, dates, opts) => {
+    availabilityFor: (o, d, dates, opts) => {
       const map = new Map<string, number>();
       let cal: { date: string; available: boolean; count: number }[] | null = null;
-      if (kind === "ret") {
-        if (o && d) cal = availabilityCalendar(deps.trains, d, o, dates, opts);
-      } else if (o && d) {
+      if (o && d) {
         cal = availabilityCalendar(deps.trains, o, d, dates, opts);
       } else if (o) {
         cal = destinationCalendar(deps.trains, o, dates, opts);

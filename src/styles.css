@@ -2804,55 +2804,6 @@ select.input::-ms-expand {
   font-size: 0.9rem;
   font-weight: 620;
 }
-.map-tip-meta {
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap; /* keep the trip summary on one line; the card widens to fit */
-}
-.leaflet-popup.map-popup .leaflet-popup-content-wrapper {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-}
-.leaflet-popup.map-popup .leaflet-popup-content {
-  margin: 0.7rem 0.85rem;
-  font: inherit;
-}
-.leaflet-popup.map-popup .leaflet-popup-tip {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-}
-.map-pop {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 150px;
-}
-.map-pop-title {
-  font-size: 0.92rem;
-  font-weight: 640;
-}
-.map-pop-meta {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-.map-pop-btn {
-  align-self: flex-start;
-  margin-top: 0.1rem;
-  background: var(--btn);
-  color: var(--btn-ink);
-  border: 0;
-  border-radius: 7px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.82rem;
-  font-weight: 560;
-  cursor: pointer;
-}
-.map-pop-btn:hover {
-  opacity: 0.9;
-}
 
 /* ---- boot loading label + dataset-load error card (with retry) ---- */
 .app-loading-label {

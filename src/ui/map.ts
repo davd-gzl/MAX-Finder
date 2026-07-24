@@ -19,14 +19,11 @@ function reachColor(connections: number): string {
   return `hsl(${Math.round(hue)}, 75%, 34%)`;
 }
 
-/** Optional rich detail for a station marker (hover tooltip + click popup). */
+/** Optional rich detail for a station marker (hover tooltip). */
 export interface MarkerInfo {
   title: string;
-  meta?: string;
   /** Number of changes to reach this station — drives the pin's red-ness. */
   connections?: number;
-  /** A primary action surfaced as a button in the click popup. */
-  action?: { label: string; run: () => void };
 }
 
 /** Small Leaflet wrapper that draws routes between stations on a map of France. */
@@ -152,12 +149,6 @@ export class RouteMap {
     e.map.setView([46.6, 2.4], 5);
   }
 
-  /** Pan/zoom to a station (if its coordinates are known). */
-  focus(id: string): void {
-    const c = this.registry.coords(id);
-    if (c && this.map) this.map.setView(c, 8, { animate: true });
-  }
-
   // Three single-hue marker roles so the hub/origin reads at a glance:
   //  anchor — origin/centre (larger, white-ringed solid)
   //  dest   — a destination/endpoint (solid)
@@ -185,42 +176,7 @@ export class RouteMap {
     const tipTitle = document.createElement("strong");
     tipTitle.textContent = title;
     tip.append(tipTitle);
-    if (inf?.meta) {
-      const meta = document.createElement("span");
-      meta.className = "map-tip-meta";
-      meta.textContent = inf.meta;
-      tip.append(meta);
-    }
     m.bindTooltip(tip, { direction: "top", offset: [0, -6], className: "map-tooltip", opacity: 1 });
-
-    // Click card: same detail plus a primary action (e.g. open the exact trip).
-    if (inf?.meta || inf?.action) {
-      const pop = document.createElement("div");
-      pop.className = "map-pop";
-      const popTitle = document.createElement("strong");
-      popTitle.className = "map-pop-title";
-      popTitle.textContent = title;
-      pop.append(popTitle);
-      if (inf?.meta) {
-        const meta = document.createElement("div");
-        meta.className = "map-pop-meta";
-        meta.textContent = inf.meta;
-        pop.append(meta);
-      }
-      if (inf?.action) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "map-pop-btn";
-        btn.textContent = inf.action.label;
-        const action = inf.action;
-        btn.addEventListener("click", () => {
-          m.closePopup();
-          action.run();
-        });
-        pop.append(btn);
-      }
-      m.bindPopup(pop, { closeButton: false, className: "map-popup", offset: [0, -4] });
-    }
 
     m.on("mouseover", () => this.onHover?.(id));
     m.on("mouseout", () => this.onHover?.(null));

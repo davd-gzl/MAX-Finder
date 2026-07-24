@@ -40,12 +40,6 @@ export function clear(node: Element): void {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 
-export function qs<T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document): T {
-  const found = root.querySelector(sel);
-  if (!found) throw new Error(`Element not found: ${sel}`);
-  return found as T;
-}
-
 /**
  * A single `<option>` element.
  * @param value the option value.

@@ -4,7 +4,6 @@ import type { StationGroup, WindowStat } from "../core/destinations";
 import type { BestTrip } from "../core/best";
 import type { Getaway } from "../core/getaways";
 import type { Tour } from "../core/tour";
-import type { RoundTrip } from "../types";
 import type { RoutePair } from "../state/store";
 import { el } from "./dom";
 import { isNightTrain } from "../core/search";
@@ -24,7 +23,6 @@ export interface RenderCtx {
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
   onOpenRoute: (origin: string, destination: string) => void;
-  onFocusStation: (id: string) => void;
   /** Draw a specific journey (origin → interchanges → destination) on the map. */
   onShowJourney: (journey: Journey) => void;
   /** Draw a whole multi-city tour (every stop) on the map. */
@@ -1135,46 +1133,6 @@ export function calendarEl(
   ]);
 }
 
-/** One flexible-date row: the fastest trip for a nearby day; click to select it. */
-export function flexDayEl(
-  date: string,
-  j: Journey,
-  ctx: RenderCtx,
-  selected: boolean,
-  destLabel?: string,
-): HTMLElement {
-  const first = j.legs[0];
-  const last = j.legs[j.legs.length - 1];
-  const via = j.legs.length > 1;
-  return el(
-    "button",
-    {
-      class: `flex-day${selected ? " is-sel" : ""}`,
-      type: "button",
-      attrs: { "aria-pressed": String(selected) },
-      on: { click: () => ctx.onSelectDay(date) },
-    },
-    [
-      el("span", { class: "flex-date", text: ctx.formatDate(date) }),
-      // In "best" mode the destination differs each day, so name it; in "od" the
-      // route is fixed and shown in the page title, so this is omitted.
-      ...(destLabel ? [el("span", { class: "flex-dest", text: destLabel })] : []),
-      el("span", { class: "flex-time" }, [
-        el("strong", { text: first?.depart ?? "" }),
-        icon(I.arrow),
-        el("strong", { text: last?.arrive ?? "" }),
-      ]),
-      el("span", { class: "flex-meta" }, [icon(I.clock), el("bdi", { text: formatDuration(j.totalDurationMin) })]),
-      via
-        ? el("span", {
-            class: "chip chip-via",
-            text: t("lbl_via", { hub: j.hubs.map((h) => ctx.label(h)).join(", ") }),
-          })
-        : el("span", { class: "chip chip-direct", text: t("lbl_direct") }),
-    ],
-  );
-}
-
 /**
  * The whole trip on one page: a single journey (one-way) or a round trip
  * (outbound + inbound) with a title, a nights/total-travel summary, each leg as a
@@ -1288,23 +1246,6 @@ export function multiTripViewEl(legs: RecapLeg[], ctx: RenderCtx): HTMLElement {
     );
   });
   return view;
-}
-
-/** A round-trip card. */
-export function roundTripEl(rt: RoundTrip, ctx: RenderCtx): HTMLElement {
-  const out = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_outbound") }),
-    journeyEl(rt.outbound, ctx),
-  ]);
-  const back = el("div", { class: "rt-leg" }, [
-    el("span", { class: "chip chip-soft", text: t("rt_inbound") }),
-    journeyEl(rt.inbound, ctx),
-  ]);
-  const stay = el("p", {
-    class: "rt-stay muted",
-    text: t("rt_stay", { dur: formatDuration(rt.stayMinutes) }),
-  });
-  return el("article", { class: "roundtrip" }, [out, stay, back]);
 }
 
 /** Straight-line km between a journey's endpoints, or null if unmeasurable. */

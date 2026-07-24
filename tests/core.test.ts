@@ -6,7 +6,6 @@ import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
 import { availabilityCalendar, reachableCountCalendar, reachableIntoCountCalendar } from "../src/core/calendar";
-import { findRoundTrips } from "../src/core/roundtrip";
 import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
 import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, dayTripCalendar, roundTripCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
@@ -256,23 +255,6 @@ describe("reachableIntoCountCalendar (destination-only browse-by-arrival)", () =
     // Both are non-empty for a hub — the destination-only calendar is as alive as origin-only.
     expect(into.some((d) => d.available)).toBe(true);
     expect(from.some((d) => d.available)).toBe(true);
-  });
-});
-
-describe("findRoundTrips", () => {
-  it("pairs an outbound and a later inbound, both free-MAX", () => {
-    const trips = findRoundTrips(
-      trains,
-      "PARIS (intramuros)",
-      "LYON (intramuros)",
-      "2026-06-25",
-      "2026-06-27",
-    );
-    expect(trips.length).toBeGreaterThan(0);
-    const t = trips[0]!;
-    expect(t.stayMinutes).toBeGreaterThan(0);
-    expect(t.outbound.origin).toBe("PARIS (intramuros)");
-    expect(t.inbound.destination).toBe("PARIS (intramuros)");
   });
 });
 
