@@ -54,6 +54,8 @@ export const fr = {
   field_trainType: "Type / axe",
   field_anyType: "Tous",
   field_connections: "Correspondances",
+  field_min_onsite: "Temps minimum sur place",
+  stay_min_h: "au moins {h} h",
   conn_0: "Directes uniquement",
   conn_1: "1 correspondance max",
   conn_2: "2 correspondances max",

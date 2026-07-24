@@ -54,6 +54,8 @@ export const ja: Dict = {
   field_trainType: "種別 / 路線",
   field_anyType: "すべて",
   field_connections: "乗り換え",
+  field_min_onsite: "現地最低滞在時間",
+  stay_min_h: "{h}時間以上",
   conn_0: "直通のみ",
   conn_1: "乗り換え1回まで",
   conn_2: "乗り換え2回まで",

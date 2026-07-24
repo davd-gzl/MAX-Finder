@@ -54,6 +54,8 @@ export const ko: Dict = {
   field_trainType: "유형 / 노선",
   field_anyType: "전체",
   field_connections: "환승",
+  field_min_onsite: "현지 최소 체류 시간",
+  stay_min_h: "최소 {h}시간",
   conn_0: "직통만",
   conn_1: "최대 1회 환승",
   conn_2: "최대 2회 환승",

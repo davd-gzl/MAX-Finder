@@ -943,6 +943,8 @@ function syncFormFromQuery(): void {
   refs.hidden.checked = Boolean(query.hidden);
   refs.trainType.value = query.trainType ?? "";
   refs.maxConnections.value = String(query.maxConnections);
+  // Same-day min time on site: fall back to the default (4 h) when the query carries none.
+  refs.stayMin.value = String(query.stayMinHours ?? SAME_DAY_MIN_ON_SITE_MIN / 60);
   refs.overnight.checked = Boolean(query.overnight);
   refs.night.checked = !query.excludeNight; // checked = night trains included
   refs.onlyNight.checked = Boolean(query.onlyNight);
@@ -1011,6 +1013,13 @@ function readQueryFromForm(): SearchQuery {
   const formFlexible = tripType === "simple" && modeTakesStay && formApi.isFlexible();
   const formNights = rawNights !== null && modeTakesStay ? rawNights : null;
   const stay: StayChoice | undefined = formFlexible ? "flexible" : formNights !== null ? stayFromNights(formNights) : undefined;
+  // "Minimum time there" (hours) applies only to a same-day round trip; the default (4 h)
+  // is left implicit so it never clutters the URL — only a non-default choice is carried.
+  const rawStayMin = Number(refs.stayMin.value);
+  const stayMinHours =
+    stay === "sameday" && Number.isFinite(rawStayMin) && rawStayMin > 0 && rawStayMin !== SAME_DAY_MIN_ON_SITE_MIN / 60
+      ? rawStayMin
+      : undefined;
   const outDate = refs.date.value || query.date;
   // Flexible on an exact route keeps the return the user picked on the calendar (still in
   // window and on/after the outbound), else leaves it unset so the results page proposes one.
@@ -1032,6 +1041,7 @@ function readQueryFromForm(): SearchQuery {
     via: mode === "od" ? resolveStation(refs.via.value) : undefined,
     flexDays: refs.departDate.getMargin() || undefined,
     stay,
+    stayMinHours,
     returnDate,
     legs: legsMode
       ? formApi
@@ -2741,7 +2751,7 @@ function runTripSearch(c: RenderCtx): void {
       const list = findJourneys(trains, destination, origin, query.date, journeyOpts)
         .filter(passesVia)
         .filter(withinSpan)
-        .filter((j) => journeyArriveAbs(j) <= 24 * 60 && j.departMin >= arrAbs + SAME_DAY_MIN_ON_SITE_MIN)
+        .filter((j) => journeyArriveAbs(j) <= 24 * 60 && j.departMin >= arrAbs + sameDayMinOnSite)
         .sort((a, b) => b.departMin - a.departMin);
       return { list, sameDay: true, arrAbs };
     }
@@ -2844,6 +2854,11 @@ function runTripSearch(c: RenderCtx): void {
   // greens days that only have an overnight trip and labels them "N nights", so it lists days
   // with no same-day round trip at all. Use the hours metric for same-day, nights otherwise.
   const isSameDayTrip = query.stay != null && stayNights(query.stay) === 0;
+  // The minimum time on site for a same-day round trip: the user's "Minimum time there"
+  // choice (hours → minutes) when set, else the shared default. Gates the return list and
+  // drops stranding outbounds below.
+  const sameDayMinOnSite =
+    query.stayMinHours && query.stayMinHours > 0 ? query.stayMinHours * 60 : SAME_DAY_MIN_ON_SITE_MIN;
   const outCalOpts = { ...getawayOptsFor(query), ...connOpts };
   const outCal = stayCalendar(trains, origin, destination, windowDates, outCalOpts, isSameDayTrip ? "hours" : "nights");
   gradeNearby(outCal, origin, destination, windowDates);
@@ -2904,7 +2919,7 @@ function runTripSearch(c: RenderCtx): void {
   const outJourneys = findJourneys(trains, origin, destination, query.date, journeyOpts)
     .filter(passesVia)
     .filter(withinSpan)
-    .filter((j) => !isSameDayTrip || journeyArriveAbs(j) + SAME_DAY_MIN_ON_SITE_MIN <= latestSameDayReturnDepart)
+    .filter((j) => !isSameDayTrip || journeyArriveAbs(j) + sameDayMinOnSite <= latestSameDayReturnDepart)
     .sort((a, b) => journeyArriveAbs(a) - journeyArriveAbs(b) || a.totalDurationMin - b.totalDurationMin);
   chosenOutbound = outJourneys[0] ?? null;
 

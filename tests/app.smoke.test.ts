@@ -253,11 +253,10 @@ describe("app (jsdom smoke)", () => {
     // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.
     expect(root.textContent ?? "").not.toContain("Toulouse");
 
-    // Allow one change, then commit the field. Only maxConnections offers a "6" option,
-    // so it's uniquely identifiable among the form selects.
-    const conn = Array.from(root.querySelectorAll<HTMLSelectElement>(".search-form select.input")).find((s) =>
-      Array.from(s.options).some((o) => o.value === "6"),
-    );
+    // Allow one change, then commit the field. The connections select lives in its own
+    // full-width band (.connections-field), so target that rather than "the select with a
+    // 6 option" — the same-day minimum-time-there select also offers a 6 (hours).
+    const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input");
     expect(conn).toBeTruthy();
     conn!.value = "1";
     conn!.dispatchEvent(new Event("change", { bubbles: true }));
@@ -269,6 +268,27 @@ describe("app (jsdom smoke)", () => {
     expect(searchBtn).not.toBeNull();
     searchBtn.click();
     expect(root.textContent ?? "").toContain("Toulouse");
+  });
+
+  it("shows the 'minimum time there' control only for a same-day round trip", () => {
+    const onsiteField = (root: HTMLElement): HTMLElement | null =>
+      Array.from(root.querySelectorAll<HTMLElement>(".search-form .field")).find((f) =>
+        (f.textContent ?? "").includes("Minimum time there"),
+      ) ?? null;
+
+    // Same-day round trip (stay=day): the on-site minimum is meaningful, so it's shown.
+    const sameDay = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=day`);
+    const field = onsiteField(sameDay);
+    expect(field).not.toBeNull();
+    expect(field!.style.display).not.toBe("none");
+
+    // One-way (no stay): there is no return to gate, so the control is hidden.
+    const oneway = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`);
+    expect(onsiteField(oneway)!.style.display).toBe("none");
+
+    // A round trip WITH nights (stay=1) counts days, not hours on site — also hidden.
+    const nights = setup(`?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&stay=1`);
+    expect(onsiteField(nights)!.style.display).toBe("none");
   });
 
   it("keeps a staged filter when the results refresh in place (sort change)", () => {

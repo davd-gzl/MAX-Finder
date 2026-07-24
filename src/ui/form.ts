@@ -71,6 +71,9 @@ export interface FormRefs {
   hiddenField: HTMLElement;
   trainType: HTMLSelectElement;
   maxConnections: HTMLSelectElement;
+  /** Same-day round trip only: the minimum time on site (in hours) the user requires. */
+  stayMin: HTMLSelectElement;
+  stayMinField: HTMLElement;
   overnight: HTMLInputElement;
   night: HTMLInputElement;
   onlyNight: HTMLInputElement;
@@ -1015,6 +1018,16 @@ export function createForm(props: FormProps): FormHandle {
     optionEl("3", t("conn_3"), false),
     optionEl("6", t("conn_max"), false),
   ]) as HTMLSelectElement;
+  // Same-day round trip: how long you want on site before the return leaves (4 h default,
+  // shared with SAME_DAY_MIN_ON_SITE_MIN). Only shown for a same-day round trip.
+  const stayMin = el("select", { class: "input" }, [
+    optionEl("2", t("stay_min_h", { h: 2 }), false),
+    optionEl("3", t("stay_min_h", { h: 3 }), false),
+    optionEl("4", t("stay_min_h", { h: 4 }), true),
+    optionEl("6", t("stay_min_h", { h: 6 }), false),
+    optionEl("8", t("stay_min_h", { h: 8 }), false),
+  ]) as HTMLSelectElement;
+  const stayMinField = field(t("field_min_onsite"), stayMin, "field-wide");
   const overnight = el("input", { type: "checkbox" }) as HTMLInputElement;
   const overnightField = yesNoField(t("field_overnight"), overnight);
   // Night trains are INCLUDED by default (`checked` before any query syncs), so a fresh
@@ -1133,6 +1146,12 @@ export function createForm(props: FormProps): FormHandle {
     // wanted, so the ±flex stepper is hidden there (not silently zeroed) — one-way only.
     departDate.setFlexVisible(!roundTrip);
     syncShapeThumb();
+    syncStayMinField();
+  };
+  // "Minimum time there" only means something for a SAME-DAY round trip (a fixed 0-night
+  // return), on the single-trip tab — a stay with nights or a one-way has no on-site gate.
+  const syncStayMinField = (): void => {
+    stayMinField.style.display = currentTrip === "simple" && roundTrip && !flexible && nights === 0 ? "" : "none";
   };
   /** The current shape as a TripShape: one-way, Flexible (return picked on the calendar),
    *  or the fixed stay the nights imply. */
@@ -1476,6 +1495,7 @@ export function createForm(props: FormProps): FormHandle {
     regionField,
     legsBlock,
     stayField,
+    stayMinField,
     connectionsField,
     scopeField,
   ]);
@@ -1522,6 +1542,8 @@ export function createForm(props: FormProps): FormHandle {
     hiddenField,
     trainType,
     maxConnections,
+    stayMin,
+    stayMinField,
     overnight,
     night,
     onlyNight,

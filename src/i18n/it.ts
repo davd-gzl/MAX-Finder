@@ -54,6 +54,8 @@ export const it: Dict = {
   field_trainType: "Tipo / asse",
   field_anyType: "Tutti",
   field_connections: "Coincidenze",
+  field_min_onsite: "Tempo minimo sul posto",
+  stay_min_h: "almeno {h} h",
   conn_0: "Solo diretti",
   conn_1: "Max 1 cambio",
   conn_2: "Max 2 cambi",

@@ -54,6 +54,8 @@ export const zh: Dict = {
   field_trainType: "类型 / 线路",
   field_anyType: "全部",
   field_connections: "换乘",
+  field_min_onsite: "当地最短停留时间",
+  stay_min_h: "至少 {h} 小时",
   conn_0: "仅直达",
   conn_1: "最多换乘 1 次",
   conn_2: "最多换乘 2 次",

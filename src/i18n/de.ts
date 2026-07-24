@@ -54,6 +54,8 @@ export const de: Dict = {
   field_trainType: "Typ / Achse",
   field_anyType: "Alle",
   field_connections: "Umstiege",
+  field_min_onsite: "Mindestzeit vor Ort",
+  stay_min_h: "mindestens {h} h",
   conn_0: "Nur direkt",
   conn_1: "Max. 1 Umstieg",
   conn_2: "Max. 2 Umstiege",

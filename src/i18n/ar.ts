@@ -54,6 +54,8 @@ export const ar: Dict = {
   field_trainType: "النوع / المحور",
   field_anyType: "الكل",
   field_connections: "التغييرات",
+  field_min_onsite: "الحد الأدنى للوقت هناك",
+  stay_min_h: "{h} ساعة على الأقل",
   conn_0: "مباشرة فقط",
   conn_1: "تغيير واحد كحد أقصى",
   conn_2: "تغييران كحد أقصى",

@@ -54,6 +54,8 @@ export const nl: Dict = {
   field_trainType: "Type / as",
   field_anyType: "Alle",
   field_connections: "Overstappen",
+  field_min_onsite: "Minimale tijd ter plaatse",
+  stay_min_h: "minstens {h} u",
   conn_0: "Alleen rechtstreeks",
   conn_1: "Max. 1 overstap",
   conn_2: "Max. 2 overstappen",

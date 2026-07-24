@@ -56,6 +56,8 @@ export const en: Dict = {
   field_trainType: "Type / line",
   field_anyType: "Any",
   field_connections: "Connections",
+  field_min_onsite: "Minimum time there",
+  stay_min_h: "at least {h} h",
   conn_0: "Direct only",
   conn_1: "1 change max",
   conn_2: "2 changes max",
