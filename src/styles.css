@@ -2077,12 +2077,7 @@ a {
   cursor: pointer;
   transition: border-color 0.1s;
 }
-/* Read-only heat-map cells (Ideas/discovery): a "which days are feasible" overview, not a
-   picker — no pointer affordance, no hover lift. */
-.cal-cell.cal-readonly {
-  cursor: default;
-}
-.cal-cell:not(.cal-readonly):hover {
+.cal-cell:hover {
   border-color: var(--text);
 }
 /* Weekday label sits above the day number in each cell. */
@@ -3254,6 +3249,32 @@ select.input::-ms-expand {
 .dest-main > .dest-meta {
   align-self: center;
   padding: 0 8px;
+}
+/* Getaway/discovery card: NAME on its own line, chips wrap below — so the city name always
+   reads in full even when the metric + days + travel chips are wide (phone). The card keeps
+   its right-side arrow stub: only the name/chips stack, the .dest-main row itself never wraps. */
+.dest-main-stacked {
+  flex-wrap: nowrap;
+}
+.dest-main > .dest-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  padding: 8px 10px;
+}
+.dest-main > .dest-body > .dest-name {
+  flex: none;
+  white-space: normal; /* phones never truncate a name — a long one wraps in full */
+  overflow: visible;
+  text-overflow: clip;
+}
+.dest-main > .dest-body > .dest-meta {
+  flex: none;
+  flex-wrap: wrap;
+  padding: 0;
 }
 .dest-main > .chev {
   align-self: stretch;

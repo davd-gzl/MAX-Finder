@@ -1941,18 +1941,7 @@ function runGetaways(c: RenderCtx, origin: string): void {
   const { trains } = deps;
   refs.title.textContent = t("rt_finder_title");
   const windowDates = discoveryWindow();
-  const { trips, perDay, datesByDest } = getawayIdeas(trains, origin, windowDates, getawayOpts());
-  // The possible-days calendar: a green day is one you can START a round trip on, its number
-  // the count of distinct reachable destinations. READ-ONLY — discovery is a "what's possible"
-  // overview, so a day never filters the list; the list always shows the whole window.
-  refs.results.append(
-    render.calendarEl(perDay, c, undefined, {
-      title: t("getaway_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
-      readOnly: true,
-    }),
-  );
+  const { trips, datesByDest } = getawayIdeas(trains, origin, windowDates, getawayOpts());
   const shown = trips;
   if (shown.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")));
@@ -1988,17 +1977,7 @@ function runReverseGetaways(c: RenderCtx, destination: string): void {
   const { trains, registry } = deps;
   refs.title.textContent = t("rt_reverse_title", { station: registry.label(destination) });
   const windowDates = discoveryWindow();
-  const { trips, perDay, datesByDest } = reverseGetawayIdeas(trains, destination, windowDates, getawayOpts());
-  // READ-ONLY heat-map: a green day is one you can start a round trip INTO `destination` on,
-  // its number the count of distinct origins. Informational only — never filters the list.
-  refs.results.append(
-    render.calendarEl(perDay, c, undefined, {
-      title: t("getaway_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_origin"),
-      readOnly: true,
-    }),
-  );
+  const { trips, datesByDest } = reverseGetawayIdeas(trains, destination, windowDates, getawayOpts());
   // `trip.destination` here names the discovered ORIGIN (reverseGetawayIdeas relabels it).
   const shown = trips;
   if (shown.length === 0) {
@@ -2264,29 +2243,7 @@ function runBestSearch(c: RenderCtx): void {
   // Ideas is a "where can I go from here" overview across the WHOLE booking window — every
   // destination reachable on any day, best trip each.
   refs.title.textContent = t("best_title_all", { station: registry.label(query.origin) });
-  const inRegion = (d: string): boolean =>
-    !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
-  // READ-ONLY heat-map: how many destinations are reachable each day (connection-aware, so it
-  // matches the list). Informational only — Ideas never narrows to a single day; the list
-  // always shows the whole window.
-  const cal = reachableCountCalendar(
-    trains,
-    query.origin,
-    window,
-    { ...filterOpts(), maxConnections: query.maxConnections },
-    "from",
-    inRegion,
-  );
-  refs.results.append(
-    render.calendarEl(cal, c, undefined, {
-      title: t("best_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
-      readOnly: true,
-    }),
-  );
-
   const opts = { ...filterOpts(), maxConnections: query.maxConnections };
   let trips: BestTrip[] = bestTripsAcrossWindow(trains, query.origin, window, opts);
   if (query.region) {
@@ -2340,18 +2297,7 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
   const inRegion = (d: string): boolean => !query.region || registry.get(d)?.region === query.region;
   const window = dateRange(today, BOOKING_WINDOW_DAYS);
   const opts = getawayOpts();
-  // One whole-window scan drives the READ-ONLY by-day heat-map (round trips startable each
-  // day) so the calendar matches the round-trip list — a green day is one you can actually
-  // start a getaway on, its number how many. Informational only: it never narrows the list.
   const whole = getawayIdeas(trains, origin, window, opts, inRegion);
-  refs.results.append(
-    render.calendarEl(whole.perDay, c, undefined, {
-      title: t("getaway_cal_title"),
-      count: (n) => t("best_cal_count", { n }),
-      countLegend: t("cal_legend_dest"),
-      readOnly: true,
-    }),
-  );
   const trips = whole.trips;
   if (trips.length === 0) {
     refs.results.append(render.emptyEl(t("getaway_none")), render.hintEl(t("getaway_none_hint")));

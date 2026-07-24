@@ -132,7 +132,6 @@ export const nl: Dict = {
   act_fav_add: "Aan favorieten toevoegen",
   act_fav_remove: "Uit favorieten verwijderen",
   cal_title: "Beschikbaarheid over 30 dagen",
-  best_cal_title: "Bestemmingen per dag",
   best_cal_count: "{n} bestemming(en)",
   cal_legend: "groen = MAX-plaats beschikbaar",
   cal_nearby: "bereikbaar via een nabijgelegen station",

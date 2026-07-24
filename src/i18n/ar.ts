@@ -132,7 +132,6 @@ export const ar: Dict = {
   act_fav_add: "أضف إلى المفضلة",
   act_fav_remove: "أزل من المفضلة",
   cal_title: "التوفر خلال 30 يومًا",
-  best_cal_title: "الوجهات حسب اليوم",
   best_cal_count: "{n} وجهة",
   cal_legend: "أخضر = مقعد MAX متاح",
   cal_nearby: "يمكن الوصول عبر محطة قريبة",

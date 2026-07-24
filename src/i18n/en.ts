@@ -139,7 +139,6 @@ export const en: Dict = {
   act_fav_remove: "Remove from favorites",
 
   cal_title: "30-day availability",
-  best_cal_title: "Destinations by day",
   best_cal_count: "{n} destination(s)",
   cal_legend: "green = MAX seat available",
   cal_nearby: "reachable via a nearby station",
