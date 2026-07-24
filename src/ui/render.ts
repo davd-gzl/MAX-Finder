@@ -167,37 +167,54 @@ export function journeySummaryEl(j: Journey, ctx: RenderCtx): HTMLElement {
   ]);
 }
 
-/** External travel-guide link styled as a button (matches the Save button). */
-export function guideButtonEl(ctx: RenderCtx, stationId: string): HTMLElement {
+/**
+ * External travel-guide (Wikivoyage) link for a station's city. `variant: "button"`
+ * styles it as a ghost button with the icon leading (matches the Save button);
+ * `variant: "link"` is an inline linklike with the icon trailing the label.
+ */
+export function guideEl(ctx: RenderCtx, stationId: string, variant: "button" | "link" = "link"): HTMLElement {
+  const label = el("span", { text: t("act_guide") });
+  const ext = icon(I.external);
+  const newtab = el("span", { class: "sr-only", text: t("link_newtab") });
   return el(
     "a",
     {
-      class: "btn btn-ghost",
+      class: variant === "button" ? "btn btn-ghost" : "linklike",
       href: ctx.cityInfoUrl(stationId),
       attrs: { target: "_blank", rel: "noopener noreferrer" },
     },
-    [icon(I.external), el("span", { text: t("act_guide") }), el("span", { class: "sr-only", text: t("link_newtab") })],
-  );
-}
-
-/** External travel-guide (Wikivoyage) link for a station's city. */
-export function guideLinkEl(ctx: RenderCtx, stationId: string): HTMLElement {
-  return el(
-    "a",
-    {
-      class: "linklike",
-      href: ctx.cityInfoUrl(stationId),
-      attrs: { target: "_blank", rel: "noopener noreferrer" },
-    },
-    [
-      el("span", { text: t("act_guide") }),
-      icon(I.external),
-      el("span", { class: "sr-only", text: t("link_newtab") }),
-    ],
+    variant === "button" ? [ext, label, newtab] : [label, ext, newtab],
   );
 }
 
 // Paris intra-muros is a single aggregate in the SNCF open data, but a train's axe
+/**
+ * A calendar tucked behind a one-tap "… · Changer" summary toggle: collapsed by
+ * default on results screens (only the form calendar opens up front). Returns the
+ * wrapper `host`, the `toggle` button, and a `setLabel` to (re)write its summary
+ * text. Replaces the outbound / return / getaway calendars' hand-duplicated copies.
+ */
+export function collapsibleCalendar(
+  calNode: HTMLElement,
+  wrapClass = "cal-collapsible",
+): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void } {
+  const panel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [calNode]);
+  const toggle = el("button", {
+    class: "cal-toggle linklike",
+    type: "button",
+    attrs: { "aria-expanded": "false" },
+    on: {
+      click: () => {
+        const opening = panel.hasAttribute("hidden");
+        panel.toggleAttribute("hidden", !opening);
+        toggle.setAttribute("aria-expanded", String(opening));
+      },
+    },
+  });
+  const host = el("div", { class: wrapClass }, [toggle, panel]);
+  return { host, toggle, setLabel: (text: string) => (toggle.textContent = text) };
+}
+
 // pins which terminus gare it actually uses. Map the main TGV axes; other axes
 // (Intercités, international, night) stay as the plain "Paris" — better a city than
 // a wrong gare. The mapping only applies on a concrete journey leg (where the axe is
@@ -1198,7 +1215,7 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
     // Save the trip + a travel guide for the destination city (what to do once there).
     el("div", { class: "trip-view-actions" }, [
       tripSaveBtn(outbound, ctx, inbound),
-      guideButtonEl(ctx, outbound.destination),
+      guideEl(ctx, outbound.destination, "button"),
     ]),
   );
   return view;

@@ -6,7 +6,7 @@ import { filterTrains } from "../src/core/search";
 import { reachableDestinations, reachableOrigins } from "../src/core/destinations";
 import { findJourneys, bestJourney, reachableJourneys, latestReturns } from "../src/core/connections";
 import { availabilityCalendar, reachableCountCalendar } from "../src/core/calendar";
-import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
+import { bestTripsAcrossWindow, stationsOnDate, reachableBest } from "../src/core/best";
 import { getaways, getawayIdeas, getawaysAcrossWindow, reverseGetawayIdeas, stayCalendar } from "../src/core/getaways";
 import { planTours, planTourInOrder, planTourGreedy } from "../src/core/tour";
 import { haversineKm } from "../src/util/geo";
@@ -258,23 +258,24 @@ describe("reachableCountCalendar dir:'to' (destination-only browse-by-arrival)",
   });
 });
 
-describe("bestTrips", () => {
+describe("reachableBest dir:'from' (single-day ideas)", () => {
   it("ranks reachable destinations by shortest total time, including connection-only ones", () => {
-    const trips = bestTrips(
+    const trips = reachableBest(
       trains,
       "PARIS (intramuros)",
       "2026-06-25",
       stationsOnDate(trains, "2026-06-25"),
       { maxConnections: 1 },
+      "from",
     );
     expect(trips.length).toBeGreaterThan(0);
-    expect(trips[0]!.destination).toBe("LILLE"); // 1h02 — the shortest hop
+    expect(trips[0]!.station).toBe("LILLE"); // 1h02 — the shortest hop
     for (let i = 1; i < trips.length; i++) {
       expect(trips[i]!.journey.totalDurationMin).toBeGreaterThanOrEqual(
         trips[i - 1]!.journey.totalDurationMin,
       );
     }
-    const toulouse = trips.find((tr) => tr.destination === "TOULOUSE MATABIAU");
+    const toulouse = trips.find((tr) => tr.station === "TOULOUSE MATABIAU");
     expect(toulouse).toBeDefined();
     expect(toulouse!.journey.legs.length).toBe(2); // only reachable via a change
   });

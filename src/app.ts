@@ -9,7 +9,7 @@ import {
   windowStats,
 } from "./core/destinations";
 import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
-import { bestTrips, bestTripsAcrossWindow, stationsOnDate, reachableBest, type ReachTrip } from "./core/best";
+import { bestTripsAcrossWindow, stationsOnDate, reachableBest, type BestTrip, type ReachTrip } from "./core/best";
 import { getawayIdeas, reverseGetawayIdeas, stayCalendar } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
 import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, journeyArriveAbs, toJourney, MAX_RESULTS } from "./core/connections";
@@ -2360,9 +2360,12 @@ function runBestSearch(c: RenderCtx): void {
   }
 
   const opts = { ...filterOpts(), maxConnections: query.maxConnections };
-  let trips = allDays
+  let trips: BestTrip[] = allDays
     ? bestTripsAcrossWindow(trains, query.origin, window, opts)
-    : bestTrips(trains, query.origin, query.date, stationsOnDate(trains, query.date), opts);
+    : reachableBest(trains, query.origin, query.date, stationsOnDate(trains, query.date), opts, "from").map((r) => ({
+        destination: r.station,
+        journey: r.journey,
+      }));
   if (query.region) {
     trips = trips.filter((tr) => registry.get(tr.destination)?.region === query.region);
   }
@@ -2554,7 +2557,7 @@ function runOdSearch(c: RenderCtx): void {
     destination: registry.label(query.destination),
     date: formatDate(query.date),
   });
-  refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, query.destination)]));
+  refs.results.append(el("p", { class: "od-guide" }, [render.guideEl(c, query.destination, "link")]));
 
   const { connOpts, passesVia } = odConnOpts(query.origin, query.destination);
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
@@ -2575,22 +2578,9 @@ function runOdSearch(c: RenderCtx): void {
   // COLLAPSED by default here too — re-showing the whole strip read as asking the date
   // twice. A one-tap "Départ : … · Changer" summary reveals it to switch days or scan
   // availability, mirroring the round-trip outbound calendar's collapse pattern.
-  const odCalEl = render.calendarEl(cal, c, query.date);
-  const odCalPanel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [odCalEl]);
-  const odCalToggle = el("button", {
-    class: "cal-toggle linklike",
-    type: "button",
-    text: t("outbound_change", { date: formatDate(query.date) }),
-    attrs: { "aria-expanded": "false" },
-    on: {
-      click: () => {
-        const opening = odCalPanel.hasAttribute("hidden");
-        odCalPanel.toggleAttribute("hidden", !opening);
-        odCalToggle.setAttribute("aria-expanded", String(opening));
-      },
-    },
-  });
-  refs.results.append(el("div", { class: "cal-collapsible" }, [odCalToggle, odCalPanel]));
+  const odCal = render.collapsibleCalendar(render.calendarEl(cal, c, query.date));
+  odCal.setLabel(t("outbound_change", { date: formatDate(query.date) }));
+  refs.results.append(odCal.host);
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   const withinSpan = (j: Journey): boolean => !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
@@ -2738,7 +2728,7 @@ function runTripSearch(c: RenderCtx): void {
     out: formatDate(query.date),
     ret: formatDate(proposed),
   });
-  refs.results.append(el("p", { class: "od-guide" }, [render.guideLinkEl(c, destination)]));
+  refs.results.append(el("p", { class: "od-guide" }, [render.guideEl(c, destination, "link")]));
   // A one-line conclusion of the whole round trip — nights away (or "same day") + total
   // travel time — kept in step with the chosen outbound/return by updateTripTotal() (assigned
   // once the outbound list exists; the return-list renderer calls it on every return change).
@@ -2881,27 +2871,15 @@ function runTripSearch(c: RenderCtx): void {
   // re-showing the whole strip re-asks the date). FLEXIBLE keeps it OPEN — there the calendar
   // IS the return-length control, so the user must see it to pick the day.
   const retFlexible = query.stay === "flexible";
-  const retCalPanel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [retCalHost]);
-  const retCalToggle = el("button", {
-    class: "cal-toggle linklike",
-    type: "button",
-    attrs: { "aria-expanded": "false" },
-    on: {
-      click: () => {
-        const opening = retCalPanel.hasAttribute("hidden");
-        retCalPanel.toggleAttribute("hidden", !opening);
-        retCalToggle.setAttribute("aria-expanded", String(opening));
-      },
-    },
-  });
+  const retCalUI = render.collapsibleCalendar(retCalHost, "od-return-cal");
   const updateRetToggle = (retDate: string): void => {
-    retCalToggle.textContent = t("return_change", { date: formatDate(retDate) });
+    retCalUI.setLabel(t("return_change", { date: formatDate(retDate) }));
   };
   // Results screen: EVERY calendar is collapsed by default — including the Flexible return
   // (only the initial form calendar opens by default). The return was already picked on the
   // form's départ→retour range; the "Retour : … · Changer" summary reveals it to adjust.
   body1.append(
-    el("div", { class: "od-return-cal" }, [retCalToggle, retCalPanel]),
+    retCalUI.host,
     el("section", { class: "od-return" }, [el("h3", { text: t("ret_title") }), retList]),
   );
   let selectReturn: (retDate: string) => void = () => {};
@@ -3036,21 +3014,9 @@ function runTripSearch(c: RenderCtx): void {
   // COLLAPSED by default — it re-asking the date is what read as a duplicate. A one-tap
   // summary ("Départ : … · Changer") reveals it to switch days or scan availability
   // (David's refinement: the calendar stays, but hides once a date is picked).
-  const outCalPanel = el("div", { class: "cal-panel", attrs: { hidden: "" } }, [outCalEl]);
-  const outCalToggle = el("button", {
-    class: "cal-toggle linklike",
-    type: "button",
-    text: t("outbound_change", { date: formatDate(query.date) }),
-    attrs: { "aria-expanded": "false" },
-    on: {
-      click: () => {
-        const opening = outCalPanel.hasAttribute("hidden");
-        outCalPanel.toggleAttribute("hidden", !opening);
-        outCalToggle.setAttribute("aria-expanded", String(opening));
-      },
-    },
-  });
-  const outCalCollapse = el("div", { class: "cal-collapsible" }, [outCalToggle, outCalPanel]);
+  const outCalUI = render.collapsibleCalendar(outCalEl);
+  outCalUI.setLabel(t("outbound_change", { date: formatDate(query.date) }));
+  const outCalCollapse = outCalUI.host;
 
   const outJourneys = findJourneys(trains, origin, destination, query.date, journeyOpts)
     .filter(passesVia)
@@ -3579,43 +3545,39 @@ function ensureMap(): Promise<RouteMap> {
   return mapPromise;
 }
 
-function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>): void {
+/**
+ * Run an action against the (lazily-imported) map, then repaint it once — the shared
+ * body of every show* helper. If the map is disabled (low-end mode) ensureMap rejects
+ * and the action is silently skipped, so callers never branch on it.
+ */
+function withMap(fn: (m: RouteMap) => void): void {
   ensureMap()
     .then((m) => {
-      m.setInfo(info ?? new Map());
-      m.show(hub, [...new Set(others)]);
+      fn(m);
       requestAnimationFrame(() => m.invalidate());
     })
     .catch(() => {});
 }
 
+function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>): void {
+  withMap((m) => {
+    m.setInfo(info ?? new Map());
+    m.show(hub, [...new Set(others)]);
+  });
+}
+
 function showRoute(stations: string[]): void {
-  ensureMap()
-    .then((m) => {
-      m.route(stations);
-      requestAnimationFrame(() => m.invalidate());
-    })
-    .catch(() => {});
+  withMap((m) => m.route(stations));
 }
 
 /** Reset the map to the bare France basemap (no markers) — the pre-search state. */
 function showBaseMap(): void {
-  ensureMap()
-    .then((m) => {
-      m.base();
-      requestAnimationFrame(() => m.invalidate());
-    })
-    .catch(() => {});
+  withMap((m) => m.base());
 }
 
 /** Overlay radius circles + nearby-station markers on the current route map. */
 function showRadius(centers: { id: string; km: number }[], nearby: string[]): void {
-  ensureMap()
-    .then((m) => {
-      m.radius(centers, nearby);
-      requestAnimationFrame(() => m.invalidate());
-    })
-    .catch(() => {});
+  withMap((m) => m.radius(centers, nearby));
 }
 
 /** Open the destination matching a clicked map marker — navigates to its calendar. */
