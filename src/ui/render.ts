@@ -22,7 +22,10 @@ export interface RenderCtx {
   bookUrl: (origin: string, destination: string, date: string, time?: string) => string;
   /** External travel-guide (Wikivoyage) URL for a station's city. */
   cityInfoUrl: (id: string) => string;
-  onOpenRoute: (origin: string, destination: string) => void;
+  /** Open the exact O→D trip. A getaway idea passes `open.date` — its advertised start day —
+   *  so the round trip opens on a day it's actually feasible, not one anchored on today (which
+   *  may have only an outbound and no return). */
+  onOpenRoute: (origin: string, destination: string, open?: { date?: string }) => void;
   /** Draw a specific journey (origin → interchanges → destination) on the map. */
   onShowJourney: (journey: Journey) => void;
   /** Draw a whole multi-city tour (every stop) on the map. */
@@ -657,7 +660,9 @@ export function getawayCityRowEl(
       class: "dest-main dest-main-stacked",
       type: "button",
       attrs: { "aria-label": `${ctx.label(named)} — ${opts.metric ?? summary}` },
-      on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest) },
+      // Open on the idea's OWN start day (its best there-and-back), so the round trip is
+      // feasible — not anchored on today, which may have only an outbound and no return.
+      on: { click: () => ctx.onOpenRoute(routeOrigin, routeDest, { date: trip.outbound.date }) },
     },
     [
       // Stack the city NAME on its own line above the chips, so a busy row (hours-on-site +

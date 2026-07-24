@@ -804,12 +804,16 @@ function ctx(): RenderCtx {
     bookUrl: (origin, destination, date, time) =>
       generateBookingUrl(deps.registry.label(origin), deps.registry.label(destination), date, time),
     cityInfoUrl,
-    onOpenRoute: (origin, destination) => {
+    onOpenRoute: (origin, destination, open) => {
       // Drop any "via" carried over from a previous exact-trip search: drilling into
       // a specific route (often a connecting one) shouldn't be filtered through an
       // unrelated hub, which would force it through a station it doesn't pass and
-      // show nothing.
-      query = { ...query, mode: "od", origin, destination, via: undefined };
+      // show nothing. A getaway idea passes its own start day (open.date) so the round
+      // trip opens on a day it's actually feasible — not today, which may have only an
+      // outbound and no return (the "click a same-day idea, get no round trip" dead end).
+      const date = open?.date ?? query.date;
+      const returnDate = open?.date && query.returnDate ? undefined : query.returnDate;
+      query = { ...query, mode: "od", origin, destination, via: undefined, date, returnDate };
       syncFormFromQuery();
       // Push a browser entry marked as a DETAIL page: the list stays one Back away, and the
       // in-app Retour shows. The browser history is the single back-stack.
