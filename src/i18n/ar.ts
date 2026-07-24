@@ -209,6 +209,7 @@ export const ar: Dict = {
   daytrip_onsite: "{dur} في الموقع",
   daytrip_onsite_hint: "الوقت في المدينة، بين الوصول ومغادرة العودة.",
   daytrip_travel: "{dur} سفر",
+  daytrip_travel_hint: "إجمالي وقت السفر ذهابًا وإيابًا.",
   daytrip_out: "ذهاب",
   daytrip_back: "إياب",
 

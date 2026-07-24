@@ -210,6 +210,7 @@ export const ko: Dict = {
   daytrip_onsite: "현지 {dur}",
   daytrip_onsite_hint: "도착부터 귀가 출발까지 도시에서 보내는 시간.",
   daytrip_travel: "이동 {dur}",
+  daytrip_travel_hint: "왕복 총 이동 시간입니다.",
   daytrip_out: "가는 편",
   daytrip_back: "오는 편",
 

@@ -209,6 +209,7 @@ export const nl: Dict = {
   daytrip_onsite: "{dur} ter plaatse",
   daytrip_onsite_hint: "Tijd in de stad, tussen aankomst en de terugreis.",
   daytrip_travel: "{dur} reizen",
+  daytrip_travel_hint: "Totale reistijd heen en terug.",
   daytrip_out: "Heen",
   daytrip_back: "Terug",
 

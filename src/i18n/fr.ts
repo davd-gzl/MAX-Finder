@@ -221,6 +221,7 @@ export const fr = {
   daytrip_onsite: "{dur} sur place",
   daytrip_onsite_hint: "Temps dans la ville, entre l'arrivée et le départ du retour.",
   daytrip_travel: "{dur} de trajet",
+  daytrip_travel_hint: "Temps de trajet aller-retour total.",
   daytrip_out: "Aller",
   daytrip_back: "Retour",
   nights_sameday: "Journée",

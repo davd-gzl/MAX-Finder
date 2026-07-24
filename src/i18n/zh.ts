@@ -209,6 +209,7 @@ export const zh: Dict = {
   daytrip_onsite: "当地 {dur}",
   daytrip_onsite_hint: "在城市停留的时间，从到达至返程出发。",
   daytrip_travel: "行程 {dur}",
+  daytrip_travel_hint: "往返总旅行时间。",
   daytrip_out: "去程",
   daytrip_back: "返程",
 

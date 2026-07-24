@@ -697,9 +697,17 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
   const head = el("div", { class: "daytrip-head" }, [
     favStarEl(route, ctx),
     stationNameEl("dest-name", trip.destination, ctx.label(trip.destination)),
-    // Rows on a city's page differ by start day, so it always leads.
+    // Rows on a city's page differ by start day, so it always leads. A multi-night stay
+    // shows the whole span (out – back) so the return day is visible without arithmetic.
     ...(opts.showDate
-      ? [el("span", { class: "daytrip-date", text: ctx.formatDate(trip.outbound.date) })]
+      ? [
+          el("span", {
+            class: "daytrip-date",
+            text: sameDay
+              ? ctx.formatDate(trip.outbound.date)
+              : `${ctx.formatDate(trip.outbound.date)} – ${ctx.formatDate(trip.back.date)}`,
+          }),
+        ]
       : []),
     ...(sameDay
       ? []
@@ -711,7 +719,7 @@ export function getawayRowEl(trip: Getaway, ctx: RenderCtx, opts: { showDate?: b
     el("span", {
       class: "chip chip-onsite",
       text: headlineText,
-      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("getaway_nights_hint") },
+      attrs: { title: sameDay ? t("daytrip_onsite_hint") : t("daytrip_travel_hint") },
     }),
   ]);
   // One action row for the whole card, after both legs. Every button therefore acts

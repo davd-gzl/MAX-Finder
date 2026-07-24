@@ -222,6 +222,7 @@ export const en: Dict = {
   daytrip_onsite: "{dur} on site",
   daytrip_onsite_hint: "Time in the city, between arrival and the return departure.",
   daytrip_travel: "{dur} travel",
+  daytrip_travel_hint: "Total round-trip travel time (there and back).",
   daytrip_out: "Out",
   daytrip_back: "Back",
 

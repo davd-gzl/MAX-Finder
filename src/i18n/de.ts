@@ -210,6 +210,7 @@ export const de: Dict = {
   daytrip_onsite: "{dur} vor Ort",
   daytrip_onsite_hint: "Zeit in der Stadt, zwischen Ankunft und Rückfahrt.",
   daytrip_travel: "{dur} Fahrt",
+  daytrip_travel_hint: "Gesamte Reisezeit für Hin- und Rückfahrt.",
   daytrip_out: "Hin",
   daytrip_back: "Zurück",
 

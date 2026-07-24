@@ -2004,6 +2004,7 @@ function runGetaways(c: RenderCtx, origin: string): void {
   showMap(
     origin,
     shown.map((trip) => trip.destination),
+    reachInfo(shown.map((trip) => ({ station: trip.destination, connections: trip.outbound.legs.length - 1 }))),
   );
 }
 
@@ -2071,6 +2072,7 @@ function runReverseGetaways(c: RenderCtx, destination: string): void {
   showMap(
     destination,
     shown.map((trip) => trip.destination),
+    reachInfo(shown.map((trip) => ({ station: trip.destination, connections: trip.outbound.legs.length - 1 }))),
   );
 }
 
@@ -2396,7 +2398,11 @@ function runBestSearch(c: RenderCtx): void {
     ),
   );
   appendInChunks(refs.results, sorted, (tr) => render.bestTripRowEl(tr, c, stats.get(tr.destination)?.trains));
-  showMap(query.origin, sorted.map((tr) => tr.destination));
+  showMap(
+    query.origin,
+    sorted.map((tr) => tr.destination),
+    reachInfo(sorted.map((tr) => ({ station: tr.destination, connections: tr.journey.legs.length - 1 }))),
+  );
 }
 
 /**
@@ -2470,7 +2476,11 @@ function runBestGetaways(c: RenderCtx, origin: string): void {
   // Render incrementally (like browse/best) so a busy hub's long list never blocks the
   // main thread in one go — the first rows paint immediately, the rest fill in per frame.
   appendInChunks(refs.results, sorted, (trip) => render.getawayRowEl(trip, c, { showDate: true }));
-  showMap(origin, sorted.map((trip) => trip.destination));
+  showMap(
+    origin,
+    sorted.map((trip) => trip.destination),
+    reachInfo(sorted.map((trip) => ({ station: trip.destination, connections: trip.outbound.legs.length - 1 }))),
+  );
 }
 
 // via-aware connection options for an exact route, shared by BOTH legs of a round
@@ -3626,6 +3636,17 @@ function withMap(fn: (m: RouteMap) => void): void {
       requestAnimationFrame(() => m.invalidate());
     })
     .catch(() => {});
+}
+
+/**
+ * Build the per-pin MarkerInfo for a discovery map so the reachability heat-map lights up:
+ * each destination pin (and its spoke) is tinted by how many changes it takes — direct
+ * (green), one change (amber), two (red) — instead of every pin reading the same flat green.
+ */
+function reachInfo(items: { station: string; connections: number }[]): Map<string, MarkerInfo> {
+  const m = new Map<string, MarkerInfo>();
+  for (const it of items) m.set(it.station, { title: deps.registry.label(it.station), connections: it.connections });
+  return m;
 }
 
 function showMap(hub: string, others: string[], info?: Map<string, MarkerInfo>): void {

@@ -209,6 +209,7 @@ export const ja: Dict = {
   daytrip_onsite: "現地 {dur}",
   daytrip_onsite_hint: "到着から復路出発までの、街での滞在時間。",
   daytrip_travel: "移動 {dur}",
+  daytrip_travel_hint: "往復の合計移動時間。",
   daytrip_out: "往路",
   daytrip_back: "復路",
 
