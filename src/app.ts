@@ -3120,11 +3120,37 @@ function runTripSearch(c: RenderCtx): void {
     }
     return false;
   };
+  // On a SAME-DAY trip the whole point is time on site, and an earlier departure buys more of
+  // it — so annotate each outbound with the hours it leaves you (the latest return after it
+  // arrives). On a multi-night trip the nights are the same for every outbound, so no per-row
+  // label. An outbound with no same-day return home shows none (its day already gated by the
+  // feasibility-graded calendar above).
+  const sameDayTrip = (odReturnDate ?? proposed) === query.date;
+  const sameDayReturns = sameDayTrip
+    ? findJourneys(trains, destination, origin, query.date, journeyOpts)
+        .filter(passesVia)
+        .filter(withinSpan)
+        .filter((j) => journeyArriveAbs(j) <= 24 * 60)
+    : [];
+  const outboundStayLabel = (j: Journey): string | undefined => {
+    if (!sameDayTrip) return undefined;
+    const arr = journeyArriveAbs(j);
+    let latest = -1;
+    for (const r of sameDayReturns) if (r.departMin >= arr && r.departMin > latest) latest = r.departMin;
+    return latest < 0 ? undefined : t("daytrip_cal_hours", { h: Math.round((latest - arr) / 60) });
+  };
   if (outJourneys.length === 0) {
     body0.append(render.emptyEl(t("res_none")), render.hintEl(t("res_none_hint")));
   } else {
     for (const j of outJourneys)
-      body0.append(render.journeyEl(j, c, { selected: j === chosenOutbound, onPick: pickOutbound, onArrow: pickOutbound }));
+      body0.append(
+        render.journeyEl(j, c, {
+          selected: j === chosenOutbound,
+          onPick: pickOutbound,
+          onArrow: pickOutbound,
+          dateLabel: outboundStayLabel(j),
+        }),
+      );
   }
 
   const outName = t("rt_outbound");
