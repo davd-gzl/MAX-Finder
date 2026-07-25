@@ -71,6 +71,24 @@ describe("URL deep-link round-trip", () => {
     expect(q.maxConnections).toBe(1);
   });
 
+  it("treats the hidden-train toggle as ON by default (absent param → on), off only for hidden=0", () => {
+    // The bug: a bare exact-trip deep-link (no hidden=1) parsed hidden as undefined, so the
+    // on-by-default hidden-train section silently never appeared. Absence must mean ON.
+    expect(queryFromParams(new URLSearchParams("mode=od"), "2026-06-25").hidden).toBe(true);
+    // A legacy hidden=1 link stays on.
+    expect(queryFromParams(new URLSearchParams("mode=od&hidden=1"), "2026-06-25").hidden).toBe(true);
+    // Only an explicit hidden=0 turns it off (so the OFF choice can persist in a URL).
+    expect(queryFromParams(new URLSearchParams("mode=od&hidden=0"), "2026-06-25").hidden).toBeUndefined();
+    // Serialize only writes the OFF state; the default (on) stays out of the URL.
+    const on = queryToParams({ mode: "od", date: "2026-06-25", card: "jeune", maxConnections: 1, hidden: true } as SearchQuery);
+    expect(on.has("hidden")).toBe(false);
+    const off = queryToParams({ mode: "od", date: "2026-06-25", card: "jeune", maxConnections: 1 } as SearchQuery);
+    expect(off.get("hidden")).toBe("0");
+    // Round-trips: off stays off, on stays on.
+    expect(queryFromParams(off, "2026-06-25").hidden).toBeUndefined();
+    expect(queryFromParams(on, "2026-06-25").hidden).toBe(true);
+  });
+
   it("clamps an out-of-range URL flex to the max instead of dropping it", () => {
     // A shared link asking for more than the stepper allows should mean "the widest
     // window" (7), not silently fall back to no flexibility (0/undefined).

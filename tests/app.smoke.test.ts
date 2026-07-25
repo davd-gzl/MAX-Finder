@@ -664,6 +664,22 @@ describe("app (jsdom smoke)", () => {
     expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
   });
 
+  it("auto-opens the return calendar when the come-back day has no free-MAX return", () => {
+    // Paris → Lille exists in the fixture, but no Lille → Paris does, so the round trip's
+    // return leg is empty. Rather than a dead-end "Retour : … · Changer" summary hiding an
+    // empty list, the return calendar opens by default so the workable days are one tap away.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LILLE")}&date=2026-06-25&rt=day`,
+    );
+    const retStrip = root.querySelector(".od-return-cal");
+    expect(retStrip).not.toBeNull();
+    // The calendar panel is OPEN (not hidden) despite this being a fixed same-day stay.
+    expect(retStrip!.querySelector(".cal-panel")?.hasAttribute("hidden")).toBe(false);
+    // The return leg itself is expanded, and the empty-return message is shown.
+    expect(retStrip!.closest(".mc-result")?.classList.contains("mc-collapsed")).toBe(false);
+    expect(root.querySelector(".return-list .empty")).not.toBeNull();
+  });
+
   it("collapses the results return calendar by default in Flexible too, behind a toggle", () => {
     const root = setup(
       `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25&rt=round`,

@@ -230,7 +230,11 @@ export function queryToParams(q: SearchQuery): URLSearchParams {
   if (q.origin) p.set("from", q.origin);
   if (q.destination) p.set("to", q.destination);
   if (q.via) p.set("via", q.via);
-  if (q.hidden) p.set("hidden", "1");
+  // "Hidden train" is ON by default, so the URL only needs to carry the OFF state
+  // (hidden=0). Absence therefore means "default = on", which is what a bare deep-link
+  // (or an older shared link) should get — the reason hidden trains silently never
+  // appeared on shared/exact-trip links before.
+  if (!q.hidden) p.set("hidden", "0");
   if (q.flexDays != null && q.flexDays > 0) p.set("flex", String(q.flexDays));
   if (q.returnDate) p.set("rdate", q.returnDate);
   if (q.legs && q.legs.length > 0) p.set("legs", q.legs.map((l) => `${l.from}>${l.to}@${l.date}`).join("~"));
@@ -294,8 +298,11 @@ export function queryFromParams(p: URLSearchParams, fallbackDate: string): Searc
     origin: p.get("from") ?? undefined,
     destination: p.get("to") ?? undefined,
     via: p.get("via") ?? undefined,
-    // od-only; readQueryFromForm re-gates it to od so it never leaks to other modes.
-    hidden: p.get("hidden") === "1" || undefined,
+    // ON by default (od-only; readQueryFromForm re-gates it to od so it never leaks to
+    // other modes). Only an explicit hidden=0 turns it off — a missing param means the
+    // default (on), so a bare deep-link surfaces hidden trains like the form does.
+    // Legacy hidden=1 links stay on too.
+    hidden: p.get("hidden") !== "0" || undefined,
     // Clamp to the stepper's 0..7 range (like setStepper) — an out-of-range link
     // should mean "the widest window", not silently fall back to no flexibility.
     flexDays: Number.isFinite(Number(p.get("flex"))) && Math.floor(Number(p.get("flex"))) >= 1 ? Math.min(7, Math.floor(Number(p.get("flex")))) : undefined,

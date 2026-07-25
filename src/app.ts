@@ -3041,6 +3041,15 @@ function runTripSearch(c: RenderCtx): void {
   fillReturns();
   setCollapsed(1, !retFlexible);
 
+  // "Do you want to come back?" landed here, but the proposed return day has no free-MAX
+  // return: the collapsed "Retour : … · Changer" summary would be a dead end (an empty list
+  // behind a closed calendar). Open the return leg AND its calendar by default so the days
+  // that DO have a return are visible straight away and one tap away — never a blank screen.
+  if (returnJourneys(odReturnDate ?? proposed).list.length === 0) {
+    setCollapsed(1, false);
+    retCalUI.setOpen(true);
+  }
+
   const stops = chosenOutbound ? [chosenOutbound.origin, ...chosenOutbound.hubs, chosenOutbound.destination] : [origin, destination];
   showRoute(stops);
   if (query.radiusKm) {

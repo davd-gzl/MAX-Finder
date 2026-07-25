@@ -201,22 +201,20 @@ export function collapsibleCalendar(
   calNode: HTMLElement,
   wrapClass = "cal-collapsible",
   startOpen = false,
-): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void } {
+): { host: HTMLElement; toggle: HTMLElement; setLabel: (text: string) => void; setOpen: (open: boolean) => void } {
   const panel = el("div", { class: "cal-panel", attrs: startOpen ? {} : { hidden: "" } }, [calNode]);
+  const setOpen = (open: boolean): void => {
+    panel.toggleAttribute("hidden", !open);
+    toggle.setAttribute("aria-expanded", String(open));
+  };
   const toggle = el("button", {
     class: "cal-toggle linklike",
     type: "button",
     attrs: { "aria-expanded": String(startOpen) },
-    on: {
-      click: () => {
-        const opening = panel.hasAttribute("hidden");
-        panel.toggleAttribute("hidden", !opening);
-        toggle.setAttribute("aria-expanded", String(opening));
-      },
-    },
+    on: { click: () => setOpen(panel.hasAttribute("hidden")) },
   });
   const host = el("div", { class: wrapClass }, [toggle, panel]);
-  return { host, toggle, setLabel: (text: string) => (toggle.textContent = text) };
+  return { host, toggle, setLabel: (text: string) => (toggle.textContent = text), setOpen };
 }
 
 // pins which terminus gare it actually uses. Map the main TGV axes; other axes
@@ -856,7 +854,12 @@ export function hiddenTrainRowEl(h: HiddenTrain, ctx: RenderCtx): HTMLElement {
     ...(b.axe ? [el("span", { class: "train-axe", text: b.axe })] : []),
   ]);
   const head = el("div", { class: "journey-head" }, [
-    el("span", { class: "chip chip-hidden", text: t("hidden_chip") }),
+    // A 🥷 marks the hidden-city trick at a glance — the same "little emoji" convention as
+    // the 🌙 sleeper badge — so a hidden option never reads as a normal bookable journey.
+    el("span", { class: "chip chip-hidden" }, [
+      el("span", { class: "chip-hidden-emoji", attrs: { "aria-hidden": "true" }, text: "🥷" }),
+      el("span", { text: t("hidden_chip") }),
+    ]),
     el("span", { class: "journey-total" }, [icon(I.clock), el("span", { text: formatDuration(h.durationMin) })]),
   ]);
   // The ticket you actually buy runs origin → beyond; you alight early at your
@@ -1106,32 +1109,33 @@ export function tripViewEl(outbound: Journey, ctx: RenderCtx, inbound?: Journey)
   // primary (a direct train deep-links straight; a connecting one opens the per-train step
   // modal) and clicking the card body books it too (`bookOnClick`). No highlight-only
   // no-op — the whole point here is to book, not to re-select.
-  // The trip's date(s) — important when the row that opened this came from a
-  // flexible search (the start day varies). One-ways already show the date in the
-  // summary, so this is just for round trips.
-  const dateLine = inbound
-    ? inbound.date !== outbound.date
-      ? `${ctx.formatDate(outbound.date)} – ${ctx.formatDate(inbound.date)}`
-      : ctx.formatDate(outbound.date)
-    : null;
   const view = el("div", { class: "trip-view" });
   // Each leg carries its OWN unmistakable book action, so the traveller is never left
   // wondering how to get the ticket: a round trip books the outbound with "Book the
   // outbound" and the return with "Book the return" (each a separate SNCF Connect search —
   // a through-ticket can't be deep-linked), a one-way just "Book this trip".
   const legBook = (label: string) => ({ saveable: false, bookOnClick: true, bookLabel: label, hideMap: true });
+  // Each leg's DATE sits on the ticket header (beside "Outbound" / "Return") so a round-trip
+  // confirmation says which day each leg is for — the two legs fall on different days, so it
+  // can't be read off the shared title. It lives on the leg TITLE line (full width, wraps
+  // freely) rather than crammed into the journey head beside the via/duration chips, where a
+  // long date would truncate on a narrow phone. One-ways already print the date in the summary.
+  const legTitle = (label: string, date: string): HTMLElement =>
+    el("h3", { class: "trip-leg-title trip-leg-title-dated" }, [
+      el("span", { class: "trip-leg-name", text: label }),
+      el("span", { class: "trip-leg-date", text: ctx.formatDate(date) }),
+    ]);
   view.append(
     el("h2", { class: "modal-title trip-title", text: title }),
-    ...(dateLine ? [el("p", { class: "trip-dates", text: dateLine })] : []),
     el("p", { class: "muted trip-summary", text: summary }),
     el("section", { class: "trip-leg" }, [
-      ...(round ? [el("h3", { class: "trip-leg-title", text: t("rt_outbound") })] : []),
+      ...(round ? [legTitle(t("rt_outbound"), outbound.date)] : []),
       journeyEl(outbound, ctx, legBook(round ? t("act_book_out") : t("act_book_leg_this"))),
     ]),
     ...(inbound
       ? [
           el("section", { class: "trip-leg" }, [
-            el("h3", { class: "trip-leg-title", text: t("rt_inbound") }),
+            legTitle(t("rt_inbound"), inbound.date),
             journeyEl(inbound, ctx, legBook(t("act_book_ret"))),
           ]),
         ]
