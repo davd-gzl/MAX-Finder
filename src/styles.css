@@ -1793,17 +1793,41 @@ a {
 /* Hidden-city ("hidden train") accent — a dashed, distinct chip and card so it
    reads as a clever workaround, visually apart from the normal journey list. */
 .chip-hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--border-strong);
   border-style: dashed;
   font-weight: 600;
 }
+.chip-hidden-emoji {
+  font-size: 0.95em;
+  line-height: 1;
+}
 .hidden-trains {
   margin-top: 1rem;
 }
-.journey-hidden {
-  border-style: dashed;
+/* The hidden-train row is NOT the perforated .journey ticket (no book-stub split), so it
+   must NOT inherit that class's flex-row layout / zero padding / drop-shadow border —
+   otherwise the head, legs, note and book button get squeezed side by side into unreadable
+   columns. Lay it out as its own self-contained card: a dashed, faintly-tinted block that
+   stacks its parts, so the hidden-city trick reads as a distinct, deliberate option. The
+   double-class selector (.journey.journey-hidden) is intentional — it must out-specify the
+   later .journey ticket rules to reset their border / padding / drop-shadow / row layout. */
+.journey.journey-hidden {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.9rem 1.05rem;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--accent) 4%, var(--surface));
+  filter: none;
+}
+.journey-hidden .actions {
+  margin-top: 0.1rem;
 }
 .hidden-note {
   margin: 0.1rem 0 0.4rem;
@@ -2622,11 +2646,6 @@ a {
 .trip-title {
   font-size: 1.1rem;
 }
-.trip-dates {
-  margin: -0.15rem 0 0;
-  font-weight: 640;
-  color: var(--accent);
-}
 .trip-summary {
   margin: 0 0 0.35rem;
 }
@@ -2639,6 +2658,21 @@ a {
   font-size: 0.85rem;
   font-weight: 640;
   color: var(--muted);
+}
+/* The dated variant (round-trip modal legs): the leg name + its travel date side by side,
+   wrapping the date below on a narrow phone rather than clipping. Scoped so the plain
+   .trip-leg-title (multi-city route recaps, getaway ALLER/RETOUR labels) is untouched. */
+.trip-leg-title-dated {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+}
+/* The leg's travel date on the ticket header (accent, tabular) — says which day this
+   leg's ticket is for. */
+.trip-leg-date {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 .trip-view-actions {
   display: flex;
@@ -4021,11 +4055,14 @@ select.input::-ms-expand {
   mask-composite: intersect;
 }
 /* The confirmation/booking recap gives each leg a clear labelled "Book this leg" primary
-   instead of the bare arrow. Widen the ticket stub so the label sits and WRAPS (never
-   clipped at 390px), and let the button fill it. */
+   instead of the bare arrow. A FIXED stub width keeps both legs of a round trip the SAME
+   size — with width:auto the stubs sized to their own text ("Book the outbound" wider than
+   "Book the return"), so the two tickets came out visibly mismatched. The label WRAPS
+   inside the stub (white-space:normal below), so a fixed width never clips it at 390px. */
 .journey.has-book-leg .journey-book {
-  width: auto;
-  min-width: 7rem;
+  width: 8rem;
+  min-width: 8rem;
+  flex: none;
 }
 .book-leg {
   width: 100%;

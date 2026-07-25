@@ -101,8 +101,12 @@ other dates); it stays expanded only during discovery (no exact date/destination
      calendar is **collapsed by default** behind a "Return: <date> · Change" toggle (same
      `.cal-collapsible` / `.cal-toggle` / `.cal-panel` pattern as the outbound one). In
      **Flexible** mode the return calendar **stays open** (it is the return-length control):
-     tapping a day sets `query.returnDate` and keeps the stay `flexible`. Pick a return →
-   - **Trip modal** = booking recap: an unmistakable per-leg action — "Book the outbound" /
+     tapping a day sets `query.returnDate` and keeps the stay `flexible`. **Exception** —
+     when the proposed return day has **no free-MAX return**, the return leg and its calendar
+     **open by default** (never a collapsed summary hiding an empty list), so the days that
+     *do* have a return are visible and one tap away. Pick a return →
+   - **Trip modal** = booking recap: each leg's own **travel date** rides on the ticket header
+     (beside "Outbound" / "Return"), and an unmistakable per-leg action — "Book the outbound" /
      "Book the return" (each deep-links SNCF Connect; a connecting leg opens the step modal)
      — plus Save the whole trip. Back inside the accordion re-opens the outbound before it
      exits the flow (step-wise back).
