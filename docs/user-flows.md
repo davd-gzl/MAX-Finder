@@ -43,9 +43,14 @@ The **Trip tab's date picker is a live availability calendar on the form itself*
 **"When to leave?"** header (which also shows the picked departure) and is **collapsed by
 default** so the form stays short on a phone — one tap opens the month to change the day.
 The header names the calendar once (the in-body `<h3>` is rendered `sr-only` via
-`calendarEl`'s `hideTitle`, so "When to leave?" isn't written twice). It **recomputes whenever origin,
-destination, the Aller simple / Aller-retour toggle, or the nights stepper change**, so a
-green day always means *a trip is possible that day* for the current choice:
+`calendarEl`'s `hideTitle`, so "When to leave?" isn't written twice). It **recomputes whenever
+anything it is derived from changes** — origin, destination, the Aller simple / Aller-retour
+toggle, the nights stepper, **and every filter that feeds the per-day sweeps**: Max
+correspondances, the via hub, depart-after / depart-before / arrive-before, the max-duration
+cap, the train type, night trains + only-night, overnight stopovers, and the same-day minimum
+time on site. So a green day always means *a trip is possible that day* for the current
+choice. (Changing a filter only **repaints the calendar** — like every filter it stays staged,
+and the results still wait for Search.)
 
 | State | Builder (reused) | Green means |
 |-------|------------------|-------------|

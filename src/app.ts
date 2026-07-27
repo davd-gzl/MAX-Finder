@@ -1311,6 +1311,17 @@ function scheduleFormCalRepaint(): void {
   }, 140) as unknown as number;
 }
 
+/** Repaint on the NEXT frame rather than inline, cancelling any pending debounced pass: the
+ *  control's own visual update (a select's new value, a flipped switch) paints first, then
+ *  the availability sweep — which can take ~1s cold for a hub like Paris — runs. */
+function deferFormCalRepaint(): void {
+  if (formCalTimer) {
+    clearTimeout(formCalTimer);
+    formCalTimer = 0;
+  }
+  requestAnimationFrame(() => repaintFormCalendar());
+}
+
 /**
  * Paint the Trip-tab home form's availability calendar for the CURRENT controls, so a
  * green day always means "a trip is possible that day" for the chosen shape:
@@ -3663,21 +3674,43 @@ function buildLayout(root: HTMLElement): void {
   // Keep the reactive home-form calendar in step as the route is typed (staged — this
   // never runs a search, only repaints the "which days are possible" grid). Debounced on
   // input, immediate on a committed value (a datalist pick / blur).
+  // A committed pick (datalist tap / blur / Enter) fires `change`. DEFER the repaint one
+  // frame so the field + chip update paint first: the origin-only "possible days" grid runs
+  // a full getaway sweep that can take ~1s cold for a hub like Paris, and running it inline
+  // froze the tap so the picked station only appeared a second later. Deferring lets the
+  // selection apply instantly; the calendar (which stays visible until then — the repaint
+  // clears and rebuilds in one go) fills a beat afterwards.
   for (const inp of [refs.origin, refs.destination]) {
     inp.addEventListener("input", scheduleFormCalRepaint);
-    // A committed pick (datalist tap / blur / Enter) fires `change`. DEFER the repaint one
-    // frame so the field + chip update paint first: the origin-only "possible days" grid runs
-    // a full getaway sweep that can take ~1s cold for a hub like Paris, and running it inline
-    // froze the tap so the picked station only appeared a second later. Deferring lets the
-    // selection apply instantly; the calendar (which stays visible until then — the repaint
-    // clears and rebuilds in one go) fills a beat afterwards.
-    inp.addEventListener("change", () => {
-      if (formCalTimer) {
-        clearTimeout(formCalTimer);
-        formCalTimer = 0;
-      }
-      requestAnimationFrame(() => repaintFormCalendar());
-    });
+    inp.addEventListener("change", deferFormCalRepaint);
+  }
+  // The grid is derived from the WHOLE form, not just the route: "Max correspondances", the
+  // via hub, the departure/arrival window, the duration cap, the train type, the night-train
+  // rules, overnight stopovers and the same-day minimum time on site all reach the per-day
+  // sweeps through readQueryFromForm() → odConnOptsFor / getawayOptsFor / filterOptsFor.
+  // Changing one changes which days are possible, so each has to repaint the calendar as
+  // well — otherwise raising "Max correspondances" left the previous (now wrong) month sitting
+  // right above the control, greyed on days that had just become reachable. This only
+  // repaints: like every other filter these stay STAGED, and the results still wait for
+  // Search.
+  for (const ctl of [
+    refs.maxConnections,
+    refs.trainType,
+    refs.stayMin,
+    refs.departAfter,
+    refs.departBefore,
+    refs.arriveBefore,
+    refs.night,
+    refs.onlyNight,
+    refs.overnight,
+  ]) {
+    ctl.addEventListener("change", deferFormCalRepaint);
+  }
+  // Typed filters settle keystroke by keystroke — debounce them like the route fields, and
+  // repaint straight away on the committed value (a via pick from the datalist, a blur).
+  for (const inp of [refs.via, refs.maxDuration]) {
+    inp.addEventListener("input", scheduleFormCalRepaint);
+    inp.addEventListener("change", deferFormCalRepaint);
   }
   mapPromise = null;
   mapInstance = null;
