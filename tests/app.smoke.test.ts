@@ -270,6 +270,35 @@ describe("app (jsdom smoke)", () => {
     expect(root.textContent ?? "").toContain("Toulouse");
   });
 
+  it("repaints the form's possible-days calendar when Max changes is raised (bug: stale grid)", () => {
+    // Regression: only the origin/destination fields repainted the reactive calendar, so
+    // raising "Max correspondances" — the control sitting right under it — left the previous
+    // month on screen, greyed on the very days the new budget had just opened up.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("TOULOUSE MATABIAU")}&date=2026-06-25&conn=0`,
+    );
+    const block = root.querySelector(".form-cal-block") as HTMLElement;
+    if ((block.querySelector(".form-cal-body") as HTMLElement).hasAttribute("hidden")) {
+      (block.querySelector(".form-cal-toggle") as HTMLElement).click();
+    }
+    const okDays = (): number => block.querySelectorAll(".form-cal-body .cal-cell.ok").length;
+    // Direct only: the fixture's one direct Paris → Toulouse train isn't a free-MAX seat,
+    // so no day of the window is possible.
+    expect(block.querySelectorAll(".form-cal-body .cal-cell").length).toBeGreaterThan(0);
+    expect(okDays()).toBe(0);
+
+    // Allow one change: 25 June works via Bordeaux, so the grid must green up on the spot.
+    const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input")!;
+    conn.value = "1";
+    conn.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(okDays()).toBeGreaterThan(0);
+
+    // The filter is still only STAGED — the calendar refreshes, the results wait for Search.
+    expect(root.querySelector(".results .chip-via")).toBeNull();
+    (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+    expect(root.querySelector(".results .chip-via")).not.toBeNull();
+  });
+
   it("shows the 'minimum time there' control only for a same-day round trip", () => {
     const onsiteField = (root: HTMLElement): HTMLElement | null =>
       Array.from(root.querySelectorAll<HTMLElement>(".search-form .field")).find((f) =>
