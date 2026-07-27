@@ -192,10 +192,10 @@ await scenario(
   },
 );
 
-// 4. Staged-edits model: editing a field must NOT re-run the search until Search is clicked.
+// 4. Staged-edits model: editing the ROUTE must NOT re-run the search until Search is clicked.
 //    (Regression guard for PR #12 / #18 / #19.)
 await scenario(
-  "behaviour: edits stay staged until Search is clicked",
+  "behaviour: a typed route edit stays staged until Search is clicked",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
     const before = (await $text(page, "#results-title")) || "";
@@ -217,6 +217,28 @@ await scenario(
     await sleep(700);
     const after = (await $text(page, "#results-title")) || "";
     assert(/lyon/i.test(after), `title did not update after Search: "${after}"`);
+  },
+);
+
+// 4b. …while a FILTER is one deliberate choice, so it applies live: raising "Max
+//     correspondances" refreshes the list and its possible-days calendar with no second
+//     Search tap, and puts the applied value in the URL.
+await scenario(
+  "behaviour: a filter change applies live (no second Search tap)",
+  `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&conn=0`,
+  async (page) => {
+    const green = () =>
+      page.$$eval(".results .cal-grid .cal-cell.ok", (cells) => cells.length).catch(() => 0);
+    const direct = await green();
+    await page.evaluate(() => {
+      const sel = document.querySelector(".connections-field select.input");
+      sel.value = "2";
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await sleep(900);
+    const viaTwo = await green();
+    assert(viaTwo > direct, `calendar did not refresh from the filter (${direct} -> ${viaTwo} green days)`);
+    assert(new URL(page.url()).searchParams.get("conn") === "2", "the applied filter is not in the URL");
   },
 );
 

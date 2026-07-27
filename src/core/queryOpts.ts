@@ -8,6 +8,7 @@ import type { FilterOptions } from "./search";
 import type { ConnectionOptions } from "./connections";
 import type { GetawayOptions } from "./getaways";
 import { HUB_STATIONS, OVERNIGHT_MAX_CONNECTION_MIN } from "../config";
+import { journeySpanDays } from "./connections";
 import { stayNights } from "./roundtrip";
 import { dayIndex } from "../util/time";
 
@@ -41,6 +42,27 @@ export function odConnOptsFor(
     ...(viaId ? { hubs: [...HUB_STATIONS, viaId] } : {}),
   };
   return { connOpts, passesVia: (j) => !viaId || j.hubs.includes(viaId) };
+}
+
+/**
+ * Everything an exact-route sweep needs, SPAN-aware: the connection options above plus the
+ * accept-filter every journey must pass. The Advanced "max trip span (days)" both widens the
+ * day pool — so an itinerary may wait overnight at a hub — and caps a journey's total span,
+ * and it belongs to the availability calendars exactly as much as to the lists: a green day
+ * has to mean a journey the list will actually show, never one the span cap then drops.
+ */
+export function odJourneyOptsFor(
+  q: SearchQuery,
+  origin: string,
+  destination: string,
+): { journeyOpts: ConnectionOptions; accept: (j: Journey) => boolean } {
+  const { connOpts, passesVia } = odConnOptsFor(q, origin, destination);
+  // 2 days is already the default pool, so only a WIDER span changes what the search sees.
+  const spanDays = q.maxSpanDays && q.maxSpanDays > 2 ? q.maxSpanDays : undefined;
+  return {
+    journeyOpts: spanDays ? { ...connOpts, spanDays } : connOpts,
+    accept: (j) => passesVia(j) && (!q.maxSpanDays || journeySpanDays(j) <= q.maxSpanDays),
+  };
 }
 
 /** Connection options for the getaway / round-trip-discovery searches, keyed off the

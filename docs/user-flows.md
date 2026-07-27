@@ -49,21 +49,31 @@ toggle, the nights stepper, **and every filter that feeds the per-day sweeps**: 
 correspondances, the via hub, depart-after / depart-before / arrive-before, the max-duration
 cap, the train type, night trains + only-night, overnight stopovers, and the same-day minimum
 time on site. So a green day always means *a trip is possible that day* for the current
-choice. (Changing a filter only **repaints the calendar** — like every filter it stays staged,
-and the results still wait for Search.)
+choice.
+
+**Filters apply LIVE; the route stays staged.** A filter is one deliberate choice, so
+changing any of the controls listed above (plus the radius, the trip span, hidden trains and
+the Ideas/tour region) runs `applyFilterChange`: it repaints the form calendar **and**
+refreshes the results already on screen for that route in place — their own calendars
+included — with no second Search tap, and no extra history entry. What a **typed route** edit
+does is unchanged: a departure/destination/leg the user hasn't committed stays staged until
+Search, and a filter change never smuggles it in (the refresh is skipped whenever the form's
+route, legs, cities or date no longer match what is on screen). Two other states also stay
+staged, because there is nothing on screen to bring up to date: the bare landing form, and
+the post-reload "press Search" prompt.
 
 | State | Builder (reused) | Green means |
 |-------|------------------|-------------|
 | no origin yet | — (neutral month) | any day, tappable — with a "pick a departure station" hint |
 | origin + dest, one-way | `availabilityCalendar` | a departure exists that day (count = trains) |
-| origin + dest, same day (0 nights) | `dayTripCalendar` | a same-day there-and-back works (count = hours on site) |
-| origin + dest, N nights | `roundTripCalendar` | an N-night round trip is feasible (count = nights) |
+| origin + dest, same day (0 nights) | `stayCalendar` (hours) | a same-day there-and-back works (count = hours on site) |
+| origin + dest, N nights | `stayCalendar` (nights) | an N-night round trip is feasible (count = nights) |
 | origin only, one-way | `reachableCountCalendar` | you can leave that day (count = destinations) |
 | origin only, round / same day | `getawayIdeas().perDay` | a getaway is possible that day (count = destinations) |
 
 Tapping a green day sets the departure (`query.date` + the form's date field); with both
 endpoints filled it also shows/refreshes that day's trip in place. It reuses the same option
-helpers (`odConnOptsFor` / `getawayOptsFor`) as the real search, so the per-day journey
+helpers (`odJourneyOptsFor` / `getawayOptsFor`) as the real search, so the per-day journey
 sweeps hit the warm memo caches; origin typing is debounced. The compact date pill above it
 stays as the exact-date / ±flex keyboard entry for power users.
 
@@ -85,6 +95,12 @@ this only adds the pick on the **first page**.
 Advanced. **Night trains are included by default.** On the results screen, once a specific
 date is chosen the possible-days calendar is **collapsed by default** (one tap to reveal
 other dates); it stays expanded only during discovery (no exact date/destination yet).
+
+**Every exact-route calendar is graded by the sweep its list runs** — `odJourneyOptsFor`
+returns both the connection options and the accept-filter, and the one-way calendar, the
+round-trip **return** calendar and the form calendar all use it, so the Advanced **max trip
+span (days)** cap narrows the green days exactly as it narrows the trains. Before this the
+span applied to the lists only, and a day could read green while its list was empty.
 
 ## Trip tab
 
