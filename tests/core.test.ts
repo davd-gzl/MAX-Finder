@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { RawRecord } from "../src/types";
+import type { RawRecord, SearchQuery, Journey } from "../src/types";
+import { odJourneyOptsFor } from "../src/core/queryOpts";
 import { normalizeRecords, normalizeRecord } from "../src/data/dataset";
 import type { DatasetProfile } from "../src/data/profile";
 import { filterTrains } from "../src/core/search";
@@ -233,6 +234,42 @@ describe("availabilityCalendar", () => {
     // Accept-all matches the unfiltered counts.
     const all = availabilityCalendar(trains, "PARIS (intramuros)", "LYON (intramuros)", dates, {}, () => true);
     expect(all.map((d) => d.count)).toEqual([3, 1, 0]);
+  });
+});
+
+describe("odJourneyOptsFor (span-aware exact-route options)", () => {
+  const q = (extra: Partial<SearchQuery> = {}): SearchQuery => ({
+    mode: "od",
+    date: "2026-06-25",
+    card: "jeune",
+    maxConnections: 1,
+    ...extra,
+  });
+  // A journey that starts on the 25th and finishes on the 27th — a 3-day span.
+  const wide = {
+    date: "2026-06-25",
+    hubs: ["BORDEAUX ST JEAN"],
+    legs: [{ date: "2026-06-25", arriveMin: 600 }, { date: "2026-06-27", arriveMin: 600 }],
+  } as unknown as Journey;
+
+  it("only widens the day pool for a span BEYOND the default 2 days", () => {
+    expect(odJourneyOptsFor(q(), "A", "B").journeyOpts.spanDays).toBeUndefined();
+    expect(odJourneyOptsFor(q({ maxSpanDays: 2 }), "A", "B").journeyOpts.spanDays).toBeUndefined();
+    expect(odJourneyOptsFor(q({ maxSpanDays: 5 }), "A", "B").journeyOpts.spanDays).toBe(5);
+  });
+
+  it("caps a journey's total span, so a calendar day can't be greener than its list", () => {
+    // No cap → kept; a 2-day cap → dropped, the same verdict the results list reaches.
+    expect(odJourneyOptsFor(q(), "A", "B").accept(wide)).toBe(true);
+    expect(odJourneyOptsFor(q({ maxSpanDays: 2 }), "A", "B").accept(wide)).toBe(false);
+    expect(odJourneyOptsFor(q({ maxSpanDays: 3 }), "A", "B").accept(wide)).toBe(true);
+  });
+
+  it("still enforces the via hub alongside the span cap", () => {
+    const viaMissing = odJourneyOptsFor(q({ via: "LYON (intramuros)", maxSpanDays: 5 }), "A", "B");
+    expect(viaMissing.accept(wide)).toBe(false); // hubs don't include Lyon
+    const viaHit = odJourneyOptsFor(q({ via: "BORDEAUX ST JEAN", maxSpanDays: 5 }), "A", "B");
+    expect(viaHit.accept(wide)).toBe(true);
   });
 });
 

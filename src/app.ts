@@ -12,7 +12,7 @@ import { filterTrains, isNightTrain, type FilterOptions } from "./core/search";
 import { bestTripsAcrossWindow, stationsOnDate, reachableBest, type BestTrip, type ReachTrip } from "./core/best";
 import { getawayIdeas, reverseGetawayIdeas, stayCalendar } from "./core/getaways";
 import { planTours, planTourInOrder, planTourGreedy, arrivalDate, type Tour } from "./core/tour";
-import { findJourneys, bestJourney, reachableJourneys, journeySpanDays, journeyArriveAbs, toJourney, MAX_RESULTS } from "./core/connections";
+import { findJourneys, bestJourney, reachableJourneys, journeyArriveAbs, toJourney, MAX_RESULTS } from "./core/connections";
 import type { ConnectionOptions } from "./core/connections";
 import { availabilityCalendar, reachableCountCalendar, dateRange } from "./core/calendar";
 import { findHiddenTrains } from "./core/hidden";
@@ -46,7 +46,7 @@ import {
   OVERNIGHT_MAX_CONNECTION_MIN,
   SAME_DAY_MIN_ON_SITE_MIN,
 } from "./config";
-import { filterOptsFor, odConnOptsFor, getawayOptsFor } from "./core/queryOpts";
+import { filterOptsFor, odConnOptsFor, odJourneyOptsFor, getawayOptsFor } from "./core/queryOpts";
 import { warmSearch } from "./search/searchClient";
 import { notify } from "./pwa/register";
 
@@ -748,10 +748,16 @@ function isPageReload(): boolean {
  * "g" shortcut) runs the restored query as-is.
  */
 function showSearchPrompt(): void {
+  searchHeldBack = true;
   clear(refs.results);
   refs.results.append(render.emptyEl(t("prompt_search")));
   showBaseMap();
 }
+
+/** True while the reload prompt above is up: the restored form is deliberately waiting for
+ *  the Search button, so nothing — a live filter change included — may run a search behind
+ *  it. Cleared the moment a search actually runs. */
+let searchHeldBack = false;
 
 // --- station resolution -----------------------------------------------------
 
@@ -1323,6 +1329,38 @@ function deferFormCalRepaint(): void {
 }
 
 /**
+ * A committed FILTER change — max correspondances, the via hub, the time window, the night
+ * rules… Unlike a typed route edit, which stays staged so the search doesn't chase every
+ * keystroke, a filter is one deliberate choice, so it applies to everything on screen at
+ * once: the form calendar repaints, and the results already showing that route re-run in
+ * place, taking their own calendars with them.
+ *
+ * Three cases deliberately stay staged, because there is nothing on screen to bring up to
+ * date and running a search behind the user's back would be a surprise: the bare landing
+ * form (nothing searched yet), the reload prompt (`searchHeldBack` — it waits for Search by
+ * design), and a form whose ROUTE has been edited but not yet searched. That last one keeps
+ * the older contract intact: a staged destination never rides along on a filter change; it
+ * waits for Search, and the filter goes with it.
+ */
+function applyFilterChange(): void {
+  deferFormCalRepaint();
+  if (searchHeldBack || !store.urlHasQuery()) return;
+  const fq = readQueryFromForm();
+  if (!queryIsRenderable(fq) || !sameTargetAs(fq, query)) return;
+  query = fq;
+  refreshInPlace();
+}
+
+/** Whether two queries search the same THING — the route/legs/cities and the day — so one can
+ *  replace the other in place. Filters, sort and stay length are deliberately not compared:
+ *  they're what the refresh is applying. */
+function sameTargetAs(a: SearchQuery, b: SearchQuery): boolean {
+  const key = (q: SearchQuery): string =>
+    JSON.stringify([q.mode, q.origin ?? "", q.destination ?? "", q.date, q.legs ?? [], q.cities ?? []]);
+  return key(a) === key(b);
+}
+
+/**
  * Paint the Trip-tab home form's availability calendar for the CURRENT controls, so a
  * green day always means "a trip is possible that day" for the chosen shape:
  *  - no origin            → a neutral, tappable month + a "pick a departure station" hint;
@@ -1390,9 +1428,10 @@ function repaintFormCalendar(): void {
   let cal: CalendarDay[];
   let calOpts: Parameters<typeof render.calendarEl>[3];
   if (o && d) {
-    const { connOpts, passesVia } = odConnOptsFor(fq, o, d);
+    // Span-aware, exactly like the results list this calendar previews (odJourneyOptsFor).
+    const { journeyOpts, accept } = odJourneyOptsFor(fq, o, d);
     if (!round) {
-      cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
+      cal = availabilityCalendar(trains, o, d, windowDates, journeyOpts, accept);
       calOpts = { title: t("form_cal_title"), hideTitle: true };
     } else if (nights === 0 && !flexRange) {
       cal = stayCalendar(trains, o, d, windowDates, getawayOptsFor(fq), "hours");
@@ -1404,11 +1443,11 @@ function repaintFormCalendar(): void {
       // you're picking right now" (David: "available trains per day for departure or return
       // depending on what you're choosing").
       if (formRangeAwait) {
-        const ret = odConnOptsFor(fq, d, o);
-        cal = availabilityCalendar(trains, d, o, windowDates, ret.connOpts, ret.passesVia);
+        const ret = odJourneyOptsFor(fq, d, o);
+        cal = availabilityCalendar(trains, d, o, windowDates, ret.journeyOpts, ret.accept);
         calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_return") };
       } else {
-        cal = availabilityCalendar(trains, o, d, windowDates, connOpts, passesVia);
+        cal = availabilityCalendar(trains, o, d, windowDates, journeyOpts, accept);
         calOpts = { title: t("form_cal_title"), hideTitle: true, countLegend: t("cal_legend_depart") };
       }
     } else {
@@ -1647,6 +1686,7 @@ function runSearch(): void {
   searchToken++;
   const token = searchToken;
   searchLoading = true;
+  searchHeldBack = false;
   if (pendingRaf) {
     cancelAnimationFrame(pendingRaf);
     pendingRaf = 0;
@@ -2320,6 +2360,15 @@ function odConnOpts(
   return odConnOptsFor(query, origin, destination);
 }
 
+// The same, plus the Advanced "max trip span (days)": the widened day pool and the span cap
+// that the journey lists AND their availability calendars both have to honour.
+function odJourneyOpts(
+  origin: string,
+  destination: string,
+): { journeyOpts: ConnectionOptions; accept: (j: Journey) => boolean } {
+  return odJourneyOptsFor(query, origin, destination);
+}
+
 /** Append the "hidden train" (hidden-city ticketing) section for the exact route, if on. */
 function appendHiddenTrains(c: RenderCtx): void {
   if (!query.hidden || !query.origin || !query.destination) return;
@@ -2397,9 +2446,11 @@ function runOdSearch(c: RenderCtx): void {
   });
   refs.results.append(el("p", { class: "od-guide" }, [render.guideEl(c, query.destination, "link")]));
 
-  const { connOpts, passesVia } = odConnOpts(query.origin, query.destination);
+  // The list and its possible-days calendar run the SAME sweep — span cap included — so a
+  // green day is always a day whose list has trains on it.
+  const { journeyOpts, accept } = odJourneyOpts(query.origin, query.destination);
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const cal = availabilityCalendar(trains, query.origin, query.destination, windowDates, connOpts, passesVia);
+  const cal = availabilityCalendar(trains, query.origin, query.destination, windowDates, journeyOpts, accept);
   if (query.radiusKm) {
     const levels = nearbyCalendarLevels(query.origin, query.destination, windowDates, query.radiusKm, {
       ...filterOpts(),
@@ -2424,9 +2475,9 @@ function runOdSearch(c: RenderCtx): void {
   refs.results.append(odCal.host);
 
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
-  const withinSpan = (j: Journey): boolean => !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
-  const spanDays = query.maxSpanDays && query.maxSpanDays > 2 ? query.maxSpanDays : undefined;
-  const journeyOpts = spanDays ? { ...connOpts, spanDays } : connOpts;
+  // A widened pool (a span past the default 2 days) turns the list into "itineraries" with
+  // its own count + cap notice; odJourneyOpts owns whether that widening happened.
+  const spanDays = journeyOpts.spanDays;
 
   const flex = query.flexDays ?? 0;
   const searchDates: string[] = [];
@@ -2438,8 +2489,7 @@ function runOdSearch(c: RenderCtx): void {
   const raw = searchDates.flatMap((d) => findJourneys(trains, query.origin!, query.destination!, d, journeyOpts));
   const journeys: Journey[] = applySort(
     raw
-      .filter(passesVia)
-      .filter(withinSpan)
+      .filter(accept)
       .sort(
         (a, b) =>
           (flex > 0 ? dayIndex(a.date) - dayIndex(b.date) : 0) ||
@@ -2546,14 +2596,12 @@ function runTripSearch(c: RenderCtx): void {
   const destination = query.destination;
   const lastBookable = addDays(today, BOOKING_WINDOW_DAYS - 1);
   const windowDates = dateRange(today, BOOKING_WINDOW_DAYS);
-  const { connOpts, passesVia } = odConnOpts(origin, destination);
-
+  const { connOpts } = odConnOpts(origin, destination);
   // Advanced "max trip span" caps how many days a single journey may span (overnight
   // trains). It is honoured on one-way trips through this same tab, so honour it here
-  // too rather than silently ignoring the control on a round trip.
-  const withinSpan = (j: Journey): boolean => !query.maxSpanDays || journeySpanDays(j) <= query.maxSpanDays;
-  const spanDays = query.maxSpanDays && query.maxSpanDays > 2 ? query.maxSpanDays : undefined;
-  const journeyOpts = spanDays ? { ...connOpts, spanDays } : connOpts;
+  // too rather than silently ignoring the control on a round trip — on the return
+  // calendar as much as on the lists it grades.
+  const { journeyOpts, accept } = odJourneyOpts(origin, destination);
 
   // Amber "reachable only via a station within the radius" grading for the possible-days
   // calendars on a radius search — parity with the one-way calendar (runOdSearch).
@@ -2718,7 +2766,7 @@ function runTripSearch(c: RenderCtx): void {
   // is then self-evident from the cell tapped — no separate mode.
   const retCalHost = el("div", { class: "ret-cal" });
   const retDates = dateRange(query.date, dayIndex(lastBookable) - dayIndex(query.date) + 1);
-  const retCal = availabilityCalendar(trains, destination, origin, retDates, connOpts, passesVia);
+  const retCal = availabilityCalendar(trains, destination, origin, retDates, journeyOpts, accept);
   // availabilityCalendar only asks "does a return exist that day?", which for the same-day
   // cell would green a return leaving BEFORE the outbound arrives. Re-derive that first
   // cell from the day-trip feasibility (nights 0: home by midnight, after arrival) so no
@@ -2760,15 +2808,13 @@ function runTripSearch(c: RenderCtx): void {
       // platform-to-platform bounce) and still get you home by midnight — the same
       // minimum the discovery list promises, so a listed day trip drills into one.
       const list = findJourneys(trains, destination, origin, query.date, journeyOpts)
-        .filter(passesVia)
-        .filter(withinSpan)
+        .filter(accept)
         .filter((j) => journeyArriveAbs(j) <= 24 * 60 && j.departMin >= arrAbs + sameDayMinOnSite)
         .sort((a, b) => b.departMin - a.departMin);
       return { list, sameDay: true, arrAbs };
     }
     const list = findJourneys(trains, destination, origin, retDate, journeyOpts)
-      .filter(passesVia)
-      .filter(withinSpan)
+      .filter(accept)
       .sort((a, b) => a.totalDurationMin - b.totalDurationMin || a.departMin - b.departMin);
     return { list, sameDay: false, arrAbs: 0 };
   };
@@ -2922,14 +2968,12 @@ function runTripSearch(c: RenderCtx): void {
   // arrives early enough to leave that gap before it.
   const latestSameDayReturnDepart = isSameDayTrip
     ? findJourneys(trains, destination, origin, query.date, journeyOpts)
-        .filter(passesVia)
-        .filter(withinSpan)
+        .filter(accept)
         .filter((j) => journeyArriveAbs(j) <= 24 * 60)
         .reduce((max, j) => Math.max(max, j.departMin), -Infinity)
     : Infinity;
   const outJourneys = findJourneys(trains, origin, destination, query.date, journeyOpts)
-    .filter(passesVia)
-    .filter(withinSpan)
+    .filter(accept)
     .filter((j) => !isSameDayTrip || journeyArriveAbs(j) + sameDayMinOnSite <= latestSameDayReturnDepart)
     .sort((a, b) => journeyArriveAbs(a) - journeyArriveAbs(b) || a.totalDurationMin - b.totalDurationMin);
   chosenOutbound = outJourneys[0] ?? null;
@@ -2995,8 +3039,7 @@ function runTripSearch(c: RenderCtx): void {
   const sameDayTrip = (odReturnDate ?? proposed) === query.date;
   const sameDayReturns = sameDayTrip
     ? findJourneys(trains, destination, origin, query.date, journeyOpts)
-        .filter(passesVia)
-        .filter(withinSpan)
+        .filter(accept)
         .filter((j) => journeyArriveAbs(j) <= 24 * 60)
     : [];
   const outboundStayLabel = (j: Journey): string | undefined => {
@@ -3684,15 +3727,13 @@ function buildLayout(root: HTMLElement): void {
     inp.addEventListener("input", scheduleFormCalRepaint);
     inp.addEventListener("change", deferFormCalRepaint);
   }
-  // The grid is derived from the WHOLE form, not just the route: "Max correspondances", the
-  // via hub, the departure/arrival window, the duration cap, the train type, the night-train
-  // rules, overnight stopovers and the same-day minimum time on site all reach the per-day
-  // sweeps through readQueryFromForm() → odConnOptsFor / getawayOptsFor / filterOptsFor.
-  // Changing one changes which days are possible, so each has to repaint the calendar as
-  // well — otherwise raising "Max correspondances" left the previous (now wrong) month sitting
-  // right above the control, greyed on days that had just become reachable. This only
-  // repaints: like every other filter these stay STAGED, and the results still wait for
-  // Search.
+  // Everything the search is derived from BEYOND the route: "Max correspondances", the via
+  // hub, the departure/arrival window, the duration cap, the trip span, the train type, the
+  // night-train rules, overnight stopovers, the search radius and the same-day minimum time
+  // on site. Each is one deliberate choice, so each applies live (applyFilterChange) —
+  // repainting the form calendar and refreshing the results showing that route. Before this
+  // they did neither: raising "Max correspondances" left the previous, now-wrong month
+  // sitting right above the control, greyed on days it had just opened up.
   for (const ctl of [
     refs.maxConnections,
     refs.trainType,
@@ -3703,14 +3744,16 @@ function buildLayout(root: HTMLElement): void {
     refs.night,
     refs.onlyNight,
     refs.overnight,
+    refs.hidden,
+    refs.region,
   ]) {
-    ctl.addEventListener("change", deferFormCalRepaint);
+    ctl.addEventListener("change", applyFilterChange);
   }
-  // Typed filters settle keystroke by keystroke — debounce them like the route fields, and
-  // repaint straight away on the committed value (a via pick from the datalist, a blur).
-  for (const inp of [refs.via, refs.maxDuration]) {
+  // Typed filters settle keystroke by keystroke — debounce the calendar like the route
+  // fields, and apply in full on the committed value (a via pick from the datalist, a blur).
+  for (const inp of [refs.via, refs.maxDuration, refs.maxSpanDays, refs.radius]) {
     inp.addEventListener("input", scheduleFormCalRepaint);
-    inp.addEventListener("change", deferFormCalRepaint);
+    inp.addEventListener("change", applyFilterChange);
   }
   mapPromise = null;
   mapInstance = null;

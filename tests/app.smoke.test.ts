@@ -248,26 +248,72 @@ describe("app (jsdom smoke)", () => {
     expect(root.textContent ?? "").toContain("Lyon");
   });
 
-  it("stages a field change without auto-running the search until Search is clicked", () => {
+  it("stages a typed ROUTE edit until Search is clicked", () => {
+    // The route is what stays staged: the search must not chase a half-typed station, and a
+    // destination the user hasn't committed must not ride along on anything else either.
+    const root = setup(
+      `?mode=od&from=${encodeURIComponent("PARIS (intramuros)")}&to=${encodeURIComponent("LYON (intramuros)")}&date=2026-06-25`,
+    );
+    expect(root.querySelector("#results-title")?.textContent ?? "").toContain("Lyon");
+    const dest = root.querySelectorAll<HTMLInputElement>('.od-fields input[list="station-list"]')[1]!;
+    dest.value = "TOULOUSE MATABIAU";
+    dest.dispatchEvent(new Event("input", { bubbles: true }));
+    dest.dispatchEvent(new Event("change", { bubbles: true }));
+    // Staged: the results still show the searched route.
+    expect(root.querySelector("#results-title")?.textContent ?? "").toContain("Lyon");
+
+    // A filter change must NOT smuggle the staged route in either — it stays on Lyon.
+    const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input")!;
+    conn.value = "2";
+    conn.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(root.querySelector("#results-title")?.textContent ?? "").toContain("Lyon");
+
+    // Search commits the route (and the filter that was staged with it).
+    (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+    expect(root.querySelector("#results-title")?.textContent ?? "").toContain("Toulouse");
+  });
+
+  it("applies a filter change live to the results — no second Search tap", () => {
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
     // conn=0 → only direct destinations; Toulouse (reachable via Bordeaux) is absent.
     expect(root.textContent ?? "").not.toContain("Toulouse");
 
-    // Allow one change, then commit the field. The connections select lives in its own
-    // full-width band (.connections-field), so target that rather than "the select with a
-    // 6 option" — the same-day minimum-time-there select also offers a 6 (hours).
+    // Allow one change. The connections select lives in its own full-width band
+    // (.connections-field), so target that rather than "the select with a 6 option" — the
+    // same-day minimum-time-there select also offers a 6 (hours).
     const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input");
     expect(conn).toBeTruthy();
-    conn!.value = "1";
+    conn!.value = "2";
     conn!.dispatchEvent(new Event("change", { bubbles: true }));
-    // The results must NOT recompute on a field change — still the direct-only list.
-    expect(root.textContent ?? "").not.toContain("Toulouse");
-
-    // Running the search (the submit button) applies the staged change.
-    const searchBtn = root.querySelector(".search-form button[type=submit]") as HTMLElement;
-    expect(searchBtn).not.toBeNull();
-    searchBtn.click();
+    // The list follows the control it was just given — the connection-only city appears.
     expect(root.textContent ?? "").toContain("Toulouse");
+    // …and the applied filter is in the URL, so a reload / Share carries it.
+    expect(new URLSearchParams(location.search).get("conn")).toBe("2");
+  });
+
+  it("holds a live filter back while the reload prompt is up (Search still owns the first run)", () => {
+    // A reload restores the form but deliberately waits for Search. A filter change must not
+    // sneak a search in behind that prompt — it only repaints the form calendar.
+    const original = performance.getEntriesByType.bind(performance);
+    const spy = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockImplementation((type: string) =>
+        type === "navigation" ? ([{ type: "reload" }] as unknown as PerformanceEntryList) : original(type),
+      );
+    try {
+      const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&conn=0`);
+      expect(root.querySelectorAll(".group-card").length).toBe(0);
+      const conn = root.querySelector<HTMLSelectElement>(".connections-field select.input")!;
+      conn.value = "1";
+      conn.dispatchEvent(new Event("change", { bubbles: true }));
+      expect(root.querySelectorAll(".group-card").length).toBe(0);
+      expect(root.textContent ?? "").not.toContain("Toulouse");
+      // Search runs it, filter included.
+      (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+      expect(root.textContent ?? "").toContain("Toulouse");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("repaints the form's possible-days calendar when Max changes is raised (bug: stale grid)", () => {
@@ -293,9 +339,7 @@ describe("app (jsdom smoke)", () => {
     conn.dispatchEvent(new Event("change", { bubbles: true }));
     expect(okDays()).toBeGreaterThan(0);
 
-    // The filter is still only STAGED — the calendar refreshes, the results wait for Search.
-    expect(root.querySelector(".results .chip-via")).toBeNull();
-    (root.querySelector(".search-form button[type=submit]") as HTMLElement).click();
+    // The results follow the same control, in place: the via-Bordeaux journey is now listed.
     expect(root.querySelector(".results .chip-via")).not.toBeNull();
   });
 
@@ -320,10 +364,10 @@ describe("app (jsdom smoke)", () => {
     expect(onsiteField(nights)!.style.display).toBe("none");
   });
 
-  it("keeps a staged filter when the results refresh in place (sort change)", () => {
+  it("keeps the form's own values when the results refresh in place (sort change)", () => {
     // Regression: an in-place refresh (sort/calendar/day-shift) used to re-sync the
-    // whole form from the last-searched query, silently discarding a staged, not-yet-
-    // searched edit — the "my filter disappeared" bug.
+    // whole form from the last-searched query, silently discarding an edit the form was
+    // holding — the "my filter disappeared" bug.
     const root = setup(`?mode=from&from=${encodeURIComponent("PARIS (intramuros)")}&date=2026-06-25&nonight=1`);
     const nightBox = () => {
       // Booleans render as a toggle switch; the checkbox behind it is still the
