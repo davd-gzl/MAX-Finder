@@ -126,7 +126,9 @@ async function scenario(name, url, body, opts = {}) {
   let ok = true, detail = "";
   try {
     await page.goto(url, { waitUntil: "networkidle2", timeout: 45_000 });
-    await sleep(900); // let the async dataset load + first render settle
+    // Wait for the mounted UI, never a fixed sleep: the dataset loads asynchronously
+    // and a busy machine pushes the first render past whatever the guess was.
+    await until(async () => (await $count(page, ".mode-tab.active")) > 0);
     await body(page);
     if (errors.length) throw new Fail(`page/same-origin errors: ${errors.join(" | ")}`);
   } catch (e) {
@@ -144,6 +146,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Helpers evaluated in-page.
 const $count = (page, sel) => page.$$eval(sel, (els) => els.length).catch(() => 0);
 const $text = (page, sel) => page.$eval(sel, (el) => el.textContent || "").catch(() => null);
+// A search runs off the main thread and settles in 0.5-2.0s against the committed
+// snapshot, so anything asserting on its output polls instead of sleeping a guess.
+async function until(fn, timeout = 15_000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() >= deadline) return null;
+    await sleep(100);
+  }
+}
+const titleMatching = (page, re) =>
+  until(async () => {
+    const t = (await $text(page, "#results-title")) || "";
+    return re.test(t) ? t : null;
+  });
 // The v2 UI tabs by trip type (data-trip: simple | return | multi | ideas); the
 // search *mode* (from/to/od/tour/best) is derived from the active trip plus which
 // station fields are filled, and still travels in the URL as ?mode=.
@@ -185,8 +203,8 @@ await scenario(
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
     assert((await activeTrip(page)) === "simple", "active tab should be 'simple'");
-    const title = (await $text(page, "#results-title")) || "";
-    assert(/paris/i.test(title) && /toulouse/i.test(title), `title wrong: "${title}"`);
+    const title = await titleMatching(page, /paris[\s\S]*toulouse/i);
+    assert(title, `title wrong: "${(await $text(page, "#results-title")) || ""}"`);
     const rs = await resultsState(page);
     assert(rs.children >= 1, "results panel is empty (no calendar/rows/empty-state)");
   },
@@ -198,11 +216,12 @@ await scenario(
   "behaviour: a typed route edit stays staged until Search is clicked",
   `${BASE}?mode=od&from=${enc(P)}&to=${enc(T)}&date=${DATE}`,
   async (page) => {
-    const before = (await $text(page, "#results-title")) || "";
-    assert(/toulouse/i.test(before), `precondition failed, title="${before}"`);
-    // Change the destination to Lyon WITHOUT searching.
+    const before = await titleMatching(page, /toulouse/i);
+    assert(before, `precondition failed, title="${(await $text(page, "#results-title")) || ""}"`);
+    // Change the destination to Lyon WITHOUT searching. `.od-fields` holds the origin
+    // then the destination; the other station inputs belong to the multi-city legs.
     await page.evaluate((val) => {
-      const inputs = document.querySelectorAll('.search-form .fields input[list="station-list"]');
+      const inputs = document.querySelectorAll('.search-form .od-fields input[list="station-list"]');
       const dest = inputs[1];
       dest.value = val;
       dest.dispatchEvent(new Event("input", { bubbles: true }));
@@ -214,9 +233,8 @@ await scenario(
       `title changed before Search (staged edit leaked): "${staged}"`);
     // Now click Search — the staged change applies.
     await page.click(".search-form .form-actions button.btn-primary");
-    await sleep(700);
-    const after = (await $text(page, "#results-title")) || "";
-    assert(/lyon/i.test(after), `title did not update after Search: "${after}"`);
+    const after = await titleMatching(page, /lyon/i);
+    assert(after, `title did not update after Search: "${(await $text(page, "#results-title")) || ""}"`);
   },
 );
 
@@ -249,9 +267,10 @@ await scenario(
   `${BASE}?mode=tour&legs=${enc(`${P}>${L}@${DATE}~${L}>${P}@${DATE2}`)}&date=${DATE}`,
   async (page) => {
     assert((await activeTrip(page)) === "multi", "active tab should be 'multi'");
-    const title = (await $text(page, "#results-title")) || "";
-    assert(/multi/i.test(title), `multi-city title wrong: "${title}"`);
-    assert((await $count(page, ".mc-result")) >= 1, "no multi-city leg sections rendered");
+    const title = await titleMatching(page, /multi/i);
+    assert(title, `multi-city title wrong: "${(await $text(page, "#results-title")) || ""}"`);
+    assert(await until(async () => (await $count(page, ".mc-result")) >= 1),
+      "no multi-city leg sections rendered");
     const rs = await resultsState(page);
     assert(rs.children >= 1, "multi-city results panel empty");
   },
@@ -263,10 +282,13 @@ await scenario(
   `${BASE}?mode=best&from=${enc(P)}&date=${DATE}`,
   async (page) => {
     assert((await activeTrip(page)) === "ideas", "active tab should be 'ideas'");
-    const rs = await resultsState(page);
     // Ideas discovers EVERY destination from the origin — it must render a populated ranked
     // list, not a blank/empty state (regression: the page rendered nothing).
-    assert(rs.children >= 3 && !rs.hasEmpty, "ideas did not render a populated destination list");
+    const rs = await until(async () => {
+      const s = await resultsState(page);
+      return s.children >= 3 && !s.hasEmpty ? s : null;
+    });
+    assert(rs, "ideas did not render a populated destination list");
     assert(
       (await $count(page, ".results [data-station], .results [class*='-row']")) > 0,
       "ideas rendered no destination rows",
@@ -336,12 +358,15 @@ await scenario(
     // Locale of the headless browser can be en or fr; accept either 1-night label.
     assert(["1 night", "1 nuit"].includes(stepperText), `nights stepper should read one night (got '${stepperText}')`);
     // Two-leg accordion (Aller / Retour), each a collapsible .mc-result section.
-    assert((await $count(page, ".mc-result")) === 2, "expected a two-leg accordion (outbound + return)");
+    assert(await until(async () => (await $count(page, ".mc-result")) === 2),
+      "expected a two-leg accordion (outbound + return)");
     // Both possible-days calendars (outbound + return) are collapse-by-click: for a FIXED
     // 1-night stay each is collapsed behind its own "Départ / Retour : … · Changer" toggle,
     // so at least two calendar grids and two toggles exist in the DOM.
-    assert((await $count(page, ".cal-grid")) >= 2, "expected the outbound + return availability calendars");
-    assert((await $count(page, ".cal-toggle")) >= 2, "expected both collapsed-calendar toggles");
+    assert(await until(async () => (await $count(page, ".cal-grid")) >= 2),
+      "expected the outbound + return availability calendars");
+    assert(await until(async () => (await $count(page, ".cal-toggle")) >= 2),
+      "expected both collapsed-calendar toggles");
   },
 );
 
