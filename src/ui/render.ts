@@ -472,14 +472,18 @@ export function groupCardEl(
   const main = el(
     "button",
     {
-      class: "dest-main",
+      class: "dest-main dest-main-stacked",
       type: "button",
       attrs: { "aria-label": `${ctx.label(group.station)} — ${summary}` },
       on: { click: () => ctx.onOpenRoute(origin, destination) },
     },
     [
-      stationNameEl("dest-name", group.station, ctx.label(group.station)),
-      el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, meta),
+      // Name on its own line above the chips, as on the other discovery cards: in one row the
+      // fixed-width chip and duration leave it a few pixels in a narrow list, and "Lyon" vanishes.
+      el("div", { class: "dest-body" }, [
+        stationNameEl("dest-name", group.station, ctx.label(group.station)),
+        el("span", { class: "dest-meta", attrs: { "aria-hidden": "true" } }, meta),
+      ]),
       el("span", { class: "chev", attrs: { "aria-hidden": "true" } }, [icon(I.arrow)]),
     ],
   );
