@@ -3323,6 +3323,10 @@ select.input::-ms-expand {
   flex-wrap: wrap;
   padding: 0;
 }
+/* A chip wider than the list wraps its words, as on a phone, rather than running under the arrow stub. */
+.dest-main > .dest-body .stat-chip {
+  white-space: normal;
+}
 .dest-main > .chev {
   align-self: stretch;
   margin-inline-start: 6px;
