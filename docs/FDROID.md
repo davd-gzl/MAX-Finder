@@ -78,13 +78,13 @@ Categories:
   - Travel
 License: AGPL-3.0-only
 AuthorName: MAX Finder contributors
-SourceCode: https://github.com/davd-gzl/MAX-Finder
-IssueTracker: https://github.com/davd-gzl/MAX-Finder/issues
+SourceCode: https://github.com/offware-apps/MAX-Finder
+IssueTracker: https://github.com/offware-apps/MAX-Finder/issues
 
 AutoName: MAX Finder
 
 RepoType: git
-Repo: https://github.com/davd-gzl/MAX-Finder.git
+Repo: https://github.com/offware-apps/MAX-Finder.git
 
 Builds:
   - versionName: 0.1.0

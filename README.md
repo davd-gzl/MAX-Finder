@@ -2,7 +2,7 @@
 
 **Find every SNCF train where a free MAX JEUNE / MAX SENIOR (ex-TGVmax) seat is actually reservable — instead of checking SNCF Connect one route at a time.**
 
-### ▶ [**Try it live — davd-gzl.github.io/MAX-Finder**](https://davd-gzl.github.io/MAX-Finder/) — no signup, runs in your browser
+### ▶ [**Try it live — offware-apps.github.io/MAX-Finder**](https://offware-apps.github.io/MAX-Finder/) — no signup, runs in your browser
 
 With a MAX JEUNE or MAX SENIOR pass, high-speed trains are free — but only when a MAX seat is still open on that train. SNCF Connect makes you check one route at a time; MAX Finder shows every station you can reach for free from a single search, using SNCF's open availability data.
 
@@ -142,4 +142,4 @@ Machine-readable and serverless — [`llms.txt`](public/llms.txt) and [`api.json
 
 ## Credits
 
-- **[@AhmedFr](https://github.com/AhmedFr)** — designed the **map-first view** (List/Map toggle, full-bleed map with a floating results panel) and the **connection-count pin tinting**, originally in [#2](https://github.com/davd-gzl/MAX-Finder/pull/2). That work was salvaged onto the current codebase in [#21](https://github.com/davd-gzl/MAX-Finder/pull/21) and refined in [#26](https://github.com/davd-gzl/MAX-Finder/pull/26).
+- **[@AhmedFr](https://github.com/AhmedFr)** — designed the **map-first view** (List/Map toggle, full-bleed map with a floating results panel) and the **connection-count pin tinting**, originally in [#2](https://github.com/offware-apps/MAX-Finder/pull/2). That work was salvaged onto the current codebase in [#21](https://github.com/offware-apps/MAX-Finder/pull/21) and refined in [#26](https://github.com/offware-apps/MAX-Finder/pull/26).

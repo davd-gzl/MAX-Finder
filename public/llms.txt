@@ -9,10 +9,10 @@ static JSON served over HTTPS; there is no rate limit beyond normal hosting.
 
 ## Machine-readable data
 
-- Availability snapshot (JSON array): https://davd-gzl.github.io/MAX-Finder/data/tgvmax.json
-- Snapshot metadata: https://davd-gzl.github.io/MAX-Finder/data/meta.json
-- Station registry (coordinates, region, aliases): https://davd-gzl.github.io/MAX-Finder/data/stations.json
-- API manifest (schema + query params, machine-readable): https://davd-gzl.github.io/MAX-Finder/api.json
+- Availability snapshot (JSON array): https://offware-apps.github.io/MAX-Finder/data/tgvmax.json
+- Snapshot metadata: https://offware-apps.github.io/MAX-Finder/data/meta.json
+- Station registry (coordinates, region, aliases): https://offware-apps.github.io/MAX-Finder/data/stations.json
+- API manifest (schema + query params, machine-readable): https://offware-apps.github.io/MAX-Finder/api.json
 - Upstream source (refreshed ~once a day): SNCF Open Data "tgvmax" (Licence Ouverte)
 
 ### Record shape (tgvmax.json)
@@ -37,7 +37,7 @@ Stations use SNCF labels, e.g. `"PARIS (intramuros)"`, `"LYON (intramuros)"`,
 
 ## Search / deep-link API (build a shareable URL)
 
-Base: `https://davd-gzl.github.io/MAX-Finder/`
+Base: `https://offware-apps.github.io/MAX-Finder/`
 Query params:
 - `mode`: `from` | `to` | `od` | `tour` | `best`
 - `from`: origin station id ; `to`: destination station id (in `mode=tour`, the optional finish city; set `to`=`from` for a loop)
@@ -65,24 +65,24 @@ Query params:
 
 Examples:
 - Where can I go from Paris on 2026-06-25:
-  `https://davd-gzl.github.io/MAX-Finder/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25`
+  `https://offware-apps.github.io/MAX-Finder/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25`
 - Paris → Toulouse incl. up to one change:
-  `https://davd-gzl.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
+  `https://offware-apps.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=TOULOUSE%20MATABIAU&date=2026-06-25&conn=1`
 - Paris → Lyon round trip, back two days later:
-  `https://davd-gzl.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=LYON%20(intramuros)&date=2026-06-25&rdate=2026-06-27`
+  `https://offware-apps.github.io/MAX-Finder/?mode=od&from=PARIS%20(intramuros)&to=LYON%20(intramuros)&date=2026-06-25&rdate=2026-06-27`
 - Weekend getaways from Paris (1 night):
-  `https://davd-gzl.github.io/MAX-Finder/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25&rt=1&nights=1`
+  `https://offware-apps.github.io/MAX-Finder/?mode=from&from=PARIS%20(intramuros)&date=2026-06-25&rt=1&nights=1`
 - A Bretagne tour from Rennes, 1–2 days per city, no hop over 300 km:
-  `https://davd-gzl.github.io/MAX-Finder/?mode=tour&from=RENNES&rg=Bretagne&dmin=1&dmax=2&legkm=300&date=2026-06-25`
+  `https://offware-apps.github.io/MAX-Finder/?mode=tour&from=RENNES&rg=Bretagne&dmin=1&dmax=2&legkm=300&date=2026-06-25`
 - An explicit multi-city itinerary (Paris → Lyon → Toulon):
-  `https://davd-gzl.github.io/MAX-Finder/?mode=tour&legs=PARIS%20(intramuros)>LYON%20(intramuros)@2026-06-25~LYON%20(intramuros)>TOULON@2026-06-27`
+  `https://offware-apps.github.io/MAX-Finder/?mode=tour&legs=PARIS%20(intramuros)>LYON%20(intramuros)@2026-06-25~LYON%20(intramuros)>TOULON@2026-06-27`
 
 ## Docs (HTML, crawlable)
 
-- FAQ (French): https://davd-gzl.github.io/MAX-Finder/faq/
-- How it works: https://davd-gzl.github.io/MAX-Finder/docs/how-it-works.html
-- Algorithms: https://davd-gzl.github.io/MAX-Finder/docs/algorithms.html
-- Full context in one fetch (this file + docs + FAQ): https://davd-gzl.github.io/MAX-Finder/llms-full.txt
+- FAQ (French): https://offware-apps.github.io/MAX-Finder/faq/
+- How it works: https://offware-apps.github.io/MAX-Finder/docs/how-it-works.html
+- Algorithms: https://offware-apps.github.io/MAX-Finder/docs/algorithms.html
+- Full context in one fetch (this file + docs + FAQ): https://offware-apps.github.io/MAX-Finder/llms-full.txt
 
 ## Disclaimer
 
