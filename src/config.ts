@@ -54,10 +54,10 @@ export const META_URL = `${BASE}data/meta.json`;
 
 export const SNCF_CONNECT_URL = "https://www.sncf-connect.com/";
 
-export const SITE_URL = "https://davd-gzl.github.io/MAX-Finder/";
+export const SITE_URL = "https://offware-apps.github.io/MAX-Finder/";
 
 /** Project repository (used for the header star link and the feedback button). */
-export const GITHUB_URL = "https://github.com/davd-gzl/MAX-Finder";
+export const GITHUB_URL = "https://github.com/offware-apps/MAX-Finder";
 export const GITHUB_ISSUES_URL = `${GITHUB_URL}/issues/new`;
 
 /** Official SNCF pages describing the MAX JEUNE / MAX SENIOR subscriptions. */
